@@ -1,6 +1,6 @@
 [project]
 name = "wendao"
-version = "0.2.2"
+version = "0.2.3"
 description = "An AI learning companion: turn course notes into an interactive knowledge graph and a course-grounded AI tutor"
 readme = "README.md"
 license = "GPL-3.0-or-later"
