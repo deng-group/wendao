@@ -450,3 +450,51 @@ class ReviewFixesTest(unittest.TestCase):
         text = read_docx(path).parts[0].text
         self.assertLess(text.index("Before the table."), text.index("Item | Goggles"))
         self.assertLess(text.index("Item | Goggles"), text.index("After the table."))
+
+
+class PinnedEndpointTest(unittest.TestCase):
+    """A checked student AI address is pinned, so DNS can't re-point it at a private machine."""
+
+    PUBLIC = [(None, None, None, "", ("93.184.216.34", 443))]
+
+    def test_policy_pins_the_checked_address(self):
+        with mock.patch("socket.getaddrinfo", return_value=self.PUBLIC):
+            _, provider = AiPolicy.from_settings("either").choose(
+                {"ai": {"provider": "openai", "api_key": "sk", "base_url": "https://api.example.com/v1"}}, "s")
+        self.assertEqual(provider.pinned_ip, "93.184.216.34")
+        with self.assertRaisesRegex(AiUnavailable, "Gemini"):
+            AiPolicy.from_settings("either").choose(
+                {"ai": {"provider": "gemini", "api_key": "k", "base_url": "https://example.com"}}, "s")
+
+    def test_openai_connects_to_the_pinned_ip_without_looking_up_the_name(self):
+        from wendao.rag import providers
+
+        provider = providers.OpenAICompatibleProvider(
+            model="m", api_key="sk", base_url="https://api.example.com/v1", use_env=False,
+            follow_redirects=False, pinned_ip="93.184.216.34")
+        connected = []
+
+        def fake_connect(address, *args, **kwargs):
+            connected.append(address)
+            raise OSError("stop here")
+
+        with mock.patch.object(providers.socket, "create_connection", fake_connect), \
+                mock.patch("socket.getaddrinfo", side_effect=AssertionError("the name must not be looked up again")):
+            with self.assertRaises(RuntimeError):
+                provider.generate({"messages": [{"content": "s"}, {"content": "q"}], "evidence": []})
+        self.assertEqual(connected, [("93.184.216.34", 443)])
+
+    def test_anthropic_tells_curl_to_use_the_pinned_ip(self):
+        from wendao.rag import providers
+
+        provider = providers.AnthropicProvider(
+            model="m", api_key="sk", base_url="https://relay.example.com", use_env=False, pinned_ip="93.184.216.34")
+        seen = {}
+
+        def fake_run(args, **kwargs):
+            seen["config"] = Path(args[args.index("--config") + 1]).read_text(encoding="utf-8")
+            raise OSError("stop here")
+
+        with mock.patch.object(providers.subprocess, "run", fake_run), self.assertRaises(OSError):
+            provider.generate({"messages": [{"content": "s"}, {"content": "q"}], "evidence": []})
+        self.assertIn('resolve = "relay.example.com:443:93.184.216.34"', seen["config"])

@@ -35,13 +35,16 @@ class AiUnavailable(Exception):
     code = "AiUnavailable"
 
 
-def check_public_endpoint(url: str) -> None:
+def check_public_endpoint(url: str) -> str:
     """Refuse a student-supplied AI address that would make this server reach a private machine (SSRF).
 
     On a public course server, the address must use HTTPS and resolve only to public internet
     addresses: no localhost, private networks (10.x, 192.168.x, ...), link-local (cloud metadata),
     or other reserved ranges. Course apps on a student's laptop skip this check, so they can use a
     local model such as Ollama.
+
+    Returns the checked IP address; the provider connects only to it, so the name can't be
+    re-pointed at a private machine between this check and the request (DNS rebinding).
     """
     parts = urlsplit(url)
     if parts.scheme != "https" or not parts.hostname:
@@ -58,6 +61,7 @@ def check_public_endpoint(url: str) -> None:
                 f"The AI server address {parts.hostname} points to a private or local network, which this course "
                 "website can't reach. Use a public https:// address, or a local model in the course app."
             )
+    return sorted(addresses)[0].split("%")[0]
 
 
 class LoginRequired(AiUnavailable):
@@ -190,13 +194,17 @@ class AiPolicy:
             if name not in PROVIDER_NAMES or name == "dry_run":
                 raise AiUnavailable("Choose an AI provider in Settings: Anthropic, OpenAI-compatible, or Gemini.")
             base_url = str(own.get("base_url") or "").strip()
+            pinned_ip = None
             if base_url and not self.allow_private_endpoints:
-                check_public_endpoint(base_url)
+                if name == "gemini":
+                    raise AiUnavailable("Gemini uses Google's own address; leave the server address empty.")
+                pinned_ip = check_public_endpoint(base_url)
             provider = provider_from_name(
                 name,
                 model=str(own.get("model") or "") or None,
                 api_key=str(own.get("api_key") or "") or "none",  # local OpenAI-compatible servers often need no key
                 base_url=base_url or None,
+                pinned_ip=pinned_ip,
             )
             return "provider", provider
         if self.mode == "student":
