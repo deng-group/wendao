@@ -1,5 +1,5 @@
 # Wendao settings for this course. Paths are relative to this folder.
-# Full reference: https://github.com/deng-group/Nexus#settings
+# Guide: https://github.com/deng-group/wendao#2-describe-your-course
 
 [course]
 name = "{name}"

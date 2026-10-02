@@ -1,5 +1,5 @@
 <p align="center">
-  <a href="https://github.com/deng-group/Nexus"><img src="docs/assets/logo/wendao_logo.svg" width="520" alt="Wendao: ask the way. An AI learning companion."></a>
+  <a href="https://github.com/deng-group/wendao"><img src="https://raw.githubusercontent.com/deng-group/wendao/main/docs/assets/logo/wendao_logo.svg" width="520" alt="Wendao: ask the way. An AI learning companion."></a>
 </p>
 
 <p align="center">
@@ -19,12 +19,12 @@ It was built for the NUS course [MLE4217/5219 Materials Informatics](https://mle
 that course as its example. Nothing in the code is tied to that course, so you can run it on any course written as Markdown pages
 and Jupyter notebooks.
 
-More docs: [developer notes](README_DEVELOPERS.md) · [student guide](README_STUDENTS.md) · [product plan](docs/PROJECT_PLAN.md)
+More docs: [developer notes](https://github.com/deng-group/wendao/blob/main/README_DEVELOPERS.md) · [student guide](https://github.com/deng-group/wendao/blob/main/README_STUDENTS.md) · [product plan](https://github.com/deng-group/wendao/blob/main/docs/PROJECT_PLAN.md)
 
 ## How it works
 
 <p align="center">
-  <img src="docs/assets/wendao_workflow.png" width="100%" alt="Wendao workflow: course materials are extracted and chunked, feed a retrieval-augmented generation pipeline and an LLM, and surface as an interactive knowledge graph and an AI learning agent">
+  <img src="https://raw.githubusercontent.com/deng-group/wendao/main/docs/assets/wendao_workflow.png" width="100%" alt="Wendao workflow: course materials are extracted and chunked, feed a retrieval-augmented generation pipeline and an LLM, and surface as an interactive knowledge graph and an AI learning agent">
 </p>
 
 1. **Extract.** Wendao reads your course pages and notebooks and splits them into small pieces called chunks.
@@ -42,10 +42,10 @@ Blue nodes are chapters and orange nodes are concepts. Click a chapter to see it
 that uses it. You can also filter with the legend or search.
 
 <p align="center">
-  <img src="docs/assets/demo/knowledge_graph_demo.gif" width="100%" alt="Screen recording: exploring the Wendao knowledge graph by clicking nodes, using the legend, and searching">
+  <img src="https://raw.githubusercontent.com/deng-group/wendao/main/docs/assets/demo/knowledge_graph_demo.gif" width="100%" alt="Screen recording: exploring the Wendao knowledge graph by clicking nodes, using the legend, and searching">
 </p>
 
-<p align="center"><sub>Full-resolution video: <a href="docs/assets/demo/knowledge_graph_demo.mp4">knowledge_graph_demo.mp4</a></sub></p>
+<p align="center"><sub>Full-resolution video: <a href="https://github.com/deng-group/wendao/blob/main/docs/assets/demo/knowledge_graph_demo.mp4">knowledge_graph_demo.mp4</a></sub></p>
 
 ### AI learning agent
 
@@ -53,10 +53,10 @@ Select a node and press **Explain**, or pick one of the suggested questions. You
 course page from the answer. If the course doesn't cover a question, the agent tells you.
 
 <p align="center">
-  <img src="docs/assets/demo/ai_learning_agent_demo.gif" width="100%" alt="Screen recording: asking the Wendao AI learning agent to explain a selected node, following up, and opening the cited course page">
+  <img src="https://raw.githubusercontent.com/deng-group/wendao/main/docs/assets/demo/ai_learning_agent_demo.gif" width="100%" alt="Screen recording: asking the Wendao AI learning agent to explain a selected node, following up, and opening the cited course page">
 </p>
 
-<p align="center"><sub>Full-resolution video: <a href="docs/assets/demo/ai_learning_agent_demo.mp4">ai_learning_agent_demo.mp4</a></sub></p>
+<p align="center"><sub>Full-resolution video: <a href="https://github.com/deng-group/wendao/blob/main/docs/assets/demo/ai_learning_agent_demo.mp4">ai_learning_agent_demo.mp4</a></sub></p>
 
 ## Why use it
 
@@ -72,13 +72,13 @@ will and won't answer before students use it.
 You need Python 3.11 or newer and `curl`. Install the `wendao` command with [uv](https://docs.astral.sh/uv/):
 
 ```bash
-uv tool install git+https://github.com/deng-group/Nexus
+uv tool install wendao
 ```
 
 Or with pip:
 
 ```bash
-pip install git+https://github.com/deng-group/Nexus
+pip install wendao
 ```
 
 Check it works with `wendao --help`.
@@ -116,8 +116,8 @@ Run any command with `--help` to see its options.
 The repository includes a ready-built workspace for MLE4217/5219:
 
 ```bash
-git clone https://github.com/deng-group/Nexus.git
-cd Nexus/examples/mle4217_5219
+git clone https://github.com/deng-group/wendao.git
+cd wendao/examples/mle4217_5219
 wendao ask --search-only "What is a convex hull?"    # works without a model
 ```
 
@@ -153,7 +153,7 @@ Then list the concepts for the knowledge graph in `concepts.json`. For each conc
 {"id": "convex-hull", "label": "Convex Hull", "category": "thermodynamics", "aliases": ["convex hull", "convex hulls"]}
 ```
 
-See [`examples/mle4217_5219/`](examples/mle4217_5219/) for a complete example.
+See [`examples/mle4217_5219/`](https://github.com/deng-group/wendao/tree/main/examples/mle4217_5219/) for a complete example.
 
 ### 3. Build
 
@@ -207,8 +207,8 @@ models, such as OpenAI's reasoning models, don't accept one; set `temperature = 
 wendao serve
 ```
 
-To put Wendao on a server, see [`deploy/DEPLOYMENT.md`](deploy/DEPLOYMENT.md). To add the agent to your course website as a chat
-widget, run `wendao serve --widget` and see [`README_DEVELOPERS.md`](README_DEVELOPERS.md).
+To put Wendao on a server, see [`deploy/DEPLOYMENT.md`](https://github.com/deng-group/wendao/blob/main/deploy/DEPLOYMENT.md). To add the agent to your course website as a chat
+widget, run `wendao serve --widget` and see [`README_DEVELOPERS.md`](https://github.com/deng-group/wendao/blob/main/README_DEVELOPERS.md).
 
 ## Testing your agent
 
@@ -237,8 +237,8 @@ Reports are saved in `build/reports/`.
 ## Developing Wendao
 
 ```bash
-git clone https://github.com/deng-group/Nexus.git
-cd Nexus
+git clone https://github.com/deng-group/wendao.git
+cd wendao
 uv sync --all-extras                       # creates .venv with the locked versions, `wendao` included
 uv run python -m unittest discover -s tests
 ```
@@ -262,8 +262,13 @@ cite this repository:
 ```bibtex
 @software{wendao2026,
   author = {Deng, Zeyu and contributors},
-  title  = {Wendao: an interactive course knowledge graph and AI learning agent},
+  title  = {Wendao: an AI learning companion with an interactive course knowledge graph},
   year   = {2026},
-  url    = {https://github.com/deng-group/Nexus}
+  url    = {https://github.com/deng-group/wendao}
 }
 ```
+
+## License
+
+Wendao is free software under the [GNU General Public License v3.0 or later](https://github.com/deng-group/wendao/blob/main/LICENSE). You can use, study, change, and share it.
+If you share a changed version, you must share its source code under the same license.

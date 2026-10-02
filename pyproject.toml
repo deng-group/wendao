@@ -1,8 +1,24 @@
 [project]
 name = "wendao"
 version = "0.1.0"
-description = "Turn course notes into an interactive knowledge graph and a course-grounded AI learning agent"
+description = "An AI learning companion: turn course notes into an interactive knowledge graph and a course-grounded AI tutor"
 readme = "README.md"
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE"]
+keywords = ["education", "learning", "knowledge graph", "rag", "llm", "tutor", "course"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Web Environment",
+    "Intended Audience :: Education",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Education",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
 requires-python = ">=3.11"
 authors = [{ name = "Zeyu Deng" }]
 dependencies = [
@@ -22,10 +38,13 @@ deploy = ["gunicorn>=22,<24"]
 wendao = "wendao.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/deng-group/Nexus"
+Homepage = "https://github.com/deng-group/wendao"
+Documentation = "https://github.com/deng-group/wendao#readme"
+Issues = "https://github.com/deng-group/wendao/issues"
+"Example course" = "https://mle4217-5219.matsci.dev/"
 
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
