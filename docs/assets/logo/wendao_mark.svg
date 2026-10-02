@@ -1,17 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-label="Wendao mark: a question mark drawn as a path through knowledge-graph nodes">
-  <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#ffffff"/>
-      <stop offset="1" stop-color="#eef3fb"/>
-    </linearGradient>
-  </defs>
-  <g transform="translate(0 0)">
-    <rect x="2" y="2" width="124" height="124" rx="28" fill="url(#bg)" stroke="#d7deea" stroke-width="2"/>
-    <path d="M40 50 C40 31 52 23 64 23 C79 23 90 33 90 47 C90 60 80 65 72 70 C66 74 64 78 64 85"
-          fill="none" stroke="#8a98ad" stroke-width="6" stroke-linecap="round"/>
-    <circle cx="40" cy="50" r="9.5" fill="#ffffff" stroke="#2563eb" stroke-width="5"/>
-    <circle cx="90" cy="47" r="10" fill="#2563eb"/>
-    <circle cx="64" cy="85" r="9.5" fill="#ffffff" stroke="#2563eb" stroke-width="5"/>
-    <circle cx="64" cy="106" r="8" fill="#d97706"/>
-  </g>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-label="Wendao mark: a W folded from one ribbon"><defs>
+  <linearGradient id="light" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6366f1"/><stop offset="1" stop-color="#22d3ee"/></linearGradient>
+  <linearGradient id="dark" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#312e81"/><stop offset="1" stop-color="#1e40af"/></linearGradient>
+  <linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4f46e5"/><stop offset="1" stop-color="#0ea5e9"/></linearGradient>
+</defs><polygon points="28.5,104 45.5,104 72.5,48 55.5,48" fill="url(#light)"/><polygon points="82.5,104 99.5,104 118.0,24 101.0,24" fill="url(#light)"/><polygon points="10.0,24 27.0,24 45.5,104 28.5,104" fill="url(#dark)"/><polygon points="55.5,48 72.5,48 99.5,104 82.5,104" fill="url(#dark)"/></svg>
