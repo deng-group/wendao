@@ -172,7 +172,7 @@ class AnswerGenerator:
         sources = []
         seen = set()
         for item in evidence:
-            key = (item["title"], item["file_path"])
+            key = (item["title"], item["file_path"], item.get("location", ""))
             if key in seen:
                 continue
             seen.add(key)
@@ -180,6 +180,7 @@ class AnswerGenerator:
                 {
                     "title": item["title"],
                     "file_path": item["file_path"],
+                    "location": item.get("location", ""),
                     "chunk_id": item["chunk_id"],
                     "score": item["score"],
                 }
@@ -192,6 +193,7 @@ class AnswerGenerator:
             {
                 "title": source["title"],
                 "file_path": source["file_path"],
+                "location": source.get("location", ""),
                 "score": source["score"],
             }
             for source in sources

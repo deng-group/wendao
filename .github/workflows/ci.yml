@@ -18,6 +18,6 @@ jobs:
           python-version: ${{ matrix.python-version }}
           enable-cache: true
       - name: Install
-        run: uv sync --frozen --all-extras
+        run: uv sync --frozen --extra deploy
       - name: Unit tests
         run: uv run python -m unittest discover -s tests -v

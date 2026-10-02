@@ -23,6 +23,7 @@ def public_sources(sources: list[dict]) -> list[dict]:
         {
             "title": source["title"],
             "file_path": source["file_path"],
+            "location": source.get("location", ""),
             "score": source["score"],
         }
         for source in sources

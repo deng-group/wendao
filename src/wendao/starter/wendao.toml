@@ -8,7 +8,8 @@ website = ""                  # published course site, so answers can link to th
 # term = "AY2025/2026 Semester 2"   # otherwise read from a "- Year: ..." line in syllabus.md
 
 [source]
-path = "{source}"             # folder with your Markdown pages and Jupyter notebooks
+path = "{source}"             # folder with your notes: Markdown, notebooks, PDF, PowerPoint, Word, LaTeX, HTML, text
+# file_types = ["pdf", "pptx"]  # only read these types (default: all of them)
 exclude = []                  # files to skip, relative to the source folder
 ignore_dirs = []              # extra folders to skip (_build, .git, ... are always skipped)
 
@@ -22,6 +23,8 @@ ignore_dirs = []              # extra folders to skip (_build, .git, ... are alw
 [search]
 # Spelling variants students might type, and what they should mean.
 aliases = {}                  # e.g. { "convexhull" = "convex hull" }
+# engine = "auto"             # "onnx" (CPU, default) or "torch" (needs: pip install "wendao[gpu]")
+# device = "auto"             # for engine = "torch": "cuda", "mps", or "cpu"
 
 [graph]
 # Very common concepts that shouldn't link chapters on their own (e.g. "python").

@@ -73,7 +73,7 @@ function setSources(sources) {
       <div class="source-score"></div>
     `;
     item.querySelector(".source-title").textContent = source.title || "Untitled";
-    item.querySelector(".source-path").textContent = source.file_path || "";
+    item.querySelector(".source-path").textContent = [source.file_path, source.location].filter(Boolean).join(", ");
     item.querySelector(".source-score").textContent = `score ${Number(source.score || 0).toFixed(3)}`;
     sourcesEl.appendChild(item);
   }

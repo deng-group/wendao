@@ -770,7 +770,7 @@ function setSources(sources = []) {
     const item = document.createElement(source.url ? "a" : "div"); item.className = "source-item";
     if (source.url) { item.href = source.url; item.target = "_blank"; item.rel = "noopener noreferrer"; }
     const title = document.createElement("strong"); title.textContent = source.title || "Course material";
-    const path = document.createElement("small"); path.textContent = source.file_path || "";
+    const path = document.createElement("small"); path.textContent = [source.file_path, source.location].filter(Boolean).join(", ");
     item.append(title, path); elements.sourceList.appendChild(item);
   }
 }

@@ -69,6 +69,7 @@ class Workspace:
     term: str = ""
     source: Path | None = None
     use_toc: bool = False
+    file_types: list[str] = field(default_factory=list)
     exclude: list[str] = field(default_factory=list)
     ignore_dirs: list[str] = field(default_factory=lambda: list(DEFAULT_IGNORE_DIRS))
     time_sensitive_files: list[str] = field(default_factory=lambda: list(DEFAULT_TIME_SENSITIVE_FILES))
@@ -78,6 +79,8 @@ class Workspace:
     logistics_terms: list[str] = field(default_factory=lambda: list(DEFAULT_LOGISTICS_TERMS))
     out_of_scope_terms: list[str] = field(default_factory=lambda: list(DEFAULT_OUT_OF_SCOPE_TERMS))
     embedding_model: str = DEFAULT_EMBEDDING_MODEL
+    search_engine: str = "auto"
+    search_device: str = "auto"
     model: dict = field(default_factory=dict)
 
     # Workspace files
@@ -117,6 +120,13 @@ class Workspace:
     @property
     def reports_dir(self) -> Path:
         return self.build_dir / "reports"
+
+    @property
+    def file_suffixes(self) -> set[str] | None:
+        """File types to read from the notes folder, e.g. {".md", ".pdf"}; None means all supported types."""
+        if not self.file_types:
+            return None
+        return {"." + kind.lower().lstrip(".") for kind in self.file_types}
 
     @property
     def display_name(self) -> str:
@@ -192,6 +202,13 @@ def load(start: Path | None = None) -> Workspace:
             )
         )
 
+    from wendao.ingest import SUPPORTED_SUFFIXES
+
+    unknown = sorted({"." + str(k).lower().lstrip(".") for k in source.get("file_types", [])} - SUPPORTED_SUFFIXES)
+    if unknown:
+        supported = ", ".join(sorted(suffix.lstrip(".") for suffix in SUPPORTED_SUFFIXES))
+        raise WorkspaceError(f"Unsupported file_types in {CONFIG_NAME}: {', '.join(unknown)}. Supported: {supported}.")
+
     workspace = Workspace(
         root=root,
         course_name=course.get("name", root.name),
@@ -199,6 +216,7 @@ def load(start: Path | None = None) -> Workspace:
         website=course.get("website", ""),
         term=course.get("term", ""),
         use_toc=bool(source.get("use_toc", False)),
+        file_types=[str(kind) for kind in source.get("file_types", [])],
         source=(root / source["path"]).resolve() if source.get("path") else None,
         exclude=list(source.get("exclude", [])),
         ignore_dirs=list(DEFAULT_IGNORE_DIRS) + [d for d in source.get("ignore_dirs", []) if d not in DEFAULT_IGNORE_DIRS],
@@ -209,6 +227,8 @@ def load(start: Path | None = None) -> Workspace:
         logistics_terms=list(search.get("logistics_terms", DEFAULT_LOGISTICS_TERMS)),
         out_of_scope_terms=list(search.get("out_of_scope_terms", DEFAULT_OUT_OF_SCOPE_TERMS)),
         embedding_model=search.get("embedding_model", DEFAULT_EMBEDDING_MODEL),
+        search_engine=str(search.get("engine", "auto")),
+        search_device=str(search.get("device", "auto")),
         model=dict(config.get("model", {})),
     )
     return workspace

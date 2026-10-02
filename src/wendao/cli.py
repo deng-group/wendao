@@ -98,7 +98,15 @@ def step_extract(workspace: Workspace) -> None:
     say(f"Extracting notes from {relative(workspace, workspace.require_source())} ...")
     summary = extract(workspace)
     term = f" Term: {summary['term']}." if summary["term"] else ""
-    say(f"  {summary['files']} files → {summary['chunks']} chunks in {relative(workspace, workspace.chunks_path)}.{term}")
+    types = f" ({', '.join(summary['types'])})" if summary["types"] else ""
+    say(f"  {summary['files']} files{types} → {summary['chunks']} chunks in {relative(workspace, workspace.chunks_path)}.{term}")
+    for warning in summary["warnings"]:
+        say(f"  Warning: {warning}")
+    if not summary["chunks"]:
+        raise RuntimeError(
+            "No text was found in your notes. Supported files: Markdown, Jupyter notebooks, PDF, PowerPoint (.pptx), "
+            "Word (.docx), LaTeX (.tex), HTML, and plain text."
+        )
 
 
 def step_graph(workspace: Workspace) -> None:
@@ -118,8 +126,7 @@ def step_index(workspace: Workspace, rebuild: bool = True) -> None:
 
     say("Building the search index (the first run downloads the search model) ...")
     pipeline = QueryPipeline.for_workspace(workspace, rebuild_index=rebuild)
-    backend = pipeline.retriever.embedding.backend
-    say(f"  {len(pipeline.retriever.chunks)} chunks indexed with {backend} → {relative(workspace, workspace.index_dir)}")
+    say(f"  {len(pipeline.retriever.chunks)} chunks indexed with {pipeline.retriever.embedding.description} → {relative(workspace, workspace.index_dir)}")
 
 
 def cmd_build(args: argparse.Namespace) -> None:
@@ -166,7 +173,8 @@ def cmd_ask(args: argparse.Namespace) -> None:
             say(f"Term: {result['temporal_context']}")
         say()
         for rank, item in enumerate(result["evidence"], start=1):
-            say(f"{rank}. {item['file_path']}  score {item['score']:.2f}  (keyword {item['bm25_score']:.2f}, meaning {item['embedding_score']:.2f})")
+            where = f", {item['location']}" if item.get("location") else ""
+            say(f"{rank}. {item['file_path']}{where}  score {item['score']:.2f}  (keyword {item['bm25_score']:.2f}, meaning {item['embedding_score']:.2f})")
             say(f"   {item['title']}")
         return
 
@@ -197,7 +205,8 @@ def cmd_ask(args: argparse.Namespace) -> None:
     if result["sources"]:
         say("\nSources:")
         for source in result["sources"]:
-            say(f"  - {source['title']} ({source['file_path']})")
+            where = f", {source['location']}" if source.get("location") else ""
+            say(f"  - {source['title']} ({source['file_path']}{where})")
     model_note = f" / {result['model']}" if result.get("model") else ""
     say(f"\n[{result['status']} · {result['provider']}{model_note}]")
 

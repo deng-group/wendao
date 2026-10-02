@@ -19,13 +19,21 @@ from wendao.web import STATIC_DIR
 EXPLORER_DIR = STATIC_DIR / "explorer"
 
 
-def course_source_url(file_path: str, site_base: str) -> str:
-    """Map a retrieved course file to its published MyST page (empty if no website is set)."""
+def course_source_url(file_path: str, site_base: str, location: str = "") -> str:
+    """Map a retrieved course file to its page on the course website (empty if no website is set).
+
+    Markdown and notebooks map to their published MyST page. Other files (PDF, slides, ...)
+    link to the file itself, and PDFs open at the right page.
+    """
     if not site_base:
         return ""
     site_base = site_base.rstrip("/") + "/"
     normalized = str(file_path or "").strip().replace("\\", "/")
     normalized = re.sub(r"^(?:\./)+", "", normalized).lstrip("/")
+    if not re.search(r"\.(?:md|ipynb|myst|rst)$", normalized, flags=re.IGNORECASE):
+        url = site_base + "/".join(quote(part) for part in normalized.split("/") if part)
+        page = re.fullmatch(r"page (\d+)", location or "")
+        return f"{url}#page={page.group(1)}" if page and normalized.lower().endswith(".pdf") else url
     normalized = re.sub(r"\.(?:md|ipynb|myst|rst)$", "", normalized, flags=re.IGNORECASE)
     if normalized.lower() in {"index", "readme"}:
         normalized = ""
@@ -134,7 +142,7 @@ def create_app(workspace=None) -> Flask:
                         event = {
                             **event,
                             "sources": [
-                                {**source, "url": course_source_url(source.get("file_path", ""), workspace.website)}
+                                {**source, "url": course_source_url(source.get("file_path", ""), workspace.website, source.get("location", ""))}
                                 for source in event["sources"]
                             ],
                         }

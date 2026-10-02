@@ -1,4 +1,7 @@
-"""Extract course notes (Markdown/MyST pages and Jupyter notebooks) into search chunks.
+"""Extract course notes into search chunks.
+
+Reads Markdown/MyST pages, Jupyter notebooks, PDF, PowerPoint, Word, LaTeX, HTML, and plain
+text (see `readers.py` for the non-Markdown formats).
 
 Each file is split into chunks of roughly 100-400 tokens, keeping paragraphs together.
 Every chunk records its file, chapter (top-level folder), section, title, and headings.
@@ -15,6 +18,10 @@ from typing import Any, Dict, List
 
 import nbformat
 
+from wendao.readers import READERS
+
+SUPPORTED_SUFFIXES = {".md", ".ipynb", *READERS}
+
 
 class ContentExtractor:
     """Extract content from MyST markdown and Jupyter notebook files"""
@@ -23,6 +30,7 @@ class ContentExtractor:
         self.repo_path = Path(repo_path)
         self.time_sensitive_files = set(time_sensitive_files if time_sensitive_files is not None else ["syllabus.md", "calendar.md"])
         self.chunks = []
+        self.warnings: List[str] = []
         self.course_temporal_context = self.load_course_temporal_context(term)
 
     def load_course_temporal_context(self, term: str = "") -> Dict[str, Any]:
@@ -189,8 +197,6 @@ class ContentExtractor:
             'section': section,
             'headings': headings,
             'title': headings[0]['title'] if headings else file_path.stem,
-            'concepts': self.extract_concepts(content),
-            'code_blocks': self.extract_code_blocks(content)
         }
         metadata.update(self.temporal_metadata_for_file(metadata['file_path']))
 
@@ -227,96 +233,78 @@ class ContentExtractor:
             'section': section,
             'headings': headings,
             'title': headings[0]['title'] if headings else file_path.stem,
-            'concepts': self.extract_concepts(full_content),
-            'code_blocks': code_cells
         }
         metadata.update(self.temporal_metadata_for_file(metadata['file_path']))
 
         chunks = self.split_into_chunks(full_content, metadata)
         return chunks
 
-    def extract_concepts(self, content: str) -> List[str]:
-        """Extract key concepts from content using various patterns"""
-        concepts = []
+    def extract_document(self, file_path: Path, module: str, section: str) -> List[Dict[str, Any]]:
+        """Extract a PDF, PowerPoint, Word, LaTeX, HTML, or text file via `readers.py`."""
+        document = READERS[file_path.suffix.lower()](file_path)
+        relative = str(file_path.relative_to(self.repo_path))
+        if not document.parts:
+            hint = " It may be a scanned PDF, which needs OCR first." if document.file_type == "pdf" else ""
+            self.warnings.append(f"No text found in {relative}.{hint}")
+            return []
+        metadata = {
+            'file_path': relative,
+            'file_type': document.file_type,
+            'module': module,
+            'section': section,
+            'title': document.title,
+        }
+        metadata.update(self.temporal_metadata_for_file(relative))
+        chunks = []
+        for part in document.parts:
+            part_metadata = {**metadata, 'headings': self.extract_headings(part.text)}
+            if part.location:
+                part_metadata['location'] = part.location
+            chunks.extend(self.split_into_chunks(part.text, part_metadata))
+        # Number chunks across the whole file so IDs stay unique when a file has many parts.
+        for index, chunk in enumerate(chunks):
+            chunk['chunk_id'] = f"{relative}_{index}"
+        return chunks
 
-        # Extract from bold text
-        bold_matches = re.findall(r'\*\*([^*]+)\*\*', content)
-        concepts.extend(bold_matches)
-
-        # Extract from definitions/admonitions
-        admonition_matches = re.findall(r'```{admonition}.*?:class:\s*\w+\s*\n(.+?)```', content, re.DOTALL)
-        for match in admonition_matches:
-            # Extract first line as concept
-            lines = match.strip().split('\n')
-            if lines:
-                concepts.append(lines[0].strip())
-
-        # Extract from inline code (often used for technical terms)
-        code_matches = re.findall(r'`([^`]+)`', content)
-        concepts.extend([m for m in code_matches if len(m.split()) <= 3])  # Short technical terms
-
-        # Deduplicate and filter
-        seen = set()
-        unique_concepts = []
-        for concept in concepts:
-            concept = concept.strip()
-            if concept and len(concept) > 2 and concept not in seen:
-                seen.add(concept)
-                unique_concepts.append(concept)
-
-        return unique_concepts[:20]  # Limit to top 20 concepts
-
-    def extract_code_blocks(self, content: str) -> List[str]:
-        """Extract code blocks from content"""
-        code_blocks = re.findall(r'```(?:python|py)?\n(.*?)```', content, re.DOTALL)
-        return [block.strip() for block in code_blocks if block.strip()]
+    def extract_file(self, file_path: Path) -> None:
+        """Extract one supported file and add its chunks. Problems become warnings, not crashes."""
+        suffix = file_path.suffix.lower()
+        if suffix not in SUPPORTED_SUFFIXES:
+            return
+        parts = file_path.relative_to(self.repo_path).parts
+        module = parts[0] if len(parts) > 1 else "root"
+        section = parts[1] if len(parts) > 2 else file_path.stem
+        try:
+            if suffix == '.md':
+                chunks = self.extract_markdown(file_path, module, section)
+            elif suffix == '.ipynb':
+                chunks = self.extract_notebook(file_path, module, section)
+            else:
+                chunks = self.extract_document(file_path, module, section)
+        except Exception as exc:  # noqa: BLE001 - one broken file should not stop the build
+            self.warnings.append(f"Could not read {file_path.relative_to(self.repo_path)}: {exc}")
+            return
+        self.chunks.extend(chunks)
 
     def process_all(self, toc_structure: Dict[str, Any]) -> None:
-        """Process all files according to TOC structure"""
+        """Process all files listed in a myst.yml table of contents."""
         for item in toc_structure:
             if 'file' in item:
                 file_path = self.repo_path / item['file']
-
                 if not file_path.exists():
-                    print(f"Warning: {file_path} does not exist")
-                    continue
-
-                # Determine module and section from file path
-                parts = file_path.relative_to(self.repo_path).parts
-                module = parts[0] if len(parts) > 1 else "root"
-                section = parts[1] if len(parts) > 2 else file_path.stem
-
-                if file_path.suffix == '.md':
-                    chunks = self.extract_markdown(file_path, module, section)
-                    self.chunks.extend(chunks)
-                elif file_path.suffix == '.ipynb':
-                    chunks = self.extract_notebook(file_path, module, section)
-                    self.chunks.extend(chunks)
-
+                    self.warnings.append(f"{item['file']} is in the table of contents but does not exist.")
+                else:
+                    self.extract_file(file_path)
             if 'children' in item:
                 self.process_all(item['children'])
 
     def process_file(self, relative_path: str) -> None:
-        """Process one markdown or notebook file by relative path."""
+        """Process one file by its path relative to the notes folder."""
         file_path = self.repo_path / relative_path
-
         if not file_path.exists():
-            print(f"Warning: {file_path} does not exist")
+            self.warnings.append(f"{relative_path} does not exist.")
             return
-
-        if file_path.suffix not in {'.md', '.ipynb'}:
-            return
-
-        parts = file_path.relative_to(self.repo_path).parts
-        module = parts[0] if len(parts) > 1 else "root"
-        section = parts[1] if len(parts) > 2 else file_path.stem
-
-        if file_path.suffix == '.md':
-            chunks = self.extract_markdown(file_path, module, section)
-        else:
-            chunks = self.extract_notebook(file_path, module, section)
-
-        self.chunks.extend(chunks)
+        self.extract_file(file_path)
 
     def process_files(self, relative_paths: List[str]) -> None:
         """Process a list of relative file paths."""
@@ -343,8 +331,14 @@ def load_toc_structure(repo_path: str | Path) -> Dict[str, Any]:
     return config['project']['toc']
 
 
-def discover_content_files(repo_path: str | Path, exclude: List[str], ignore_dirs: List[str]) -> List[str]:
-    """Find every Markdown and notebook file, skipping ignored folders and excluded files."""
+def discover_content_files(
+    repo_path: str | Path,
+    exclude: List[str],
+    ignore_dirs: List[str],
+    suffixes: set[str] | None = None,
+) -> List[str]:
+    """Find every supported file, skipping ignored folders and excluded files."""
+    suffixes = suffixes or SUPPORTED_SUFFIXES
     repo = Path(repo_path)
     ignored_parts = set(ignore_dirs)
     excluded = {str(Path(item)) for item in exclude}
@@ -353,7 +347,7 @@ def discover_content_files(repo_path: str | Path, exclude: List[str], ignore_dir
     for path in repo.rglob('*'):
         if not path.is_file():
             continue
-        if path.suffix not in {'.md', '.ipynb'}:
+        if path.suffix.lower() not in suffixes:
             continue
         relative = path.relative_to(repo)
         if any(part in ignored_parts or part.endswith('.egg-info') for part in relative.parts[:-1]):
@@ -374,8 +368,14 @@ def extract(workspace) -> dict:
         extractor.process_all(load_toc_structure(source))
         file_count = len({chunk["file_path"] for chunk in extractor.chunks})
     else:
-        files = discover_content_files(source, workspace.exclude, workspace.ignore_dirs)
+        files = discover_content_files(source, workspace.exclude, workspace.ignore_dirs, workspace.file_suffixes)
         extractor.process_files(files)
         file_count = len(files)
     extractor.save_chunks(workspace.chunks_path)
-    return {"files": file_count, "chunks": len(extractor.chunks), "term": extractor.course_temporal_context.get("year")}
+    return {
+        "files": file_count,
+        "chunks": len(extractor.chunks),
+        "term": extractor.course_temporal_context.get("year"),
+        "types": sorted({chunk["file_type"] for chunk in extractor.chunks}),
+        "warnings": extractor.warnings,
+    }

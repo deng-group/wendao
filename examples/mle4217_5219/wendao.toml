@@ -10,6 +10,7 @@ website = "https://mle4217-5219.matsci.dev/"
 
 [source]
 path = "../../../MLE4217_5219_book"
+file_types = ["md", "ipynb"]   # the book's PDFs and HTML are figures and build output, not notes
 exclude = ["AGENTS.md"]
 ignore_dirs = ["ai_agent_widget"]
 

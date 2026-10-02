@@ -107,7 +107,7 @@ class WorkspaceCliTest(unittest.TestCase):
     def test_build_ask_and_eval(self):
         self.init_course()
         output = run_cli("build", "-w", str(self.root))
-        self.assertIn("3 files → 3 chunks", output)
+        self.assertIn("3 files (markdown) → 3 chunks", output)
         self.assertIn("Term: AY2026/2027 Semester 1", output)
         for path in ["build/chunks.jsonl", "build/graph.json"]:
             self.assertTrue((self.root / path).is_file(), path)

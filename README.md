@@ -83,6 +83,15 @@ pip install wendao
 
 Check it works with `wendao --help`.
 
+Wendao runs its search model on the CPU, so the install is small and needs no graphics card. If you have an NVIDIA or Apple
+GPU and a large course, install the GPU version instead, which uses PyTorch:
+
+```bash
+pip install "wendao[gpu]"
+```
+
+Both give the same search results, so you can build the index on a GPU machine and serve it from a CPU-only server.
+
 ## How you work with Wendao
 
 Wendao is the tool. Your course lives in its own folder, called a **workspace**, next to your lecture notes:
@@ -135,8 +144,20 @@ wendao init my-course --source ~/teaching/notes    # or use notes you already ha
 cd my-course
 ```
 
-Your notes should be Markdown (or MyST) pages and Jupyter notebooks, such as a Jupyter Book. Each top-level folder becomes a
-chapter.
+Wendao reads these kinds of files:
+
+| Type | Files | Answers point to |
+| --- | --- | --- |
+| Markdown / MyST pages | `.md` | the page |
+| Jupyter notebooks | `.ipynb` | the notebook |
+| PDF (lecture notes, papers) | `.pdf` | the page number |
+| PowerPoint slides | `.pptx` (including speaker notes and tables) | the slide number |
+| Word documents | `.docx` | the document |
+| LaTeX | `.tex` | the document |
+| Web pages and plain text | `.html`, `.txt` | the file |
+
+Each top-level folder becomes a chapter. Scanned PDFs (pictures of pages) have no text to read, so run them through OCR first.
+To read only some types, set `file_types` under `[source]`, for example `file_types = ["pdf", "pptx"]`.
 
 ### 2. Describe your course
 
