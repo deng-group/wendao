@@ -261,7 +261,7 @@ cite this repository:
 
 ```bibtex
 @software{wendao2026,
-  author = {Deng, Zeyu and contributors},
+  author = {Deng, Yanhao and Deng, Zeyu},
   title  = {Wendao: an AI learning companion with an interactive course knowledge graph},
   year   = {2026},
   url    = {https://github.com/deng-group/wendao}

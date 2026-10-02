@@ -1,0 +1,22 @@
+cff-version: 1.2.0
+message: "If you use Wendao or adapt it for your own course, please cite it as below."
+title: "Wendao: an AI learning companion with an interactive course knowledge graph"
+type: software
+authors:
+  - family-names: Deng
+    given-names: Yanhao
+    affiliation: "Department of Materials Science and Engineering, National University of Singapore"
+  - family-names: Deng
+    given-names: Zeyu
+    affiliation: "Department of Materials Science and Engineering, National University of Singapore"
+version: 0.1.0
+date-released: 2026-10-02
+license: GPL-3.0-or-later
+repository-code: "https://github.com/deng-group/wendao"
+url: "https://github.com/deng-group/wendao"
+keywords:
+  - education
+  - AI tutor
+  - knowledge graph
+  - retrieval-augmented generation
+  - large language models

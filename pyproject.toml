@@ -20,7 +20,7 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 requires-python = ">=3.11"
-authors = [{ name = "Zeyu Deng" }]
+authors = [{ name = "Yanhao Deng" }, { name = "Zeyu Deng" }]
 dependencies = [
     "flask>=3.0,<4",
     "nbformat>=5.9,<6",
