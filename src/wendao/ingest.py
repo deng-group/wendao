@@ -24,8 +24,16 @@ SUPPORTED_SUFFIXES = {".md", ".ipynb", *READERS}
 class ContentExtractor:
     """Extract content from MyST markdown and Jupyter notebook files"""
 
-    def __init__(self, repo_path: str | Path, time_sensitive_files: List[str] | None = None, term: str = ""):
+    def __init__(
+        self,
+        repo_path: str | Path,
+        time_sensitive_files: List[str] | None = None,
+        term: str = "",
+        suffixes: set[str] | None = None,
+    ):
         self.repo_path = Path(repo_path)
+        # File types to read (from `[source] file_types`); every path in, including the table of contents, honours it.
+        self.suffixes = suffixes or SUPPORTED_SUFFIXES
         self.time_sensitive_files = set(time_sensitive_files if time_sensitive_files is not None else ["syllabus.md", "calendar.md"])
         self.chunks = []
         self.warnings: List[str] = []
@@ -269,7 +277,7 @@ class ContentExtractor:
     def extract_file(self, file_path: Path) -> None:
         """Extract one supported file and add its chunks. Problems become warnings, not crashes."""
         suffix = file_path.suffix.lower()
-        if suffix not in SUPPORTED_SUFFIXES:
+        if suffix not in self.suffixes:
             return
         parts = file_path.relative_to(self.repo_path).parts
         module = parts[0] if len(parts) > 1 else "root"
@@ -363,7 +371,7 @@ def discover_content_files(
 def extract(workspace) -> dict:
     """Extract the workspace's course notes into build/chunks.jsonl. Returns a short summary."""
     source = workspace.require_source()
-    extractor = ContentExtractor(source, workspace.time_sensitive_files, workspace.term)
+    extractor = ContentExtractor(source, workspace.time_sensitive_files, workspace.term, workspace.file_suffixes)
     if workspace.use_toc:
         extractor.process_all(load_toc_structure(source))
         file_count = len({chunk["file_path"] for chunk in extractor.chunks})

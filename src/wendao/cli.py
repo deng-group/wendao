@@ -92,8 +92,7 @@ def _relpath(path: Path, start: Path) -> str:
 
 # build steps ----------------------------------------------------------------------------------
 
-TEACHER_MODULES = {"nbformat": "nbformat", "pypdf": "pypdf", "docx": "python-docx", "pptx": "python-pptx",
-                   "yaml": "pyyaml", "huggingface_hub": "huggingface-hub"}
+TEACHER_MODULES = {"nbformat": "nbformat", "pypdf": "pypdf", "docx": "python-docx", "pptx": "python-pptx", "yaml": "pyyaml"}
 
 
 def require_teacher_tools() -> None:

@@ -105,7 +105,11 @@ async function signInIfNeeded() {
   signInToken = reply.token; sessionStorage.setItem("wendao_widget_token", signInToken);
 }
 
-async function ask(query) {
+function forgetSignIn() {
+  signInToken = ""; sessionStorage.removeItem("wendao_widget_token");
+}
+
+async function ask(query, retried = false) {
   await signInIfNeeded();
   const response = await fetch("/api/answer", {
     method: "POST",
@@ -119,6 +123,11 @@ async function ask(query) {
   });
 
   const payload = await response.json();
+  if (payload.error === "LoginRequired") {
+    // The saved sign-in was rejected (e.g. removed from the class list): forget it and sign in again once.
+    forgetSignIn();
+    if (!retried && emailEl.value.trim()) return ask(query, true);
+  }
   if (!response.ok || !payload.ok) {
     throw new Error(payload.message || payload.error || "Request failed");
   }

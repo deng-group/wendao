@@ -1,6 +1,6 @@
 [project]
 name = "wendao"
-version = "0.2.0"
+version = "0.2.1"
 description = "An AI learning companion: turn course notes into an interactive knowledge graph and a course-grounded AI tutor"
 readme = "README.md"
 license = "GPL-3.0-or-later"
@@ -24,15 +24,16 @@ authors = [{ name = "Yanhao Deng" }, { name = "Zeyu Deng" }]
 # The base install is what students need to open a course app. Teachers add the "teacher" extra.
 dependencies = [
     "flask>=3.0,<4",
+    # Downloads the search model when a course file doesn't include it (tokenizers needs it anyway).
+    "huggingface-hub>=0.24,<2",
     "numpy>=1.26,<3",
     "onnxruntime>=1.20,<2",
     "tokenizers>=0.19,<1",
 ]
 
 [project.optional-dependencies]
-# Build courses: read notes (notebooks, PDF, PowerPoint, Word, LaTeX) and download the search model.
+# Build courses: read notes (notebooks, PDF, PowerPoint, Word, LaTeX).
 teacher = [
-    "huggingface-hub>=0.24,<2",
     "nbformat>=5.9,<6",
     "pypdf>=4,<7",
     "python-docx>=1.1,<2",

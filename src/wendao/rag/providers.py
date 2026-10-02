@@ -58,11 +58,27 @@ def temperature_setting() -> dict:
         raise RuntimeError(f"LLM_TEMPERATURE must be a number or `none`, not `{raw}`.") from None
 
 
-def _open(req: request.Request, label: str, timeout: int):
+class _NoRedirect(request.HTTPRedirectHandler):
+    """Refuse redirects, so an endpoint given by a student can't bounce the server to another address."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise error.HTTPError(req.full_url, code, f"Redirect to {newurl} refused", headers, fp)
+
+
+_NO_REDIRECT_OPENER = request.build_opener(_NoRedirect)
+
+
+def _open(req: request.Request, label: str, timeout: int, follow_redirects: bool = True):
     """Open an HTTP request and turn transport failures into readable errors."""
     try:
+        if not follow_redirects:
+            return _NO_REDIRECT_OPENER.open(req, timeout=timeout)
         return request.urlopen(req, timeout=timeout)
     except error.HTTPError as exc:
+        if 300 <= exc.code < 400:
+            raise RuntimeError(
+                f"{label} server tried to redirect to another address; redirects aren't allowed for your own AI server."
+            ) from exc
         body = exc.read().decode("utf-8", errors="replace")[:500]
         raise RuntimeError(f"{label} API error {exc.code}: {body}") from exc
     except error.URLError as exc:
@@ -165,6 +181,7 @@ class OpenAICompatibleProvider:
     api_key: str | None = None
     base_url: str | None = None
     use_env: bool = True
+    follow_redirects: bool = True
 
     def resolved_model(self) -> str:
         return _setting(self, self.model, "OPENAI_MODEL", default=DEFAULT_OPENAI_MODEL)
@@ -197,7 +214,7 @@ class OpenAICompatibleProvider:
         )
 
     def generate(self, prompt_package: dict) -> dict:
-        with _open(self._request(prompt_package, stream=False), "OpenAI-compatible", timeout=90) as response:
+        with _open(self._request(prompt_package, stream=False), "OpenAI-compatible", 90, self.follow_redirects) as response:
             raw = json.loads(response.read().decode("utf-8"))
         return {
             "provider": self.name,
@@ -209,7 +226,7 @@ class OpenAICompatibleProvider:
 
     def stream(self, prompt_package: dict) -> Iterator[str]:
         """Yield text deltas from an OpenAI-compatible SSE response."""
-        with _open(self._request(prompt_package, stream=True), "OpenAI-compatible", timeout=120) as response:
+        with _open(self._request(prompt_package, stream=True), "OpenAI-compatible", 120, self.follow_redirects) as response:
             for event_payload in _iter_sse_data(response):
                 if event_payload.get("error"):
                     message = event_payload["error"].get("message", "Unknown streaming error")
@@ -239,6 +256,7 @@ class GeminiProvider:
     name: str = "gemini"
     api_key: str | None = None
     use_env: bool = True
+    follow_redirects: bool = True
 
     def resolved_model(self) -> str:
         return _setting(self, self.model, "GEMINI_MODEL", default=DEFAULT_GEMINI_MODEL)
@@ -267,7 +285,7 @@ class GeminiProvider:
         )
 
     def generate(self, prompt_package: dict) -> dict:
-        with _open(self._request(prompt_package, stream=False), "Gemini", timeout=60) as response:
+        with _open(self._request(prompt_package, stream=False), "Gemini", 60, self.follow_redirects) as response:
             raw = json.loads(response.read().decode("utf-8"))
         return {
             "provider": self.name,
@@ -279,7 +297,7 @@ class GeminiProvider:
 
     def stream(self, prompt_package: dict) -> Iterator[str]:
         """Yield text deltas from a Gemini SSE response."""
-        with _open(self._request(prompt_package, stream=True), "Gemini", timeout=120) as response:
+        with _open(self._request(prompt_package, stream=True), "Gemini", 120, self.follow_redirects) as response:
             for event_payload in _iter_sse_data(response):
                 if event_payload.get("error"):
                     message = event_payload["error"].get("message", "Unknown streaming error")
@@ -487,11 +505,11 @@ def provider_from_name(
     if api_key:
         own = {"model": model or None, "api_key": api_key, "use_env": False}
         if name == "openai":
-            return OpenAICompatibleProvider(base_url=base_url or None, **own)
+            return OpenAICompatibleProvider(base_url=base_url or None, follow_redirects=False, **own)
         if name == "anthropic":
             return AnthropicProvider(base_url=base_url or None, **own)
         if name == "gemini":
-            return GeminiProvider(**own)
+            return GeminiProvider(follow_redirects=False, **own)
         raise ValueError(f"Unknown provider: {name}")
     if name == "dry_run":
         return DryRunProvider()

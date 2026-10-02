@@ -1955,10 +1955,11 @@ wheels = [
 
 [[package]]
 name = "wendao"
-version = "0.2.0"
+version = "0.2.1"
 source = { editable = "." }
 dependencies = [
     { name = "flask" },
+    { name = "huggingface-hub" },
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "numpy", version = "2.5.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "onnxruntime" },
@@ -1973,7 +1974,6 @@ gpu = [
     { name = "sentence-transformers" },
 ]
 teacher = [
-    { name = "huggingface-hub" },
     { name = "nbformat" },
     { name = "pypdf" },
     { name = "python-docx" },
@@ -1985,7 +1985,7 @@ teacher = [
 requires-dist = [
     { name = "flask", specifier = ">=3.0,<4" },
     { name = "gunicorn", marker = "extra == 'deploy'", specifier = ">=22,<24" },
-    { name = "huggingface-hub", marker = "extra == 'teacher'", specifier = ">=0.24,<2" },
+    { name = "huggingface-hub", specifier = ">=0.24,<2" },
     { name = "nbformat", marker = "extra == 'teacher'", specifier = ">=5.9,<6" },
     { name = "numpy", specifier = ">=1.26,<3" },
     { name = "onnxruntime", specifier = ">=1.20,<2" },

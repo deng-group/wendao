@@ -136,6 +136,7 @@ class CourseAppTest(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         cls.server.shutdown()
+        cls.server.server_close()
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -238,6 +239,7 @@ class SignInTest(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         cls.server.shutdown()
+        cls.server.server_close()
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -335,3 +337,116 @@ class SignInTest(unittest.TestCase):
         with contextlib.redirect_stderr(errors), self.assertRaises(SystemExit):
             run_cli("students", "-w", str(self.root))
         self.assertIn("needs an `email` column", errors.getvalue())
+
+
+def _read_secret(folder: str) -> bytes:
+    from wendao.web.accounts import TokenSigner
+
+    return TokenSigner.for_folder(Path(folder)).secret
+
+
+class RedirectServer(BaseHTTPRequestHandler):
+    def do_POST(self):  # noqa: N802
+        self.rfile.read(int(self.headers["Content-Length"]))
+        self.send_response(302)
+        self.send_header("Location", "http://169.254.169.254/latest/meta-data/")
+        self.end_headers()
+
+    def log_message(self, *args):
+        pass
+
+
+class ReviewFixesTest(unittest.TestCase):
+    """Fixes from the 0.2.0 code review."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name) / "physics"
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_servers_refuse_private_ai_addresses(self):
+        from wendao.web.ai import check_public_endpoint
+
+        for url in ["http://example.com/v1", "https://127.0.0.1/v1", "https://localhost:11434/v1",
+                    "https://169.254.169.254/", "https://10.0.0.5/v1", "https://[::1]/v1"]:
+            with self.subTest(url=url), self.assertRaises(AiUnavailable):
+                check_public_endpoint(url)
+        with mock.patch("socket.getaddrinfo", return_value=[(None, None, None, "", ("93.184.216.34", 443))]):
+            check_public_endpoint("https://api.example.com/v1")  # public: allowed
+
+        ollama = {"ai": {"provider": "openai", "base_url": "http://127.0.0.1:11434/v1"}}
+        with self.assertRaisesRegex(AiUnavailable, "https://"):
+            AiPolicy.from_settings("either").choose(ollama, "s")  # course website: refused
+        how, _ = AiPolicy.from_settings("either", use_local_key=False).choose(ollama, "s")  # course app: fine
+        self.assertEqual(how, "provider")
+
+    def test_student_endpoints_do_not_follow_redirects(self):
+        server = HTTPServer(("127.0.0.1", 0), RedirectServer)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        try:
+            from wendao.rag.providers import provider_from_name
+
+            provider = provider_from_name("openai", model="m", api_key="sk", base_url=f"http://127.0.0.1:{server.server_port}/v1")
+            with self.assertRaisesRegex(RuntimeError, "redirects aren't allowed"):
+                provider.generate({"messages": [{"content": "s"}, {"content": "q"}], "evidence": []})
+        finally:
+            server.shutdown()
+            server.server_close()
+
+    def test_daily_limit_is_shared_by_all_server_workers(self):
+        fake = HTTPServer(("127.0.0.1", 0), StudentKeyServer)
+        threading.Thread(target=fake.serve_forever, daemon=True).start()
+        env = {"LLM_PROVIDER": "openai", "OPENAI_BASE_URL": f"http://127.0.0.1:{fake.server_port}/v1", "OPENAI_API_KEY": "sk"}
+        try:
+            with mock.patch.dict(os.environ, env, clear=True):
+                make_workspace(self.root, 'ai = "teacher"\nquestions_per_day = 2')
+                run_cli("build", "-w", str(self.root))
+                worker_a = create_explorer(workspace_module.load(self.root)).test_client()
+                worker_b = create_explorer(workspace_module.load(self.root)).test_client()
+                results = [stream_events(worker, {"query": "What is kinetic energy?"})[-1]
+                           for worker in (worker_a, worker_b, worker_a)]
+        finally:
+            fake.shutdown()
+            fake.server_close()
+        self.assertEqual([event["type"] for event in results], ["done", "done", "error"])
+        self.assertIn("all 2 of today's questions", results[2]["message"])
+
+    def test_workers_starting_together_share_one_secret(self):
+        import multiprocessing
+
+        folder = Path(self.tmp.name)
+        with mock.patch.dict(os.environ, {}, clear=True):
+            with multiprocessing.get_context("spawn").Pool(8) as pool:
+                secrets_seen = set(pool.map(_read_secret, [str(folder)] * 8))
+        self.assertEqual(len(secrets_seen), 1)
+        self.assertEqual(sorted(path.name for path in folder.iterdir()), [".wendao-secret"])
+
+    def test_table_of_contents_respects_file_types(self):
+        from wendao.ingest import ContentExtractor
+
+        notes = Path(self.tmp.name) / "notes"
+        notes.mkdir()
+        (notes / "a.md").write_text("# A\n\nMarkdown page", encoding="utf-8")
+        (notes / "b.txt").write_text("Plain text page", encoding="utf-8")
+        extractor = ContentExtractor(notes, suffixes={".md"})
+        extractor.process_all([{"file": "a.md"}, {"file": "b.txt"}])
+        self.assertEqual({chunk["file_path"] for chunk in extractor.chunks}, {"a.md"})
+
+    def test_word_tables_stay_in_place(self):
+        from docx import Document
+
+        from wendao.readers import read_docx
+
+        path = Path(self.tmp.name) / "lab.docx"
+        document = Document()
+        document.add_heading("Safety", 1)
+        document.add_paragraph("Before the table.")
+        table = document.add_table(rows=1, cols=2)
+        table.rows[0].cells[0].text, table.rows[0].cells[1].text = "Item", "Goggles"
+        document.add_paragraph("After the table.")
+        document.save(str(path))
+        text = read_docx(path).parts[0].text
+        self.assertLess(text.index("Before the table."), text.index("Item | Goggles"))
+        self.assertLess(text.index("Item | Goggles"), text.index("After the table."))

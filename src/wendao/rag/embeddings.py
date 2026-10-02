@@ -71,7 +71,7 @@ class OnnxEncoder:
                 from huggingface_hub import hf_hub_download
                 from huggingface_hub.utils import logging as hub_logging
             except ImportError as exc:
-                raise RuntimeError('Downloading the search model needs: pip install "wendao[teacher]"') from exc
+                raise RuntimeError("Downloading the search model needs huggingface-hub: pip install -U wendao") from exc
             hub_logging.set_verbosity_error()
             return download(hf_hub_download, filename)
 
