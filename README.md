@@ -69,54 +69,56 @@ will and won't answer before students use it.
 
 ## Install
 
-You need Python 3.11 or newer and `curl`. Install the `wendao` command with [uv](https://docs.astral.sh/uv/):
+You need Python 3.11 or newer. Wendao has two installs:
 
-```bash
-uv tool install wendao
-```
+| You are | Install | Size | You can |
+| --- | --- | --- | --- |
+| **A student** | `pip install wendao` | about 160 MB | open course apps from your teacher |
+| **A teacher** | `pip install "wendao[teacher]"` | about 200 MB | build courses from your notes, test them, and share them |
 
-Or with pip:
+You can also use [uv](https://docs.astral.sh/uv/): `uv tool install wendao` (or `"wendao[teacher]"`). Check it works with
+`wendao --help`.
 
-```bash
-pip install wendao
-```
+Students who use your course website don't need to install anything.
 
-Check it works with `wendao --help`.
-
-Wendao runs its search model on the CPU, so the install is small and needs no graphics card. If you have an NVIDIA or Apple
-GPU and a large course, install the GPU version instead, which uses PyTorch:
-
-```bash
-pip install "wendao[gpu]"
-```
-
-Both give the same search results, so you can build the index on a GPU machine and serve it from a CPU-only server.
+Wendao runs its search model on the CPU, so no graphics card is needed. For a very large course, a teacher can build on a
+GPU instead with `pip install "wendao[teacher,gpu]"`. Both give the same search results, so a course built on a GPU works
+everywhere.
 
 ## How you work with Wendao
 
-Wendao is the tool. Your course lives in its own folder, called a **workspace**, next to your lecture notes:
+**Teachers** build a course from their notes, then share it. Your course lives in its own folder, called a **workspace**,
+next to your lecture notes:
 
 ```text
 my-course/
-  notes/            your lecture notes: Markdown pages and Jupyter notebooks (or point to a folder elsewhere)
-  wendao.toml        course name, website, chapters, and which model to use
+  notes/            your lecture notes (or point to a folder elsewhere)
+  wendao.toml       course name, website, chapters, which model to use, and how students use AI
   concepts.json     the concepts to show in the knowledge graph
   questions.json    test questions
   .env              your API key (never committed)
-  build/            files Wendao creates: chunks, graph, search index, reports
+  build/            files Wendao creates: chunks, graph, search index, reports, course app
 ```
 
 Run `wendao` commands anywhere inside the workspace. Wendao finds `wendao.toml` by itself.
 
-| Command | What it does |
-| --- | --- |
-| `wendao init my-course` | Create a new workspace with starter files |
-| `wendao build` | Read your notes, build the knowledge graph, and build the search index |
-| `wendao ask "question"` | Ask a question. Add `--search-only` to see what search finds, without a model |
-| `wendao serve` | Open the knowledge graph website with the AI agent |
-| `wendao serve --widget` | Start the API for the chat widget on your course website |
-| `wendao check` | Check your settings and the connection to the model |
-| `wendao eval` | Test Wendao with the questions in `questions.json` |
+**Students** get the course from their teacher in one of two ways:
+
+- **A website link.** Nothing to install; it works on any device.
+- **A course file** (`my-course.wendao`). Students open it on their own laptop with `wendao open my-course.wendao`. The
+  graph and search work offline.
+
+| Command | Who | What it does |
+| --- | --- | --- |
+| `wendao init my-course` | teacher | Create a new workspace with starter files |
+| `wendao build` | teacher | Read your notes, build the knowledge graph, and build the search index |
+| `wendao ask "question"` | teacher | Ask a question. Add `--search-only` to see what search finds, without a model |
+| `wendao eval` | teacher | Test Wendao with the questions in `questions.json` |
+| `wendao check` | teacher | Check your settings and the connection to the model |
+| `wendao serve` | teacher | Run the course website (the knowledge graph with the AI agent) |
+| `wendao serve --widget` | teacher | Run the API for the chat widget on your existing course website |
+| `wendao pack` | teacher | Put the built course into one file to share with students |
+| `wendao open my-course.wendao` | student | Open a course file from your teacher |
 
 Run any command with `--help` to see its options.
 
@@ -222,14 +224,48 @@ wendao ask "How is Materials Project data used to train MACE potentials?"
 A small, cheap model is usually enough, because Wendao gives it the relevant course text. Answers use a temperature of 0.2. Some
 models, such as OpenAI's reasoning models, don't accept one; set `temperature = "none"` under `[model]` for those.
 
-### 5. Run it
+### 5. Try it yourself
 
 ```bash
 wendao serve
 ```
 
-To put Wendao on a server, see [`deploy/DEPLOYMENT.md`](https://github.com/deng-group/wendao/blob/main/deploy/DEPLOYMENT.md). To add the agent to your course website as a chat
-widget, run `wendao serve --widget` and see [`README_DEVELOPERS.md`](https://github.com/deng-group/wendao/blob/main/README_DEVELOPERS.md).
+This opens the course website on your computer at http://127.0.0.1:5057/.
+
+### 6. Share it with your students
+
+First decide how students use AI, under `[student]` in `wendao.toml`:
+
+```toml
+[student]
+ai = "teacher"                    # "teacher", "student", or "either"
+server = "https://course.example.edu"   # your Wendao website (needed for course files with ai = "teacher")
+questions_per_day = 50            # per student, on your key (0 = no limit)
+```
+
+| `ai` | Students ask with | Who pays |
+| --- | --- | --- |
+| `"teacher"` | your model and key. The key stays on your server; students never see it. | you, with a daily limit per student |
+| `"student"` | their own API key (or a free local model with Ollama), entered in the app's **AI** settings | each student |
+| `"either"` | your model by default; students may add their own key instead | you, unless a student adds a key |
+
+A student's own key is saved only in their browser and sent with each question. It's never stored on any server.
+
+Then share the course in one or both ways:
+
+- **Website:** put it on a server with [`deploy/DEPLOYMENT.md`](https://github.com/deng-group/wendao/blob/main/deploy/DEPLOYMENT.md) and send your students the
+  link. This is also the `server` that course files use for the course AI.
+- **Course file:** run `wendao pack`. It writes `build/<course-name>.wendao`, which contains the graph, the search index,
+  and the search model (about 90 MB for a typical course; add `--no-model` for a few MB, and students download the model once).
+  Share it however you like, for example on your learning platform. Students open it with:
+
+  ```bash
+  pip install wendao
+  wendao open my-course.wendao
+  ```
+
+To add the agent to an existing course website as a chat widget, run `wendao serve --widget` and see
+[`README_DEVELOPERS.md`](https://github.com/deng-group/wendao/blob/main/README_DEVELOPERS.md).
 
 ## Testing your agent
 

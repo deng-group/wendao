@@ -13,8 +13,8 @@ from wendao import workspace as workspace_module
 from wendao.rag.answer import AnswerGenerator
 from wendao.rag.pipeline import QueryPipeline
 from wendao.rag.prompts import PromptBuilder
-from wendao.rag.providers import default_model_name, default_provider_name, provider_from_name
 from wendao.web import STATIC_DIR
+from wendao.web.ai import AiPolicy, AiUnavailable, forward_stream, student_id
 
 EXPLORER_DIR = STATIC_DIR / "explorer"
 
@@ -72,6 +72,15 @@ def create_app(workspace=None) -> Flask:
         course_name=workspace.display_name,
     )
     index_page = render_index(workspace)
+    # `[student] server` is where course apps on students' laptops send questions. The teacher's own
+    # server (a workspace) answers with its own key, so it must never forward, or it would call itself.
+    in_course_app = not getattr(workspace, "uses_local_key", True)
+    policy = AiPolicy.from_settings(
+        workspace.student_ai,
+        workspace.student_server if in_course_app else "",
+        workspace.questions_per_day,
+        use_local_key=not in_course_app,
+    )
     app = Flask(__name__, static_folder=None)
 
     def selected_context(payload: dict) -> list[str]:
@@ -98,12 +107,13 @@ def create_app(workspace=None) -> Flask:
 
     @app.get("/api/health")
     def health():
-        provider = default_provider_name()
+        ai = policy.describe()
         return jsonify(
             {
                 "ok": True,
-                "provider": provider,
-                "model": default_model_name(provider),
+                "ai": ai,
+                "provider": ai["provider"],
+                "model": ai["model"],
                 "graph_nodes": len(graph["nodes"]),
                 "graph_edges": len(graph["edges"]),
             }
@@ -120,17 +130,20 @@ def create_app(workspace=None) -> Flask:
         if not query:
             return jsonify({"ok": False, "error": "Query is required."}), 400
 
-        provider_name = default_provider_name()
-        model = default_model_name(provider_name)
         memory = payload.get("short_memory") or []
         context = selected_context(payload)
+        student = student_id(request)
 
         def events():
             try:
+                how, chosen = policy.choose(payload, student)
+                if how == "forward":
+                    yield from forward_stream(chosen, payload)
+                    return
                 generator = AnswerGenerator(
                     pipeline=pipeline,
                     prompt_builder=prompt_builder,
-                    provider=provider_from_name(provider_name, model=model),
+                    provider=chosen,
                     course_name=workspace.display_name,
                 )
                 for event in generator.stream_answer(
@@ -147,6 +160,8 @@ def create_app(workspace=None) -> Flask:
                             ],
                         }
                     yield json.dumps(event, ensure_ascii=False) + "\n"
+            except AiUnavailable as exc:
+                yield json.dumps({"type": "error", "ok": False, "message": str(exc), "error": "AiUnavailable"}) + "\n"
             except Exception as exc:
                 yield json.dumps(
                     {

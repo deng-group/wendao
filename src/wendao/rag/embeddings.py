@@ -13,6 +13,7 @@ Both download the model from the Hugging Face Hub on first use and cache it ther
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Protocol
 
 import numpy as np
@@ -36,15 +37,19 @@ def torch_available() -> bool:
     return True
 
 
-def make_encoder(model_name: str, engine: str = "auto", device: str = "auto") -> Encoder:
-    """Pick the embedding engine. "auto" uses PyTorch if the `gpu` extra is installed, else ONNX."""
+def make_encoder(model_name: str, engine: str = "auto", device: str = "auto", model_path: str | None = None) -> Encoder:
+    """Pick the embedding engine. "auto" uses PyTorch if the `gpu` extra is installed, else ONNX.
+
+    `model_path` is a local folder with the ONNX model files (as stored in a course pack);
+    without it the model is downloaded from the Hugging Face Hub.
+    """
     if engine not in ENGINES:
         raise ValueError(f"Unknown search engine `{engine}`; expected one of {', '.join(ENGINES)}.")
     if device not in DEVICES:
         raise ValueError(f"Unknown device `{device}`; expected one of {', '.join(DEVICES)}.")
-    if engine == "torch" or (engine == "auto" and torch_available()):
+    if engine == "torch" or (engine == "auto" and torch_available() and not model_path):
         return TorchEncoder(model_name, device)
-    return OnnxEncoder(model_name)
+    return OnnxEncoder(model_name, model_path)
 
 
 class OnnxEncoder:
@@ -52,15 +57,25 @@ class OnnxEncoder:
 
     name = "onnx"
 
-    def __init__(self, model_name: str):
+    def __init__(self, model_name: str, model_path: str | None = None):
         import onnxruntime
-        from huggingface_hub import hf_hub_download
-        from huggingface_hub.utils import logging as hub_logging
         from tokenizers import Tokenizer
 
-        hub_logging.set_verbosity_error()
-
         def fetch(filename: str) -> str:
+            if model_path:
+                local = Path(model_path) / filename
+                if not local.exists():
+                    raise FileNotFoundError(f"{local} is missing")
+                return str(local)
+            try:
+                from huggingface_hub import hf_hub_download
+                from huggingface_hub.utils import logging as hub_logging
+            except ImportError as exc:
+                raise RuntimeError('Downloading the search model needs: pip install "wendao[teacher]"') from exc
+            hub_logging.set_verbosity_error()
+            return download(hf_hub_download, filename)
+
+        def download(hf_hub_download, filename: str) -> str:
             # Use the cached copy when there is one, so servers without internet keep working.
             try:
                 return hf_hub_download(model_name, filename, local_files_only=True)
@@ -68,8 +83,8 @@ class OnnxEncoder:
                 return hf_hub_download(model_name, filename)
 
         try:
-            model_path = fetch("onnx/model.onnx")
-            tokenizer_path = fetch("tokenizer.json")
+            onnx_file = fetch("onnx/model.onnx")
+            tokenizer_file = fetch("tokenizer.json")
         except Exception as exc:  # noqa: BLE001 - surface any download problem plainly
             raise RuntimeError(
                 f"Could not download the ONNX version of `{model_name}` ({exc}). "
@@ -82,12 +97,12 @@ class OnnxEncoder:
         except Exception:  # noqa: BLE001 - optional file; keep the default length
             pass
 
-        self.tokenizer = Tokenizer.from_file(tokenizer_path)
+        self.tokenizer = Tokenizer.from_file(tokenizer_file)
         self.tokenizer.enable_truncation(max_length=max_length)
         self.tokenizer.enable_padding()
         options = onnxruntime.SessionOptions()
         options.log_severity_level = 3
-        self.session = onnxruntime.InferenceSession(model_path, options, providers=["CPUExecutionProvider"])
+        self.session = onnxruntime.InferenceSession(onnx_file, options, providers=["CPUExecutionProvider"])
         self.input_names = {item.name for item in self.session.get_inputs()}
 
     def encode(self, texts: list[str], batch_size: int = 32) -> np.ndarray:

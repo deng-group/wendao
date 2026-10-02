@@ -1959,16 +1959,9 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "flask" },
-    { name = "huggingface-hub" },
-    { name = "nbformat" },
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "numpy", version = "2.5.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "onnxruntime" },
-    { name = "pypdf" },
-    { name = "python-docx" },
-    { name = "python-pptx" },
-    { name = "pyyaml" },
-    { name = "scikit-learn" },
     { name = "tokenizers" },
 ]
 
@@ -1979,24 +1972,31 @@ deploy = [
 gpu = [
     { name = "sentence-transformers" },
 ]
+teacher = [
+    { name = "huggingface-hub" },
+    { name = "nbformat" },
+    { name = "pypdf" },
+    { name = "python-docx" },
+    { name = "python-pptx" },
+    { name = "pyyaml" },
+]
 
 [package.metadata]
 requires-dist = [
     { name = "flask", specifier = ">=3.0,<4" },
     { name = "gunicorn", marker = "extra == 'deploy'", specifier = ">=22,<24" },
-    { name = "huggingface-hub", specifier = ">=0.24,<2" },
-    { name = "nbformat", specifier = ">=5.9,<6" },
+    { name = "huggingface-hub", marker = "extra == 'teacher'", specifier = ">=0.24,<2" },
+    { name = "nbformat", marker = "extra == 'teacher'", specifier = ">=5.9,<6" },
     { name = "numpy", specifier = ">=1.26,<3" },
     { name = "onnxruntime", specifier = ">=1.20,<2" },
-    { name = "pypdf", specifier = ">=4,<7" },
-    { name = "python-docx", specifier = ">=1.1,<2" },
-    { name = "python-pptx", specifier = ">=1.0,<2" },
-    { name = "pyyaml", specifier = ">=6,<7" },
-    { name = "scikit-learn", specifier = ">=1.4,<2" },
+    { name = "pypdf", marker = "extra == 'teacher'", specifier = ">=4,<7" },
+    { name = "python-docx", marker = "extra == 'teacher'", specifier = ">=1.1,<2" },
+    { name = "python-pptx", marker = "extra == 'teacher'", specifier = ">=1.0,<2" },
+    { name = "pyyaml", marker = "extra == 'teacher'", specifier = ">=6,<7" },
     { name = "sentence-transformers", marker = "extra == 'gpu'", specifier = ">=3,<6" },
     { name = "tokenizers", specifier = ">=0.19,<1" },
 ]
-provides-extras = ["gpu", "deploy"]
+provides-extras = ["teacher", "gpu", "deploy"]
 
 [[package]]
 name = "werkzeug"

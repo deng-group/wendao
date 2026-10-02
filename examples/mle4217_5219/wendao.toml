@@ -108,6 +108,11 @@ bridge_stop_concepts = [
     "matplotlib", "molecule", "numpy", "optimization", "pandas", "pymatgen", "python", "version-control", "workflow",
 ]
 
+[student]
+# Students open the course app with their own key; set `server` to the course's Wendao website to
+# let them use the course AI instead.
+ai = "either"
+
 [model]
 # The course uses an Anthropic-compatible relay. Put ANTHROPIC_AUTH_TOKEN in .env.
 provider = "anthropic"

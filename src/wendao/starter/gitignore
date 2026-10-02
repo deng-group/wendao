@@ -1,3 +1,4 @@
 .env
 build/index/
 build/reports/history/
+build/*.wendao

@@ -170,8 +170,10 @@ class EmbeddingIndex:
         rebuild: bool = False,
         engine: str = "auto",
         device: str = "auto",
+        model_path: str | None = None,
     ):
         self.chunks = chunks
+        self.model_path = model_path
         self.cache_dir = cache_dir
         self.model_name = model_name
         self.aliases = aliases or {}
@@ -180,7 +182,7 @@ class EmbeddingIndex:
         self.device = device
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.encoder = None
-        self.vectorizer = None
+        self.tfidf = None
         self.chunk_embeddings = None
         self.backend = "embedding"
         self._load_or_build()
@@ -223,11 +225,11 @@ class EmbeddingIndex:
                 and str(cached["backend"]) in self.NEURAL
             ):
                 self.chunk_embeddings = cached["embeddings"].astype(np.float32)
-                self.encoder = make_encoder(self.model_name, self.engine, self.device)
+                self.encoder = make_encoder(self.model_name, self.engine, self.device, self.model_path)
                 return
 
         try:
-            self.encoder = make_encoder(self.model_name, self.engine, self.device)
+            self.encoder = make_encoder(self.model_name, self.engine, self.device, self.model_path)
             self.chunk_embeddings = self.encoder.encode([chunk["content"] for chunk in self.chunks])
         except (ImportError, RuntimeError, OSError) as exc:
             if self.engine != "auto":
@@ -246,27 +248,50 @@ class EmbeddingIndex:
         )
 
     def _build_tfidf(self) -> None:
-        from sklearn.feature_extraction.text import TfidfVectorizer
-        from sklearn.preprocessing import normalize
-
-        self.vectorizer = TfidfVectorizer(
-            lowercase=True,
-            ngram_range=(1, 2),
-            token_pattern=r"(?u)\b\w+\b",
-            preprocessor=lambda text: normalize_text(text, self.aliases),
-        )
-        matrix = self.vectorizer.fit_transform([chunk["content"] for chunk in self.chunks])
-        self.chunk_embeddings = normalize(matrix).astype(np.float32)
+        self.tfidf = TfidfIndex([chunk["content"] for chunk in self.chunks], self.aliases)
 
     def search(self, query: str) -> np.ndarray:
-        if self.backend != "tfidf":
-            query_embedding = self.encoder.encode([query])[0]
-            return np.asarray(self.chunk_embeddings @ query_embedding, dtype=np.float32)
+        if self.backend == "tfidf":
+            return self.tfidf.search(query)
+        query_embedding = self.encoder.encode([query])[0]
+        return np.asarray(self.chunk_embeddings @ query_embedding, dtype=np.float32)
 
-        from sklearn.preprocessing import normalize
 
-        query_vector = normalize(self.vectorizer.transform([query])).astype(np.float32)
-        return np.asarray((self.chunk_embeddings @ query_vector.T).toarray()).ravel().astype(np.float32)
+class TfidfIndex:
+    """Small TF-IDF index (words and word pairs, cosine similarity), used when no search model is available.
+
+    Same weighting as scikit-learn's TfidfVectorizer defaults (smooth idf, L2 norm), without the dependency.
+    """
+
+    WORD_RE = re.compile(r"(?u)\b\w+\b")
+
+    def __init__(self, texts: list[str], aliases: dict[str, str] | None = None):
+        self.aliases = aliases or {}
+        counts = [Counter(self._terms(text)) for text in texts]
+        doc_freq = Counter(term for terms in counts for term in terms)
+        self.size = len(texts)
+        self.idf = {term: math.log((1 + self.size) / (1 + freq)) + 1 for term, freq in doc_freq.items()}
+        self.postings: dict[str, list[tuple[int, float]]] = {}
+        for index, terms in enumerate(counts):
+            weights = {term: count * self.idf[term] for term, count in terms.items()}
+            norm = math.sqrt(sum(weight * weight for weight in weights.values())) or 1.0
+            for term, weight in weights.items():
+                self.postings.setdefault(term, []).append((index, weight / norm))
+
+    def _terms(self, text: str) -> list[str]:
+        words = self.WORD_RE.findall(normalize_text(text, self.aliases))
+        return words + [f"{left} {right}" for left, right in zip(words, words[1:])]
+
+    def search(self, query: str) -> np.ndarray:
+        scores = np.zeros(self.size, dtype=np.float32)
+        weights = {term: count * self.idf[term] for term, count in Counter(self._terms(query)).items() if term in self.idf}
+        norm = math.sqrt(sum(weight * weight for weight in weights.values()))
+        if not norm:
+            return scores
+        for term, weight in weights.items():
+            for index, doc_weight in self.postings[term]:
+                scores[index] += (weight / norm) * doc_weight
+        return scores
 
 
 class HybridRetriever:
@@ -282,13 +307,15 @@ class HybridRetriever:
         rebuild_index: bool = False,
         engine: str = "auto",
         device: str = "auto",
+        model_path: str | None = None,
     ):
         self.aliases = aliases or {}
         self.logistics_terms = set(logistics_terms)
         self.chunks = load_chunks(chunks_path)
         self.bm25 = BM25Index([tokenize(chunk["content"], self.aliases) for chunk in self.chunks], self.aliases)
         self.embedding = EmbeddingIndex(
-            self.chunks, cache_dir, model_name, self.aliases, rebuild=rebuild_index, engine=engine, device=device
+            self.chunks, cache_dir, model_name, self.aliases, rebuild=rebuild_index, engine=engine, device=device,
+            model_path=model_path,
         )
 
     def normalize(self, text: str) -> str:

@@ -13,8 +13,8 @@ if ! command -v uv >/dev/null 2>&1; then
   exit 1
 fi
 
-# Install the exact versions pinned in uv.lock, plus gunicorn for the systemd service.
-UV_PROJECT_ENVIRONMENT="$VENV_DIR" uv sync --frozen --no-dev --extra deploy
+# Install the exact versions pinned in uv.lock, the teacher tools, and gunicorn for the systemd service.
+UV_PROJECT_ENVIRONMENT="$VENV_DIR" uv sync --frozen --no-dev --extra teacher --extra deploy
 
 "$VENV_DIR/bin/wendao" ask --workspace "$WORKSPACE" --search-only "What is convex hull?"
 

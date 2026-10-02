@@ -1,6 +1,7 @@
 const SVG_NS = "http://www.w3.org/2000/svg";
 const MEMORY_KEY = "wendao_course_memory_v1";
 const MAX_MEMORY_ITEMS = 6;
+const AI_SETTINGS_KEY = "wendao_ai_settings_v1";
 
 const elements = {
   shell: document.querySelector(".app-shell"),
@@ -33,7 +34,50 @@ const elements = {
   graphHint: document.querySelector("#graph-hint"),
   legendChapter: document.querySelector("#legend-chapter"),
   legendConcept: document.querySelector("#legend-concept"),
+  aiBadge: document.querySelector("#ai-badge"),
+  aiButton: document.querySelector("#open-ai-settings"),
+  aiDialog: document.querySelector("#ai-settings"),
+  aiNote: document.querySelector("#ai-settings-note"),
+  aiProvider: document.querySelector("#ai-provider"),
+  aiModel: document.querySelector("#ai-model"),
+  aiBaseUrl: document.querySelector("#ai-base-url"),
+  aiKey: document.querySelector("#ai-key"),
 };
+
+// What the server says about AI for this course: { mode, teacher_ai, student_keys, needs_student_key }.
+let courseAi = { mode: "teacher", teacher_ai: true, student_keys: false, needs_student_key: false };
+
+function readAiSettings() {
+  try { return JSON.parse(localStorage.getItem(AI_SETTINGS_KEY) || "null"); } catch { return null; }
+}
+
+function studentAi() {
+  const saved = readAiSettings();
+  return courseAi.student_keys && saved && (saved.api_key || saved.base_url) ? saved : null;
+}
+
+function updateAiBadge() {
+  elements.aiButton.hidden = !courseAi.student_keys;
+  elements.aiBadge.textContent = studentAi() ? "Your AI key" : "Course-grounded";
+}
+
+function openAiSettings(note) {
+  const saved = readAiSettings() || {};
+  elements.aiProvider.value = saved.provider || "openai";
+  elements.aiModel.value = saved.model || "";
+  elements.aiBaseUrl.value = saved.base_url || "";
+  elements.aiKey.value = saved.api_key || "";
+  elements.aiNote.textContent = note || "Use your own AI account to ask questions. Your key is saved only in this browser.";
+  elements.aiDialog.showModal();
+}
+
+async function loadCourseAi() {
+  try {
+    const response = await fetch("/api/health");
+    if (response.ok) courseAi = { ...courseAi, ...((await response.json()).ai || {}) };
+  } catch { /* keep the defaults; questions will report any problem */ }
+  updateAiBadge();
+}
 
 const state = {
   graph: null,
@@ -779,7 +823,10 @@ async function streamQuestion(query, assistant, options = {}) {
   elements.suggestions.hidden = true;
   const response = await fetch("/api/answer/stream", {
     method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query, context_node_ids: state.selectedId ? [state.selectedId] : [], short_memory: readMemory() }),
+    body: JSON.stringify({
+      query, context_node_ids: state.selectedId ? [state.selectedId] : [], short_memory: readMemory(),
+      ...(studentAi() ? { ai: studentAi() } : {}),
+    }),
     signal: options.signal,
   });
   if (!response.ok || !response.body) throw new Error("The course assistant is not available right now.");
@@ -834,6 +881,10 @@ async function explainSelectedNode(node) {
 
 async function submitQuestion(query) {
   const text = query.trim(); if (!text || elements.send.disabled) return;
+  if (courseAi.needs_student_key && !studentAi()) {
+    openAiSettings("This course asks you to use your own AI key. Add it to start asking questions.");
+    return;
+  }
   abortAutomaticExplanation();
   const controller = new AbortController();
   state.activeQuestionController = controller;
@@ -920,5 +971,19 @@ elements.question.addEventListener("keydown", (event) => {
   if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); elements.form.requestSubmit(); }
 });
 window.addEventListener("resize", () => { if (state.graph) fitGraph(); });
+elements.aiButton.addEventListener("click", () => openAiSettings());
+elements.aiDialog.addEventListener("close", () => {
+  if (elements.aiDialog.returnValue === "save") {
+    localStorage.setItem(AI_SETTINGS_KEY, JSON.stringify({
+      provider: elements.aiProvider.value, model: elements.aiModel.value.trim(),
+      base_url: elements.aiBaseUrl.value.trim(), api_key: elements.aiKey.value.trim(),
+    }));
+  }
+  updateAiBadge();
+});
+document.querySelector("#ai-forget").addEventListener("click", () => {
+  localStorage.removeItem(AI_SETTINGS_KEY); elements.aiDialog.close("cancel");
+});
 
 initialize();
+loadCourseAi();

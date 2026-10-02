@@ -81,6 +81,17 @@ def _iter_sse_data(response) -> Iterator[dict]:
         yield json.loads(data)
 
 
+def _setting(provider, value: str | None, *env_names: str, default: str | None = None) -> str | None:
+    """An explicit value wins; otherwise read the environment, unless the provider was given its own credentials."""
+    if value:
+        return value
+    if getattr(provider, "use_env", True):
+        for name in env_names:
+            if os.environ.get(name):
+                return os.environ[name]
+    return default
+
+
 class LLMProvider(Protocol):
     """Provider interface used by AnswerGenerator."""
 
@@ -151,13 +162,16 @@ class OpenAICompatibleProvider:
 
     model: str | None = None
     name: str = "openai"
+    api_key: str | None = None
+    base_url: str | None = None
+    use_env: bool = True
 
     def resolved_model(self) -> str:
-        return self.model or os.environ.get("OPENAI_MODEL") or DEFAULT_OPENAI_MODEL
+        return _setting(self, self.model, "OPENAI_MODEL", default=DEFAULT_OPENAI_MODEL)
 
     def _request(self, prompt_package: dict, stream: bool) -> request.Request:
-        base_url = os.environ.get("OPENAI_BASE_URL", DEFAULT_OPENAI_BASE_URL).rstrip("/")
-        api_key = os.environ.get("OPENAI_API_KEY")
+        base_url = _setting(self, self.base_url, "OPENAI_BASE_URL", default=DEFAULT_OPENAI_BASE_URL).rstrip("/")
+        api_key = _setting(self, self.api_key, "OPENAI_API_KEY")
         if not api_key and base_url == DEFAULT_OPENAI_BASE_URL:
             raise RuntimeError("Set OPENAI_API_KEY (in your workspace's .env file) before using the OpenAI provider.")
 
@@ -223,12 +237,14 @@ class GeminiProvider:
 
     model: str | None = None
     name: str = "gemini"
+    api_key: str | None = None
+    use_env: bool = True
 
     def resolved_model(self) -> str:
-        return self.model or os.environ.get("GEMINI_MODEL") or DEFAULT_GEMINI_MODEL
+        return _setting(self, self.model, "GEMINI_MODEL", default=DEFAULT_GEMINI_MODEL)
 
     def _request(self, prompt_package: dict, stream: bool) -> request.Request:
-        api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+        api_key = _setting(self, self.api_key, "GEMINI_API_KEY", "GOOGLE_API_KEY")
         if not api_key:
             raise RuntimeError("Set GEMINI_API_KEY (in your workspace's .env file) before using the Gemini provider.")
 
@@ -292,14 +308,20 @@ class AnthropicProvider:
 
     model: str | None = None
     name: str = "anthropic"
+    api_key: str | None = None
+    base_url: str | None = None
+    use_env: bool = True
 
     def resolved_model(self) -> str:
-        return self.model or os.environ.get("ANTHROPIC_MODEL") or DEFAULT_ANTHROPIC_MODEL
+        return _setting(self, self.model, "ANTHROPIC_MODEL", default=DEFAULT_ANTHROPIC_MODEL)
+
+    def _endpoint(self) -> tuple[str, str | None]:
+        base_url = _setting(self, self.base_url, "ANTHROPIC_BASE_URL", default="https://api.anthropic.com").rstrip("/")
+        return base_url, _setting(self, self.api_key, "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_API_KEY")
 
     def generate(self, prompt_package: dict) -> dict:
-        base_url = os.environ.get("ANTHROPIC_BASE_URL", "https://api.anthropic.com").rstrip("/")
-        token = os.environ.get("ANTHROPIC_AUTH_TOKEN") or os.environ.get("ANTHROPIC_API_KEY")
-        model = self.model or os.environ.get("ANTHROPIC_MODEL") or DEFAULT_ANTHROPIC_MODEL
+        base_url, token = self._endpoint()
+        model = self.resolved_model()
         if not token:
             raise RuntimeError("Set ANTHROPIC_AUTH_TOKEN (in your workspace's .env file) before using the Anthropic provider.")
 
@@ -360,8 +382,7 @@ class AnthropicProvider:
 
     def stream(self, prompt_package: dict) -> Iterator[str]:
         """Yield text deltas from an Anthropic-compatible SSE response."""
-        base_url = os.environ.get("ANTHROPIC_BASE_URL", "https://api.anthropic.com").rstrip("/")
-        token = os.environ.get("ANTHROPIC_AUTH_TOKEN") or os.environ.get("ANTHROPIC_API_KEY")
+        base_url, token = self._endpoint()
         if not token:
             raise RuntimeError("Set ANTHROPIC_AUTH_TOKEN (in your workspace's .env file) before using the Anthropic provider.")
 
@@ -456,7 +477,22 @@ class AnthropicProvider:
 PROVIDER_NAMES = ("dry_run", "anthropic", "openai", "gemini")
 
 
-def provider_from_name(name: str, model: str | None = None) -> LLMProvider:
+def provider_from_name(
+    name: str,
+    model: str | None = None,
+    api_key: str | None = None,
+    base_url: str | None = None,
+) -> LLMProvider:
+    """Build a provider. With `api_key`, it uses only the given credentials and ignores the environment."""
+    if api_key:
+        own = {"model": model or None, "api_key": api_key, "use_env": False}
+        if name == "openai":
+            return OpenAICompatibleProvider(base_url=base_url or None, **own)
+        if name == "anthropic":
+            return AnthropicProvider(base_url=base_url or None, **own)
+        if name == "gemini":
+            return GeminiProvider(**own)
+        raise ValueError(f"Unknown provider: {name}")
     if name == "dry_run":
         return DryRunProvider()
     if name == "openai":

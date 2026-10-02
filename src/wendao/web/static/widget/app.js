@@ -5,6 +5,7 @@ const sourcesEl = document.querySelector("#sources");
 const statusEl = document.querySelector("#status");
 const providerEl = document.querySelector("#provider");
 const modelEl = document.querySelector("#model");
+const keyEl = document.querySelector("#api-key");
 const launcher = document.querySelector("#agent-launcher");
 const widget = document.querySelector("#agent-widget");
 const closeButton = document.querySelector("#agent-close");
@@ -97,8 +98,8 @@ async function ask(query) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       query,
-      provider: providerEl.value,
-      model: modelEl.value.trim(),
+      // Sent only when the student entered their own key; otherwise the course AI answers.
+      ...(keyEl.value.trim() ? { ai: { provider: providerEl.value, model: modelEl.value.trim(), api_key: keyEl.value.trim() } } : {}),
       short_memory: readMemory(),
     }),
   });

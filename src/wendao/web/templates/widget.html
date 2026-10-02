@@ -33,20 +33,23 @@
       </header>
 
       <details class="agent-settings">
-        <summary>Settings</summary>
+        <summary>Use your own AI key (optional)</summary>
         <div class="controls">
           <label>
             Provider
             <select id="provider">
-              <option value="anthropic" {% if default_provider == "anthropic" %}selected{% endif %}>Anthropic</option>
-              <option value="openai" {% if default_provider == "openai" %}selected{% endif %}>OpenAI-compatible</option>
-              <option value="gemini" {% if default_provider == "gemini" %}selected{% endif %}>Gemini</option>
-              <option value="dry_run" {% if default_provider == "dry_run" %}selected{% endif %}>Dry run</option>
+              <option value="openai">OpenAI-compatible</option>
+              <option value="anthropic">Anthropic</option>
+              <option value="gemini">Gemini</option>
             </select>
           </label>
           <label>
             Model
-            <input id="model" value="{{ default_model or '' }}" />
+            <input id="model" placeholder="e.g. gpt-4.1-mini" />
+          </label>
+          <label>
+            API key
+            <input id="api-key" type="password" autocomplete="off" placeholder="Leave empty to use the course AI" />
           </label>
         </div>
       </details>

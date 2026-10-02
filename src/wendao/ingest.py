@@ -16,8 +16,6 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List
 
-import nbformat
-
 from wendao.readers import READERS
 
 SUPPORTED_SUFFIXES = {".md", ".ipynb", *READERS}
@@ -206,6 +204,8 @@ class ContentExtractor:
 
     def extract_notebook(self, file_path: Path, module: str, section: str) -> List[Dict[str, Any]]:
         """Extract content from Jupyter notebook"""
+        import nbformat
+
         with open(file_path, 'r', encoding='utf-8') as f:
             nb = nbformat.read(f, as_version=4)
 

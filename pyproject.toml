@@ -21,21 +21,24 @@ classifiers = [
 ]
 requires-python = ">=3.11"
 authors = [{ name = "Yanhao Deng" }, { name = "Zeyu Deng" }]
+# The base install is what students need to open a course app. Teachers add the "teacher" extra.
 dependencies = [
     "flask>=3.0,<4",
-    "huggingface-hub>=0.24,<2",
-    "nbformat>=5.9,<6",
     "numpy>=1.26,<3",
     "onnxruntime>=1.20,<2",
-    "pypdf>=4,<7",
-    "python-docx>=1.1,<2",
-    "python-pptx>=1.0,<2",
-    "pyyaml>=6,<7",
-    "scikit-learn>=1.4,<2",
     "tokenizers>=0.19,<1",
 ]
 
 [project.optional-dependencies]
+# Build courses: read notes (notebooks, PDF, PowerPoint, Word, LaTeX) and download the search model.
+teacher = [
+    "huggingface-hub>=0.24,<2",
+    "nbformat>=5.9,<6",
+    "pypdf>=4,<7",
+    "python-docx>=1.1,<2",
+    "python-pptx>=1.0,<2",
+    "pyyaml>=6,<7",
+]
 # Run the search model with PyTorch instead of ONNX, on a GPU when available.
 gpu = ["sentence-transformers>=3,<6"]
 # Production WSGI server, used by deploy/mle-course-helper.service.
