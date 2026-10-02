@@ -83,6 +83,7 @@ def create_app(workspace=None) -> Flask:
         use_local_key=not in_course_app,
         accounts=workspace.accounts(),
         server_needs_login=getattr(workspace, "server_needs_login", False),
+        limit=workspace.daily_limit() if not in_course_app else None,
     )
     app = Flask(__name__, static_folder=None)
 

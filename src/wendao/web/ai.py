@@ -14,12 +14,15 @@ teacher's Wendao website (`[student] server`), so the key stays on the teacher's
 
 from __future__ import annotations
 
+import ipaddress
 import json
+import socket
 import threading
 from dataclasses import dataclass, field
 from datetime import date
 from typing import Iterator
 from urllib import error, request
+from urllib.parse import urlsplit
 
 from wendao.rag.providers import PROVIDER_NAMES, default_model_name, default_provider_name, provider_from_name
 
@@ -30,6 +33,31 @@ class AiUnavailable(Exception):
     """The question cannot be answered with the current AI settings; the message tells the student why."""
 
     code = "AiUnavailable"
+
+
+def check_public_endpoint(url: str) -> None:
+    """Refuse a student-supplied AI address that would make this server reach a private machine (SSRF).
+
+    On a public course server, the address must use HTTPS and resolve only to public internet
+    addresses: no localhost, private networks (10.x, 192.168.x, ...), link-local (cloud metadata),
+    or other reserved ranges. Course apps on a student's laptop skip this check, so they can use a
+    local model such as Ollama.
+    """
+    parts = urlsplit(url)
+    if parts.scheme != "https" or not parts.hostname:
+        raise AiUnavailable("Your AI server address must start with https:// (local models work only in the course app).")
+    try:
+        port = parts.port or 443
+        addresses = {info[4][0] for info in socket.getaddrinfo(parts.hostname, port, proto=socket.IPPROTO_TCP)}
+    except (socket.gaierror, ValueError) as exc:
+        raise AiUnavailable(f"Can't find the AI server {parts.hostname}.") from exc
+    for address in addresses:
+        ip = ipaddress.ip_address(address.split("%")[0])
+        if not ip.is_global or ip.is_multicast:
+            raise AiUnavailable(
+                f"The AI server address {parts.hostname} points to a private or local network, which this course "
+                "website can't reach. Use a public https:// address, or a local model in the course app."
+            )
 
 
 class LoginRequired(AiUnavailable):
@@ -62,6 +90,24 @@ class DailyLimit:
             self._counts[student] = (today, used + 1)
 
 
+class SharedDailyLimit:
+    """The per-address limit (no roster), stored in usage.db so all server workers share one count."""
+
+    def __init__(self, store, per_day: int):
+        self.store = store
+        self.per_day = per_day
+
+    def take(self, student: str) -> None:
+        if self.per_day <= 0:
+            return
+        from wendao.web.accounts import SignInError
+
+        try:
+            self.store.take(f"address:{student}", self.per_day)
+        except SignInError as exc:
+            raise AiUnavailable(str(exc)) from exc
+
+
 @dataclass
 class AiPolicy:
     mode: str = "teacher"
@@ -72,6 +118,8 @@ class AiPolicy:
     # Roster sign-in on this server (see accounts.py), or, in a course app, whether the teacher's website needs it.
     accounts: object | None = None
     server_needs_login: bool = False
+    # True only in course apps on a student's own laptop, where reaching localhost (e.g. Ollama) is fine.
+    allow_private_endpoints: bool = False
 
     @classmethod
     def from_settings(
@@ -82,16 +130,18 @@ class AiPolicy:
         use_local_key: bool = True,
         accounts=None,
         server_needs_login: bool = False,
+        limit=None,
     ) -> AiPolicy:
         if mode not in AI_MODES:
             raise ValueError(f"[student] ai must be one of {', '.join(AI_MODES)}, not `{mode}`.")
         return cls(
             mode=mode,
             server=server.rstrip("/"),
-            limit=DailyLimit(int(questions_per_day or 0)),
+            limit=limit or DailyLimit(int(questions_per_day or 0)),
             use_local_key=use_local_key,
             accounts=accounts,
             server_needs_login=server_needs_login,
+            allow_private_endpoints=not use_local_key,
         )
 
     @property
@@ -139,11 +189,14 @@ class AiPolicy:
             name = str(own.get("provider") or "")
             if name not in PROVIDER_NAMES or name == "dry_run":
                 raise AiUnavailable("Choose an AI provider in Settings: Anthropic, OpenAI-compatible, or Gemini.")
+            base_url = str(own.get("base_url") or "").strip()
+            if base_url and not self.allow_private_endpoints:
+                check_public_endpoint(base_url)
             provider = provider_from_name(
                 name,
                 model=str(own.get("model") or "") or None,
                 api_key=str(own.get("api_key") or "") or "none",  # local OpenAI-compatible servers often need no key
-                base_url=str(own.get("base_url") or "") or None,
+                base_url=base_url or None,
             )
             return "provider", provider
         if self.mode == "student":

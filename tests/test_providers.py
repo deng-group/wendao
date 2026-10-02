@@ -125,7 +125,7 @@ class GeminiProviderTest(unittest.TestCase):
         body = b"".join(f"data: {json.dumps(event)}\r\n\r\n".encode() for event in events)
         captured = {}
 
-        def fake_open(req, label, timeout):
+        def fake_open(req, label, timeout, follow_redirects=True):
             captured["url"] = req.full_url
             return io.BytesIO(body)
 

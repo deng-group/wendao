@@ -85,8 +85,18 @@ class TokenSigner:
             return cls(os.environ["WENDAO_SECRET"].encode("utf-8"))
         path = folder / ".wendao-secret"
         if not path.exists():
-            path.write_text(secrets.token_hex(32), encoding="utf-8")
-            path.chmod(0o600)
+            # Several server workers may start at once: write a candidate, then link it into place.
+            # Linking fails if another worker got there first, and then everyone reads the winner's secret.
+            candidate = folder / f".wendao-secret.{os.getpid()}.{secrets.token_hex(4)}"
+            fd = os.open(candidate, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                handle.write(secrets.token_hex(32))
+            try:
+                os.link(candidate, path)
+            except FileExistsError:
+                pass
+            finally:
+                candidate.unlink(missing_ok=True)
         return cls(path.read_text(encoding="utf-8").strip().encode("utf-8"))
 
     def sign(self, email: str) -> str:
@@ -122,29 +132,43 @@ class UsageStore:
         return sqlite3.connect(self.path, timeout=10)
 
     def take(self, email: str, limit: int) -> int:
-        """Count one question; return how many the student has left today. Raise if over the limit."""
+        """Count one question; return how many the student has left today. Raise if over the limit.
+
+        The check and the update run in one locked transaction, so server workers sharing this file
+        can't both let the last allowed question through.
+        """
         today = date.today().isoformat()
-        with self._lock, self._connect() as db:
-            row = db.execute("SELECT questions FROM usage WHERE email = ? AND day = ?", (email, today)).fetchone()
-            used = row[0] if row else 0
-            if limit > 0 and used >= limit:
-                raise SignInError(
-                    f"You've used all {limit} of today's questions on the course AI. Try again tomorrow"
-                    + ", or add your own AI key in Settings if your course allows it."
+        with self._lock:
+            db = sqlite3.connect(self.path, timeout=10, isolation_level=None)
+            try:
+                db.execute("BEGIN IMMEDIATE")
+                row = db.execute("SELECT questions FROM usage WHERE email = ? AND day = ?", (email, today)).fetchone()
+                used = row[0] if row else 0
+                if limit > 0 and used >= limit:
+                    db.execute("ROLLBACK")
+                    raise SignInError(
+                        f"You've used all {limit} of today's questions on the course AI. Try again tomorrow"
+                        + ", or add your own AI key in Settings if your course allows it."
+                    )
+                db.execute(
+                    "INSERT INTO usage (email, day, questions) VALUES (?, ?, 1) "
+                    "ON CONFLICT(email, day) DO UPDATE SET questions = questions + 1",
+                    (email, today),
                 )
-            db.execute(
-                "INSERT INTO usage (email, day, questions) VALUES (?, ?, 1) "
-                "ON CONFLICT(email, day) DO UPDATE SET questions = questions + 1",
-                (email, today),
-            )
+                db.execute("COMMIT")
+            finally:
+                db.close()
         return max(limit - used - 1, 0) if limit > 0 else -1
 
     def report(self, day: str | None = None) -> list[tuple[str, int]]:
         with self._connect() as db:
+            # Rows for anonymous visitors (no roster) are keyed "address:<ip>"; reports show students only.
             if day:
-                rows = db.execute("SELECT email, questions FROM usage WHERE day = ? ORDER BY questions DESC", (day,))
+                rows = db.execute("SELECT email, questions FROM usage WHERE day = ? AND email NOT LIKE 'address:%' "
+                                  "ORDER BY questions DESC", (day,))
             else:
-                rows = db.execute("SELECT email, SUM(questions) FROM usage GROUP BY email ORDER BY 2 DESC")
+                rows = db.execute("SELECT email, SUM(questions) FROM usage WHERE email NOT LIKE 'address:%' "
+                                  "GROUP BY email ORDER BY 2 DESC")
             return [(email, int(count)) for email, count in rows.fetchall()]
 
 

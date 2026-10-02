@@ -55,7 +55,9 @@ def create_app(workspace=None) -> Flask:
     pipeline = QueryPipeline.for_workspace(workspace, top_k=5)
     prompt_builder = PromptBuilder(evidence_score_threshold=0.60, course_name=workspace.display_name)
     # The widget runs where the teacher's key is, so it never forwards to another server.
-    policy = AiPolicy.from_settings(workspace.student_ai, "", workspace.questions_per_day, accounts=workspace.accounts())
+    policy = AiPolicy.from_settings(
+        workspace.student_ai, "", workspace.questions_per_day, accounts=workspace.accounts(), limit=workspace.daily_limit()
+    )
     origins = {origin_of(workspace.website)} | {origin_of(item) or item for item in workspace.allowed_origins}
 
     def generator_for(payload: dict) -> AnswerGenerator:

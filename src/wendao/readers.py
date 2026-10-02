@@ -121,14 +121,23 @@ def read_pptx(path: Path) -> Document:
 def read_docx(path: Path) -> Document:
     from docx import Document as WordDocument
 
+    from docx.table import Table
+
     document = WordDocument(str(path))
     blocks = []
     title = (document.core_properties.title or "").strip()
-    for paragraph in document.paragraphs:
-        text = paragraph.text.strip()
+    # Walk paragraphs and tables in the order they appear, so a table stays next to the text about it.
+    for item in document.iter_inner_content():
+        if isinstance(item, Table):
+            rows = [" | ".join(cell.text.strip() for cell in row.cells) for row in item.rows]
+            rows = [row for row in rows if row.replace("|", "").strip()]
+            if rows:
+                blocks.append("\n".join(rows))
+            continue
+        text = item.text.strip()
         if not text:
             continue
-        style = (paragraph.style.name or "").lower() if paragraph.style is not None else ""
+        style = (item.style.name or "").lower() if item.style is not None else ""
         match = re.match(r"heading (\d)", style)
         if style == "title":
             title = title or text
@@ -137,11 +146,6 @@ def read_docx(path: Path) -> Document:
             blocks.append("#" * min(int(match.group(1)) + 1, 6) + f" {text}")
         else:
             blocks.append(text)
-    for table in document.tables:
-        rows = [" | ".join(cell.text.strip() for cell in row.cells) for row in table.rows]
-        rows = [row for row in rows if row.replace("|", "").strip()]
-        if rows:
-            blocks.append("\n".join(rows))
     if not title:
         first_heading = next((block.lstrip("# ") for block in blocks if block.startswith("#")), "")
         title = first_heading

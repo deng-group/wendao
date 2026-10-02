@@ -137,6 +137,15 @@ class Workspace:
     def roster_path(self) -> Path | None:
         return self.root / self.roster if self.roster else None
 
+    def daily_limit(self):
+        """The per-address daily limit used when there is no roster, shared by all server workers."""
+        if self.roster or self.questions_per_day <= 0:
+            return None
+        from wendao.web.accounts import UsageStore
+        from wendao.web.ai import SharedDailyLimit
+
+        return SharedDailyLimit(UsageStore(self.root / "usage.db"), self.questions_per_day)
+
     def accounts(self):
         """Student sign-in for this course server, or None when there is no roster (see web/accounts.py)."""
         if not self.roster_path:

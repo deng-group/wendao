@@ -251,6 +251,9 @@ questions_per_day = 50            # per student, on your key (0 = no limit)
 | `"either"` | your model by default; students may add their own key instead | you, unless a student adds a key |
 
 A student's own key is saved only in their browser and sent with each question. It's never stored on any server.
+Students can also point to their own model server (for example DeepSeek, OpenRouter, or a university server). On your
+course website this must be a public `https://` address, so nobody can use your server to reach private machines. A local
+model on the student's own laptop, such as Ollama, works in the course file (`wendao open`).
 
 **Sign-in and daily limits per student.** To limit questions per student (not per network), give Wendao your class list.
 Save it as `students.csv` with an `email` column (export it from your learning platform; optional columns: `name`, and
