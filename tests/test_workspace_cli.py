@@ -102,7 +102,7 @@ class WorkspaceCliTest(unittest.TestCase):
 
         workspace = workspace_module.load(self.root)
         self.assertEqual(workspace.course_name, "Physics 101")
-        self.assertEqual(workspace.source, self.root / "notes")
+        self.assertEqual(workspace.source, self.root.resolve() / "notes")
 
     def test_build_ask_and_eval(self):
         self.init_course()

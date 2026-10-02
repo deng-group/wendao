@@ -218,13 +218,15 @@ class EmbeddingIndex:
         content_hash = self.content_hash()
 
         if self.cache_path.exists() and not self.rebuild:
-            cached = np.load(self.cache_path, allow_pickle=False)
-            if (
-                "content_hash" in cached.files
-                and str(cached["content_hash"]) == content_hash
-                and str(cached["backend"]) in self.NEURAL
-            ):
-                self.chunk_embeddings = cached["embeddings"].astype(np.float32)
+            with np.load(self.cache_path, allow_pickle=False) as cached:  # close the file (Windows locks open files)
+                matches = (
+                    "content_hash" in cached.files
+                    and str(cached["content_hash"]) == content_hash
+                    and str(cached["backend"]) in self.NEURAL
+                )
+                if matches:
+                    self.chunk_embeddings = cached["embeddings"].astype(np.float32)
+            if matches:
                 self.encoder = make_encoder(self.model_name, self.engine, self.device, self.model_path)
                 return
 

@@ -14,6 +14,7 @@ import os
 import socket
 import subprocess
 import tempfile
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterator, Protocol
@@ -59,6 +60,25 @@ def temperature_setting() -> dict:
         return {"temperature": float(raw)}
     except ValueError:
         raise RuntimeError(f"LLM_TEMPERATURE must be a number or `none`, not `{raw}`.") from None
+
+
+@contextmanager
+def _curl_config(write):
+    """A private curl config file (owner-only) that curl can open on every OS, deleted afterwards.
+
+    The key goes in this file rather than on the command line, where other local users could see it.
+    The file is closed before curl reads it, because Windows won't let a second program open it otherwise.
+    """
+    fd, path = tempfile.mkstemp(prefix="wendao-curl-", suffix=".cfg")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            write(handle)
+        yield path
+    finally:
+        try:
+            os.unlink(path)
+        except OSError:
+            pass
 
 
 class _NoRedirect(request.HTTPRedirectHandler):
@@ -369,6 +389,15 @@ class AnthropicProvider:
     def resolved_model(self) -> str:
         return _setting(self, self.model, "ANTHROPIC_MODEL", default=DEFAULT_ANTHROPIC_MODEL)
 
+    def _write_curl_config(self, config, base_url: str, token: str) -> None:
+        escaped_token = token.replace("\\", "\\\\").replace('"', '\\"')
+        config.write(f'url = "{base_url}/v1/messages"\n')
+        self._write_pin(config, base_url)
+        config.write('header = "content-type: application/json"\n')
+        config.write('header = "anthropic-version: 2023-06-01"\n')
+        config.write(f'header = "x-api-key: {escaped_token}"\n')
+        config.write('request = "POST"\n')
+
     def _write_pin(self, config, base_url: str) -> None:
         if not self.pinned_ip:
             return
@@ -401,15 +430,7 @@ class AnthropicProvider:
         }
         # Keep credentials and request content out of the process command line,
         # where local process-inspection tools could otherwise reveal them.
-        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", delete=True) as config:
-            escaped_token = token.replace("\\", "\\\\").replace('"', '\\"')
-            config.write(f'url = "{base_url}/v1/messages"\n')
-            self._write_pin(config, base_url)
-            config.write('header = "content-type: application/json"\n')
-            config.write('header = "anthropic-version: 2023-06-01"\n')
-            config.write(f'header = "x-api-key: {escaped_token}"\n')
-            config.write('request = "POST"\n')
-            config.flush()
+        with _curl_config(lambda config: self._write_curl_config(config, base_url, token)) as config_path:
             completed = subprocess.run(
                 [
                     "curl",
@@ -418,7 +439,7 @@ class AnthropicProvider:
                     "--max-time",
                     "90",
                     "--config",
-                    config.name,
+                    config_path,
                     "--data-binary",
                     "@-",
                 ],
@@ -459,15 +480,7 @@ class AnthropicProvider:
         }
 
         process = None
-        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", delete=True) as config:
-            escaped_token = token.replace("\\", "\\\\").replace('"', '\\"')
-            config.write(f'url = "{base_url}/v1/messages"\n')
-            self._write_pin(config, base_url)
-            config.write('header = "content-type: application/json"\n')
-            config.write('header = "anthropic-version: 2023-06-01"\n')
-            config.write(f'header = "x-api-key: {escaped_token}"\n')
-            config.write('request = "POST"\n')
-            config.flush()
+        with _curl_config(lambda config: self._write_curl_config(config, base_url, token)) as config_path:
             process = subprocess.Popen(
                 [
                     "curl",
@@ -477,7 +490,7 @@ class AnthropicProvider:
                     "--max-time",
                     "120",
                     "--config",
-                    config.name,
+                    config_path,
                     "--data-binary",
                     "@-",
                 ],

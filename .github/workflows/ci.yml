@@ -7,10 +7,16 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    name: test (${{ matrix.os }}, Python ${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
-        python-version: ["3.11", "3.13"]
+        include:
+          - { os: ubuntu-latest, python-version: "3.11" }
+          - { os: ubuntu-latest, python-version: "3.13" }
+          - { os: windows-latest, python-version: "3.12" }
+          - { os: macos-latest, python-version: "3.12" }
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
@@ -23,8 +29,17 @@ jobs:
         run: uv run python -m unittest discover -s tests -v
 
   student-install:
-    # The base install (what students get) must open a real course file, offline, without the teacher tools.
-    runs-on: ubuntu-latest
+    # The base install (what students get) must open a real course file, offline, without the teacher tools,
+    # on every operating system students use.
+    name: student-install (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
@@ -33,14 +48,16 @@ jobs:
       - name: Pack the example course (teacher install)
         run: |
           uv sync --frozen --extra teacher
-          uv run wendao pack -w examples/mle4217_5219 -o /tmp/course.wendao
+          uv run wendao pack -w examples/mle4217_5219 -o "$RUNNER_TEMP/course.wendao"
       - name: Install the base package only
         run: |
           uv build --wheel
-          uv venv /tmp/student
-          uv pip install --python /tmp/student/bin/python dist/*.whl
+          uv venv "$RUNNER_TEMP/student"
+          uv pip install --python "$RUNNER_TEMP/student" dist/*.whl
       - name: Open the course file as a student, offline
         env:
           HF_HUB_OFFLINE: "1"
-          WENDAO_CACHE: /tmp/wendao-cache
-        run: /tmp/student/bin/python tests/smoke_student_app.py /tmp/course.wendao "What is a convex hull?"
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then python="$RUNNER_TEMP/student/Scripts/python.exe"; else python="$RUNNER_TEMP/student/bin/python"; fi
+          export WENDAO_CACHE="$RUNNER_TEMP/wendao-cache"
+          "$python" tests/smoke_student_app.py "$RUNNER_TEMP/course.wendao" "What is a convex hull?"
