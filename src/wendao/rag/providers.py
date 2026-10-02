@@ -8,14 +8,17 @@ which a workspace fills in from `.env` and the [model] section of `wendao.toml`.
 
 from __future__ import annotations
 
+import http.client
 import json
 import os
+import socket
 import subprocess
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterator, Protocol
 from urllib import error, request
+from urllib.parse import urlsplit
 
 
 DEFAULT_OPENAI_MODEL = "gpt-4.1-mini"
@@ -68,9 +71,38 @@ class _NoRedirect(request.HTTPRedirectHandler):
 _NO_REDIRECT_OPENER = request.build_opener(_NoRedirect)
 
 
-def _open(req: request.Request, label: str, timeout: int, follow_redirects: bool = True):
+class _PinnedHTTPSConnection(http.client.HTTPSConnection):
+    """HTTPS to an already-checked IP address, while TLS still verifies the real hostname.
+
+    Connecting to the address that was checked (instead of looking the name up again) stops a
+    student's hostname from being re-pointed at a private machine after the check (DNS rebinding).
+    """
+
+    def __init__(self, host, pinned_ip: str, **kwargs):
+        super().__init__(host, **kwargs)
+        self._pinned_ip = pinned_ip
+
+    def connect(self):
+        sock = socket.create_connection((self._pinned_ip, self.port), self.timeout, self.source_address)
+        self.sock = self._context.wrap_socket(sock, server_hostname=self.host)
+
+
+class _PinnedHTTPSHandler(request.HTTPSHandler):
+    def __init__(self, pinned_ip: str):
+        super().__init__()
+        self.pinned_ip = pinned_ip
+
+    def https_open(self, req):
+        return self.do_open(lambda host, **kwargs: _PinnedHTTPSConnection(host, self.pinned_ip, **kwargs), req, context=self._context)
+
+
+def _open(req: request.Request, label: str, timeout: int, follow_redirects: bool = True, pinned_ip: str | None = None):
     """Open an HTTP request and turn transport failures into readable errors."""
     try:
+        if pinned_ip:
+            if urlsplit(req.full_url).scheme != "https":
+                raise RuntimeError(f"{label}: a checked AI server address must use https.")
+            return request.build_opener(_NoRedirect, _PinnedHTTPSHandler(pinned_ip)).open(req, timeout=timeout)
         if not follow_redirects:
             return _NO_REDIRECT_OPENER.open(req, timeout=timeout)
         return request.urlopen(req, timeout=timeout)
@@ -182,6 +214,8 @@ class OpenAICompatibleProvider:
     base_url: str | None = None
     use_env: bool = True
     follow_redirects: bool = True
+    # Set when a student's base_url was checked on a public server: connect only to that IP.
+    pinned_ip: str | None = None
 
     def resolved_model(self) -> str:
         return _setting(self, self.model, "OPENAI_MODEL", default=DEFAULT_OPENAI_MODEL)
@@ -214,7 +248,7 @@ class OpenAICompatibleProvider:
         )
 
     def generate(self, prompt_package: dict) -> dict:
-        with _open(self._request(prompt_package, stream=False), "OpenAI-compatible", 90, self.follow_redirects) as response:
+        with _open(self._request(prompt_package, stream=False), "OpenAI-compatible", 90, self.follow_redirects, self.pinned_ip) as response:
             raw = json.loads(response.read().decode("utf-8"))
         return {
             "provider": self.name,
@@ -226,7 +260,7 @@ class OpenAICompatibleProvider:
 
     def stream(self, prompt_package: dict) -> Iterator[str]:
         """Yield text deltas from an OpenAI-compatible SSE response."""
-        with _open(self._request(prompt_package, stream=True), "OpenAI-compatible", 120, self.follow_redirects) as response:
+        with _open(self._request(prompt_package, stream=True), "OpenAI-compatible", 120, self.follow_redirects, self.pinned_ip) as response:
             for event_payload in _iter_sse_data(response):
                 if event_payload.get("error"):
                     message = event_payload["error"].get("message", "Unknown streaming error")
@@ -329,9 +363,18 @@ class AnthropicProvider:
     api_key: str | None = None
     base_url: str | None = None
     use_env: bool = True
+    # Set when a student's base_url was checked on a public server: curl connects only to that IP.
+    pinned_ip: str | None = None
 
     def resolved_model(self) -> str:
         return _setting(self, self.model, "ANTHROPIC_MODEL", default=DEFAULT_ANTHROPIC_MODEL)
+
+    def _write_pin(self, config, base_url: str) -> None:
+        if not self.pinned_ip:
+            return
+        parts = urlsplit(base_url)
+        address = f"[{self.pinned_ip}]" if ":" in self.pinned_ip else self.pinned_ip
+        config.write(f'resolve = "{parts.hostname}:{parts.port or 443}:{address}"\n')
 
     def _endpoint(self) -> tuple[str, str | None]:
         base_url = _setting(self, self.base_url, "ANTHROPIC_BASE_URL", default="https://api.anthropic.com").rstrip("/")
@@ -361,6 +404,7 @@ class AnthropicProvider:
         with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", delete=True) as config:
             escaped_token = token.replace("\\", "\\\\").replace('"', '\\"')
             config.write(f'url = "{base_url}/v1/messages"\n')
+            self._write_pin(config, base_url)
             config.write('header = "content-type: application/json"\n')
             config.write('header = "anthropic-version: 2023-06-01"\n')
             config.write(f'header = "x-api-key: {escaped_token}"\n')
@@ -418,6 +462,7 @@ class AnthropicProvider:
         with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", delete=True) as config:
             escaped_token = token.replace("\\", "\\\\").replace('"', '\\"')
             config.write(f'url = "{base_url}/v1/messages"\n')
+            self._write_pin(config, base_url)
             config.write('header = "content-type: application/json"\n')
             config.write('header = "anthropic-version: 2023-06-01"\n')
             config.write(f'header = "x-api-key: {escaped_token}"\n')
@@ -500,14 +545,15 @@ def provider_from_name(
     model: str | None = None,
     api_key: str | None = None,
     base_url: str | None = None,
+    pinned_ip: str | None = None,
 ) -> LLMProvider:
     """Build a provider. With `api_key`, it uses only the given credentials and ignores the environment."""
     if api_key:
         own = {"model": model or None, "api_key": api_key, "use_env": False}
         if name == "openai":
-            return OpenAICompatibleProvider(base_url=base_url or None, follow_redirects=False, **own)
+            return OpenAICompatibleProvider(base_url=base_url or None, follow_redirects=False, pinned_ip=pinned_ip, **own)
         if name == "anthropic":
-            return AnthropicProvider(base_url=base_url or None, **own)
+            return AnthropicProvider(base_url=base_url or None, pinned_ip=pinned_ip, **own)
         if name == "gemini":
             return GeminiProvider(follow_redirects=False, **own)
         raise ValueError(f"Unknown provider: {name}")
