@@ -562,3 +562,12 @@ class ConfigInjectionAndProxyTest(unittest.TestCase):
                     leftover = path
         self.assertEqual(Path(leftover).read_text(encoding="utf-8"), "", "the key must be wiped even if deleting fails")
         real_unlink(leftover)
+
+
+class KeyFileAlreadyGoneTest(unittest.TestCase):
+    def test_a_key_file_removed_by_someone_else_counts_as_cleaned_up(self):
+        from wendao.rag import providers
+
+        with providers._curl_config(lambda handle: handle.write("x")) as path:
+            os.unlink(path)  # e.g. a temp-file cleaner got there first
+        self.assertFalse(Path(path).exists(), "cleanup must not recreate the file")

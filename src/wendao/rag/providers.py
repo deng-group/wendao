@@ -85,6 +85,8 @@ def _curl_config(write):
     finally:
         try:
             os.unlink(path)
+        except FileNotFoundError:
+            pass  # already gone (for example removed by a temp-file cleaner): nothing is left behind
         except OSError as exc:
             # The file holds an API key: never leave it behind silently. Empty it, then report the problem.
             try:
