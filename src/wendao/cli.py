@@ -14,6 +14,7 @@ from pathlib import Path
 
 from wendao import __version__
 from wendao import workspace as workspace_module
+from wendao.pack import PackError
 from wendao.workspace import CONFIG_NAME, Workspace, WorkspaceError
 
 STARTER_DIR = Path(__file__).resolve().parent / "starter"
@@ -91,6 +92,22 @@ def _relpath(path: Path, start: Path) -> str:
 
 # build steps ----------------------------------------------------------------------------------
 
+TEACHER_MODULES = {"nbformat": "nbformat", "pypdf": "pypdf", "docx": "python-docx", "pptx": "python-pptx",
+                   "yaml": "pyyaml", "huggingface_hub": "huggingface-hub"}
+
+
+def require_teacher_tools() -> None:
+    """Building a course needs the teacher extra; say so plainly if it is missing."""
+    import importlib.util
+
+    missing = [package for module, package in TEACHER_MODULES.items() if importlib.util.find_spec(module) is None]
+    if missing:
+        raise RuntimeError(
+            "Building a course needs the teacher tools, which are not installed "
+            f"(missing: {', '.join(missing)}).\nInstall them with:  pip install \"wendao[teacher]\""
+        )
+
+
 
 def step_extract(workspace: Workspace) -> None:
     from wendao.ingest import extract
@@ -98,7 +115,15 @@ def step_extract(workspace: Workspace) -> None:
     say(f"Extracting notes from {relative(workspace, workspace.require_source())} ...")
     summary = extract(workspace)
     term = f" Term: {summary['term']}." if summary["term"] else ""
-    say(f"  {summary['files']} files → {summary['chunks']} chunks in {relative(workspace, workspace.chunks_path)}.{term}")
+    types = f" ({', '.join(summary['types'])})" if summary["types"] else ""
+    say(f"  {summary['files']} files{types} → {summary['chunks']} chunks in {relative(workspace, workspace.chunks_path)}.{term}")
+    for warning in summary["warnings"]:
+        say(f"  Warning: {warning}")
+    if not summary["chunks"]:
+        raise RuntimeError(
+            "No text was found in your notes. Supported files: Markdown, Jupyter notebooks, PDF, PowerPoint (.pptx), "
+            "Word (.docx), LaTeX (.tex), HTML, and plain text."
+        )
 
 
 def step_graph(workspace: Workspace) -> None:
@@ -118,11 +143,11 @@ def step_index(workspace: Workspace, rebuild: bool = True) -> None:
 
     say("Building the search index (the first run downloads the search model) ...")
     pipeline = QueryPipeline.for_workspace(workspace, rebuild_index=rebuild)
-    backend = pipeline.retriever.embedding.backend
-    say(f"  {len(pipeline.retriever.chunks)} chunks indexed with {backend} → {relative(workspace, workspace.index_dir)}")
+    say(f"  {len(pipeline.retriever.chunks)} chunks indexed with {pipeline.retriever.embedding.description} → {relative(workspace, workspace.index_dir)}")
 
 
 def cmd_build(args: argparse.Namespace) -> None:
+    require_teacher_tools()
     workspace = load_workspace(args)
     started = time.monotonic()
     step_extract(workspace)
@@ -132,6 +157,7 @@ def cmd_build(args: argparse.Namespace) -> None:
 
 
 def cmd_extract(args: argparse.Namespace) -> None:
+    require_teacher_tools()
     step_extract(load_workspace(args))
 
 
@@ -140,6 +166,7 @@ def cmd_graph(args: argparse.Namespace) -> None:
 
 
 def cmd_index(args: argparse.Namespace) -> None:
+    require_teacher_tools()
     step_index(load_workspace(args), rebuild=True)
 
 
@@ -166,7 +193,8 @@ def cmd_ask(args: argparse.Namespace) -> None:
             say(f"Term: {result['temporal_context']}")
         say()
         for rank, item in enumerate(result["evidence"], start=1):
-            say(f"{rank}. {item['file_path']}  score {item['score']:.2f}  (keyword {item['bm25_score']:.2f}, meaning {item['embedding_score']:.2f})")
+            where = f", {item['location']}" if item.get("location") else ""
+            say(f"{rank}. {item['file_path']}{where}  score {item['score']:.2f}  (keyword {item['bm25_score']:.2f}, meaning {item['embedding_score']:.2f})")
             say(f"   {item['title']}")
         return
 
@@ -197,7 +225,8 @@ def cmd_ask(args: argparse.Namespace) -> None:
     if result["sources"]:
         say("\nSources:")
         for source in result["sources"]:
-            say(f"  - {source['title']} ({source['file_path']})")
+            where = f", {source['location']}" if source.get("location") else ""
+            say(f"  - {source['title']} ({source['file_path']}{where})")
     model_note = f" / {result['model']}" if result.get("model") else ""
     say(f"\n[{result['status']} · {result['provider']}{model_note}]")
 
@@ -211,6 +240,9 @@ def cmd_check(args: argparse.Namespace) -> None:
     workspace = load_workspace(args)
     say(f"Workspace: {workspace.root}")
     say(f"Course:    {workspace.display_name}")
+    ai = {"teacher": "your course AI", "student": "their own AI key", "either": "your course AI or their own key"}
+    server = f" (apps use {workspace.student_server})" if workspace.student_server else ""
+    say(f"Students:  ask with {ai[workspace.student_ai]}{server}")
     source = workspace.source
     say(f"Notes:     {source if source else '(not set)'}{'' if source is None or source.is_dir() else '  ← folder not found'}")
     for label, path in [("Chunks", workspace.chunks_path), ("Graph", workspace.graph_path)]:
@@ -241,7 +273,7 @@ def serve_static_site(folder: Path, port: int) -> ThreadingHTTPServer:
 
 def cmd_serve(args: argparse.Namespace) -> None:
     workspace = load_workspace(args)
-    if not args.no_check:
+    if not args.no_check and workspace.student_ai != "student":
         from wendao.rag.providers import check_connection
 
         try:
@@ -272,6 +304,91 @@ def cmd_serve(args: argparse.Namespace) -> None:
     if not args.no_browser:
         threading.Timer(1.0, webbrowser.open, args=(url,)).start()
     app.run(host=args.host, port=port, debug=False, threaded=True)
+
+
+# students -------------------------------------------------------------------------------------
+
+
+def cmd_students(args: argparse.Namespace) -> None:
+    from datetime import date
+
+    from wendao.web.accounts import UsageStore, load_roster
+
+    workspace = load_workspace(args)
+    if not workspace.roster_path:
+        raise RuntimeError(
+            "No class list is set. Add one to use sign-in and per-student limits:\n"
+            '  1. Save your class list as students.csv with an "email" column (optional: "name", "limit").\n'
+            '  2. Under [student] in wendao.toml, add: roster = "students.csv"'
+        )
+    roster = load_roster(workspace.require(workspace.roster_path, "Add your class list there."))
+    default = workspace.questions_per_day
+    say(f"Class list: {relative(workspace, workspace.roster_path)} ({len(roster)} students)")
+    say(f"Daily limit: {default if default > 0 else 'none'} questions per student on the course AI")
+    usage_db = workspace.root / "usage.db"
+    if not usage_db.exists():
+        say("No questions yet. Usage is recorded on the computer that runs `wendao serve`.")
+        return
+    day = None if args.all else date.today().isoformat()
+    usage = dict(UsageStore(usage_db).report(day))
+    say()
+    say(f"{'All days' if args.all else 'Today'}:")
+    width = max([len(email) for email in roster] + [10])
+    for email, student in sorted(roster.items(), key=lambda item: -usage.get(item[0], 0)):
+        limit = student.limit if student.limit is not None else default
+        used = usage.get(email, 0)
+        shown = f"{used}/{limit}" if limit > 0 and not args.all else str(used)
+        say(f"  {email:<{width}}  {shown:>7}  {student.name}")
+    unknown = sorted(set(usage) - set(roster))
+    if unknown:
+        say(f"  (+ {len(unknown)} no longer on the class list: {', '.join(unknown)})")
+
+
+# pack and open --------------------------------------------------------------------------------
+
+
+def cmd_pack(args: argparse.Namespace) -> None:
+    require_teacher_tools()
+    from wendao.pack import pack
+
+    workspace = load_workspace(args)
+    say("Packing the course app ...")
+    path, notes = pack(workspace, Path(args.output).expanduser() if args.output else None, include_model=not args.no_model)
+    size = path.stat().st_size / 1_000_000
+    say(f"  {relative(workspace, path)} ({size:.0f} MB)")
+    ai = {"teacher": "your course AI", "student": "their own AI key", "either": "your course AI or their own key"}
+    say(f"  Students ask questions with {ai[workspace.student_ai]}.")
+    for note in notes:
+        say(f"  Note: {note}")
+    say()
+    say("Share this file with your students. They open it with:")
+    say("  pip install wendao")
+    say(f"  wendao open {path.name}")
+
+
+def free_port(preferred: int) -> int:
+    import socket
+
+    for port in range(preferred, preferred + 50):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            if sock.connect_ex(("127.0.0.1", port)) != 0:
+                return port
+    raise RuntimeError(f"No free port found near {preferred}; pass one with --port.")
+
+
+def cmd_open(args: argparse.Namespace) -> None:
+    from wendao.pack import open_pack
+    from wendao.web.explorer import create_app
+
+    say(f"Opening {Path(args.file).name} ...")
+    course = open_pack(Path(args.file))
+    app = create_app(course)
+    port = args.port or free_port(5057)
+    url = f"http://127.0.0.1:{port}/"
+    say(f"{course.display_name}: {url}   Press Ctrl+C to stop.")
+    if not args.no_browser:
+        threading.Timer(1.0, webbrowser.open, args=(url,)).start()
+    app.run(host="127.0.0.1", port=port, debug=False, threaded=True)
 
 
 # eval -----------------------------------------------------------------------------------------
@@ -353,6 +470,21 @@ def build_parser() -> argparse.ArgumentParser:
 
     commands.add_parser("check", parents=[common], help="check the workspace and the model connection").set_defaults(func=cmd_check)
 
+    students = commands.add_parser("students", parents=[common], help="see the class list and questions asked per student")
+    students.add_argument("--all", action="store_true", help="total questions over all days instead of today")
+    students.set_defaults(func=cmd_students)
+
+    pack = commands.add_parser("pack", parents=[common], help="package the built course into one file for students")
+    pack.add_argument("-o", "--output", help="where to write it (default: build/<course-name>.wendao)")
+    pack.add_argument("--no-model", action="store_true", help="leave out the search model (smaller file; students download it once)")
+    pack.set_defaults(func=cmd_pack)
+
+    opener = commands.add_parser("open", help="open a course app (.wendao file) from your teacher")
+    opener.add_argument("file", help="the .wendao file")
+    opener.add_argument("--port", type=int, help="port (default: the first free port from 5057)")
+    opener.add_argument("--no-browser", action="store_true", help="don't open a browser")
+    opener.set_defaults(func=cmd_open)
+
     serve = commands.add_parser("serve", parents=[common], help="start the knowledge graph website")
     serve.add_argument("--widget", action="store_true", help="start the course-website widget API instead")
     serve.add_argument("--port", type=int, help="port (default: 5057, or 5055 with --widget)")
@@ -380,7 +512,7 @@ def main(argv: list[str] | None = None) -> None:
         return
     try:
         args.func(args)
-    except (WorkspaceError, RuntimeError, ValueError, FileNotFoundError) as exc:
+    except (WorkspaceError, PackError, RuntimeError, ValueError, FileNotFoundError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         raise SystemExit(1) from None
     except KeyboardInterrupt:

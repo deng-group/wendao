@@ -18,6 +18,24 @@ jobs:
           python-version: ${{ matrix.python-version }}
           enable-cache: true
       - name: Install
-        run: uv sync --frozen --all-extras
+        run: uv sync --frozen --extra teacher --extra deploy
       - name: Unit tests
         run: uv run python -m unittest discover -s tests -v
+
+  student-install:
+    # The base install (what students get) must open course apps without the teacher tools.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - name: Build the package
+        run: uv build --wheel
+      - name: Install it without extras and open a course app
+        run: |
+          uv venv /tmp/student
+          uv pip install --python /tmp/student/bin/python dist/*.whl
+          if /tmp/student/bin/python -c "import pypdf" 2>/dev/null; then echo "teacher tools leaked into the base install"; exit 1; fi
+          /tmp/student/bin/wendao --help
+          /tmp/student/bin/python -c "import wendao.pack, wendao.web.explorer, wendao.web.widget; print('course app code imports fine')"

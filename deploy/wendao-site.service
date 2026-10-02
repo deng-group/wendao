@@ -1,0 +1,18 @@
+[Unit]
+Description=Wendao course website (knowledge graph + AI learning agent)
+After=network.target
+
+[Service]
+Type=simple
+User=mlehelper
+Group=mlehelper
+# The course workspace (wendao.toml, concepts.json, build/). API keys come from the EnvironmentFile.
+WorkingDirectory=/srv/mle-course-helper/workspace
+Environment=WENDAO_WORKSPACE=/srv/mle-course-helper/workspace
+EnvironmentFile=/etc/mle-course-helper.env
+ExecStart=/srv/mle-course-helper/wendao/.venv/bin/gunicorn "wendao.web.explorer:create_app()" --bind 127.0.0.1:5057 --workers 2 --threads 8 --timeout 180 --access-logfile -
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

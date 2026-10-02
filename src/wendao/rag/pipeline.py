@@ -39,6 +39,9 @@ class QueryPipeline:
             aliases=workspace.aliases,
             logistics_terms=workspace.logistics_terms,
             rebuild_index=rebuild_index,
+            engine=workspace.search_engine,
+            device=workspace.search_device,
+            model_path=getattr(workspace, "model_path", None),
         )
         gate = AnswerabilityGate(
             logistics_terms=workspace.logistics_terms,
@@ -95,6 +98,7 @@ class QueryPipeline:
         return {
             "chunk_id": result.chunk_id,
             "file_path": result.file_path,
+            "location": result.location,
             "title": result.title,
             "module": result.module,
             "score": result.score,

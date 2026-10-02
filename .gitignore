@@ -18,3 +18,11 @@ examples/*/build/reports/
 
 # Keep the course book as a sibling repository, not inside this repo.
 MLE4217_5219_book/
+
+# Course app files are build output (often large); share them, don't commit them.
+*.wendao
+
+# Student data from course servers: never commit it
+students.csv
+usage.db
+.wendao-secret

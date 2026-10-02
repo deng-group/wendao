@@ -5,6 +5,9 @@ const sourcesEl = document.querySelector("#sources");
 const statusEl = document.querySelector("#status");
 const providerEl = document.querySelector("#provider");
 const modelEl = document.querySelector("#model");
+const keyEl = document.querySelector("#api-key");
+const emailEl = document.querySelector("#student-email");
+let signInToken = sessionStorage.getItem("wendao_widget_token") || "";
 const launcher = document.querySelector("#agent-launcher");
 const widget = document.querySelector("#agent-widget");
 const closeButton = document.querySelector("#agent-close");
@@ -73,7 +76,7 @@ function setSources(sources) {
       <div class="source-score"></div>
     `;
     item.querySelector(".source-title").textContent = source.title || "Untitled";
-    item.querySelector(".source-path").textContent = source.file_path || "";
+    item.querySelector(".source-path").textContent = [source.file_path, source.location].filter(Boolean).join(", ");
     item.querySelector(".source-score").textContent = `score ${Number(source.score || 0).toFixed(3)}`;
     sourcesEl.appendChild(item);
   }
@@ -91,14 +94,26 @@ function setStatus(result) {
   });
 }
 
+async function signInIfNeeded() {
+  const email = emailEl.value.trim();
+  if (signInToken || !email) return;
+  const response = await fetch("/api/login", {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email }),
+  });
+  const reply = await response.json();
+  if (!reply.ok) throw new Error(reply.message || "Sign-in failed.");
+  signInToken = reply.token; sessionStorage.setItem("wendao_widget_token", signInToken);
+}
+
 async function ask(query) {
+  await signInIfNeeded();
   const response = await fetch("/api/answer", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...(signInToken ? { Authorization: `Bearer ${signInToken}` } : {}) },
     body: JSON.stringify({
       query,
-      provider: providerEl.value,
-      model: modelEl.value.trim(),
+      // Sent only when the student entered their own key; otherwise the course AI answers.
+      ...(keyEl.value.trim() ? { ai: { provider: providerEl.value, model: modelEl.value.trim(), api_key: keyEl.value.trim() } } : {}),
       short_memory: readMemory(),
     }),
   });

@@ -14,7 +14,7 @@
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 128 128'%3E%3Crect width='128' height='128' rx='30' fill='%23ffffff'/%3E%3Cpath d='M40 50 C40 31 52 23 64 23 C79 23 90 33 90 47 C90 60 80 65 72 70 C66 74 64 78 64 85' fill='none' stroke='%238a98ad' stroke-width='7' stroke-linecap='round'/%3E%3Ccircle cx='40' cy='50' r='10' fill='%23fff' stroke='%232563eb' stroke-width='6'/%3E%3Ccircle cx='90' cy='47' r='11' fill='%232563eb'/%3E%3Ccircle cx='64' cy='85' r='10' fill='%23fff' stroke='%232563eb' stroke-width='6'/%3E%3Ccircle cx='64' cy='106' r='9' fill='%23d97706'/%3E%3C/svg%3E"
     />
     <title>Wendao · {{COURSE_NAME}}</title>
-    <link rel="stylesheet" href="./style.css?v=11" />
+    <link rel="stylesheet" href="./style.css?v=13" />
   </head>
   <body>
     <main class="app-shell">
@@ -85,7 +85,9 @@
             <h1>Learning Agent</h1>
           </div>
           <div class="chat-header-actions">
-            <div class="grounded-badge"><span></span>Course-grounded</div>
+            <div class="grounded-badge"><span></span><b id="ai-badge">Course-grounded</b></div>
+            <button id="open-sign-in" class="chat-clear" type="button" title="Sign in" hidden>Sign in</button>
+            <button id="open-ai-settings" class="chat-clear" type="button" title="AI settings" hidden>AI</button>
             <button id="clear-chat" class="chat-clear" type="button" aria-label="Clear conversation" title="Clear conversation">Clear</button>
             <button id="close-chat" class="chat-close" type="button" aria-label="Close Learning Agent" title="Close Learning Agent">×</button>
           </div>
@@ -109,7 +111,7 @@
 
         <section id="suggestions" class="suggestions" aria-label="Suggested questions">
           <button type="button">How do the main course chapters connect?</button>
-          <button type="button">What should I understand before machine learning potentials?</button>
+          <button type="button">What are the key ideas in this course?</button>
         </section>
 
         <section id="source-drawer" class="source-drawer" hidden>
@@ -128,8 +130,44 @@
           </div>
         </form>
       </aside>
+
+      <dialog id="sign-in" class="ai-settings" aria-labelledby="sign-in-title">
+        <form method="dialog">
+          <h2 id="sign-in-title">Sign in</h2>
+          <p id="sign-in-note">Use the email your course knows you by. It is used to count your daily questions.</p>
+          <label>Email <input id="sign-in-email" type="email" autocomplete="email" placeholder="you@university.edu" /></label>
+          <p id="sign-in-error" class="sign-in-error" hidden></p>
+          <div class="ai-settings-actions">
+            <button id="sign-out" type="button">Sign out</button>
+            <button value="cancel" type="submit">Cancel</button>
+            <button id="sign-in-submit" type="button" class="primary">Sign in</button>
+          </div>
+        </form>
+      </dialog>
+
+      <dialog id="ai-settings" class="ai-settings" aria-labelledby="ai-settings-title">
+        <form method="dialog">
+          <h2 id="ai-settings-title">Your own AI key</h2>
+          <p id="ai-settings-note">Use your own AI account to ask questions. Your key is saved only in this browser.</p>
+          <label>Provider
+            <select id="ai-provider">
+              <option value="openai">OpenAI-compatible (OpenAI, DeepSeek, OpenRouter, Ollama…)</option>
+              <option value="anthropic">Anthropic (Claude)</option>
+              <option value="gemini">Google Gemini</option>
+            </select>
+          </label>
+          <label>Model <input id="ai-model" placeholder="e.g. gpt-4.1-mini" autocomplete="off" /></label>
+          <label>Server address (optional) <input id="ai-base-url" placeholder="e.g. http://localhost:11434/v1 for Ollama" autocomplete="off" /></label>
+          <label>API key <input id="ai-key" type="password" placeholder="Paste your key" autocomplete="off" /></label>
+          <div class="ai-settings-actions">
+            <button id="ai-forget" type="button">Forget my key</button>
+            <button value="cancel" type="submit">Cancel</button>
+            <button id="ai-save" value="save" type="submit" class="primary">Save</button>
+          </div>
+        </form>
+      </dialog>
     </main>
 
-    <script src="./app.js?v=11"></script>
+    <script src="./app.js?v=14"></script>
   </body>
 </html>

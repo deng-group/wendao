@@ -13,19 +13,28 @@ from wendao import workspace as workspace_module
 from wendao.rag.answer import AnswerGenerator
 from wendao.rag.pipeline import QueryPipeline
 from wendao.rag.prompts import PromptBuilder
-from wendao.rag.providers import default_model_name, default_provider_name, provider_from_name
 from wendao.web import STATIC_DIR
+from wendao.web.accounts import SignInError
+from wendao.web.ai import AiPolicy, AiUnavailable, bearer_token, forward_login, forward_stream, student_id
 
 EXPLORER_DIR = STATIC_DIR / "explorer"
 
 
-def course_source_url(file_path: str, site_base: str) -> str:
-    """Map a retrieved course file to its published MyST page (empty if no website is set)."""
+def course_source_url(file_path: str, site_base: str, location: str = "") -> str:
+    """Map a retrieved course file to its page on the course website (empty if no website is set).
+
+    Markdown and notebooks map to their published MyST page. Other files (PDF, slides, ...)
+    link to the file itself, and PDFs open at the right page.
+    """
     if not site_base:
         return ""
     site_base = site_base.rstrip("/") + "/"
     normalized = str(file_path or "").strip().replace("\\", "/")
     normalized = re.sub(r"^(?:\./)+", "", normalized).lstrip("/")
+    if not re.search(r"\.(?:md|ipynb|myst|rst)$", normalized, flags=re.IGNORECASE):
+        url = site_base + "/".join(quote(part) for part in normalized.split("/") if part)
+        page = re.fullmatch(r"page (\d+)", location or "")
+        return f"{url}#page={page.group(1)}" if page and normalized.lower().endswith(".pdf") else url
     normalized = re.sub(r"\.(?:md|ipynb|myst|rst)$", "", normalized, flags=re.IGNORECASE)
     if normalized.lower() in {"index", "readme"}:
         normalized = ""
@@ -64,6 +73,17 @@ def create_app(workspace=None) -> Flask:
         course_name=workspace.display_name,
     )
     index_page = render_index(workspace)
+    # `[student] server` is where course apps on students' laptops send questions. The teacher's own
+    # server (a workspace) answers with its own key, so it must never forward, or it would call itself.
+    in_course_app = not getattr(workspace, "uses_local_key", True)
+    policy = AiPolicy.from_settings(
+        workspace.student_ai,
+        workspace.student_server if in_course_app else "",
+        workspace.questions_per_day,
+        use_local_key=not in_course_app,
+        accounts=workspace.accounts(),
+        server_needs_login=getattr(workspace, "server_needs_login", False),
+    )
     app = Flask(__name__, static_folder=None)
 
     def selected_context(payload: dict) -> list[str]:
@@ -90,12 +110,13 @@ def create_app(workspace=None) -> Flask:
 
     @app.get("/api/health")
     def health():
-        provider = default_provider_name()
+        ai = policy.describe()
         return jsonify(
             {
                 "ok": True,
-                "provider": provider,
-                "model": default_model_name(provider),
+                "ai": ai,
+                "provider": ai["provider"],
+                "model": ai["model"],
                 "graph_nodes": len(graph["nodes"]),
                 "graph_edges": len(graph["edges"]),
             }
@@ -105,6 +126,20 @@ def create_app(workspace=None) -> Flask:
     def course_graph():
         return jsonify(graph)
 
+    @app.post("/api/login")
+    def login():
+        email = str((request.get_json(force=True) or {}).get("email", ""))
+        if policy.accounts is not None:
+            try:
+                token, student = policy.accounts.sign_in(email)
+            except SignInError as exc:
+                return jsonify({"ok": False, "message": str(exc)}), 403
+            return jsonify({"ok": True, "token": token, "email": student.email, "name": student.name})
+        if policy.server and policy.server_needs_login:
+            reply = forward_login(policy.server, email)
+            return jsonify(reply), (200 if reply.get("ok") else 403)
+        return jsonify({"ok": False, "message": "This course doesn't use sign-in."}), 400
+
     @app.post("/api/answer/stream")
     def answer_stream():
         payload = request.get_json(force=True) or {}
@@ -112,17 +147,21 @@ def create_app(workspace=None) -> Flask:
         if not query:
             return jsonify({"ok": False, "error": "Query is required."}), 400
 
-        provider_name = default_provider_name()
-        model = default_model_name(provider_name)
         memory = payload.get("short_memory") or []
         context = selected_context(payload)
+        student = student_id(request)
+        token = bearer_token(request)
 
         def events():
             try:
+                how, chosen = policy.choose(payload, student, token)
+                if how == "forward":
+                    yield from forward_stream(chosen, payload, token)
+                    return
                 generator = AnswerGenerator(
                     pipeline=pipeline,
                     prompt_builder=prompt_builder,
-                    provider=provider_from_name(provider_name, model=model),
+                    provider=chosen,
                     course_name=workspace.display_name,
                 )
                 for event in generator.stream_answer(
@@ -134,11 +173,13 @@ def create_app(workspace=None) -> Flask:
                         event = {
                             **event,
                             "sources": [
-                                {**source, "url": course_source_url(source.get("file_path", ""), workspace.website)}
+                                {**source, "url": course_source_url(source.get("file_path", ""), workspace.website, source.get("location", ""))}
                                 for source in event["sources"]
                             ],
                         }
                     yield json.dumps(event, ensure_ascii=False) + "\n"
+            except AiUnavailable as exc:
+                yield json.dumps({"type": "error", "ok": False, "message": str(exc), "error": exc.code}) + "\n"
             except Exception as exc:
                 yield json.dumps(
                     {

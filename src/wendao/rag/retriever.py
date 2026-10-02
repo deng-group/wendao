@@ -17,6 +17,8 @@ from typing import Iterable
 
 import numpy as np
 
+from wendao.rag.embeddings import make_encoder
+
 
 TOKEN_RE = re.compile(r"[a-z0-9]+(?:\.[a-z0-9]+)?")
 
@@ -97,6 +99,7 @@ class SearchResult:
     temporal_context: dict | None
     content: str
     content_preview: str
+    location: str = ""
 
 
 class BM25Index:
@@ -148,12 +151,15 @@ class BM25Index:
 
 
 class EmbeddingIndex:
-    """Sentence-transformers embedding index with a TF-IDF fallback.
+    """Meaning-based search over chunk embeddings, with a TF-IDF fallback.
 
-    Embeddings are cached in `cache_dir` and rebuilt automatically whenever the
-    chunk contents or the model change. Use model_name="tfidf" to skip the neural
-    model entirely (no download; useful for tests and small machines).
+    Embeddings come from `make_encoder` (ONNX on the CPU by default, or PyTorch with the
+    `gpu` extra). Both engines give the same embeddings, so one cached index works with
+    either. The cache in `cache_dir` is rebuilt automatically when the chunk contents or
+    the model change. Use model_name="tfidf" to skip the neural model entirely.
     """
+
+    NEURAL = {"embedding", "sentence-transformers"}  # the second is the name used by older caches
 
     def __init__(
         self,
@@ -162,23 +168,36 @@ class EmbeddingIndex:
         model_name: str,
         aliases: dict[str, str] | None = None,
         rebuild: bool = False,
+        engine: str = "auto",
+        device: str = "auto",
+        model_path: str | None = None,
     ):
         self.chunks = chunks
+        self.model_path = model_path
         self.cache_dir = cache_dir
         self.model_name = model_name
         self.aliases = aliases or {}
         self.rebuild = rebuild
+        self.engine = engine
+        self.device = device
         self.cache_dir.mkdir(parents=True, exist_ok=True)
-        self.model = None
-        self.vectorizer = None
+        self.encoder = None
+        self.tfidf = None
         self.chunk_embeddings = None
-        self.backend = "sentence-transformers"
+        self.backend = "embedding"
         self._load_or_build()
 
     @property
     def cache_path(self) -> Path:
         safe_name = re.sub(r"[^a-zA-Z0-9_.-]+", "_", self.model_name)
         return self.cache_dir / f"embeddings_{safe_name}.npz"
+
+    @property
+    def description(self) -> str:
+        if self.backend == "tfidf":
+            return "TF-IDF (no neural model)"
+        device = getattr(self.encoder, "device", "cpu")
+        return f"{self.model_name} via {self.encoder.name} on {device}"
 
     def content_hash(self) -> str:
         digest = hashlib.sha256(self.model_name.encode("utf-8"))
@@ -200,69 +219,79 @@ class EmbeddingIndex:
 
         if self.cache_path.exists() and not self.rebuild:
             cached = np.load(self.cache_path, allow_pickle=False)
-            if "content_hash" in cached.files and str(cached["content_hash"]) == content_hash:
+            if (
+                "content_hash" in cached.files
+                and str(cached["content_hash"]) == content_hash
+                and str(cached["backend"]) in self.NEURAL
+            ):
                 self.chunk_embeddings = cached["embeddings"].astype(np.float32)
-                self.backend = str(cached["backend"])
-                if self.backend == "sentence-transformers":
-                    self.model = self._load_sentence_transformer()
-                else:
-                    self._build_tfidf()
+                self.encoder = make_encoder(self.model_name, self.engine, self.device, self.model_path)
                 return
 
         try:
-            self.model = self._load_sentence_transformer()
-            texts = [chunk["content"] for chunk in self.chunks]
-            embeddings = self.model.encode(
-                texts,
-                normalize_embeddings=True,
-                show_progress_bar=True,
-                batch_size=32,
-            )
-            self.chunk_embeddings = np.asarray(embeddings, dtype=np.float32)
-            self.backend = "sentence-transformers"
-        except Exception as exc:
-            print(f"Warning: sentence-transformers unavailable ({exc}). Falling back to TF-IDF.")
+            self.encoder = make_encoder(self.model_name, self.engine, self.device, self.model_path)
+            self.chunk_embeddings = self.encoder.encode([chunk["content"] for chunk in self.chunks])
+        except (ImportError, RuntimeError, OSError) as exc:
+            if self.engine != "auto":
+                raise RuntimeError(f"The `{self.engine}` search engine could not be loaded: {exc}") from exc
+            print(f"Warning: the search model could not be loaded ({exc}). Falling back to TF-IDF.")
             self._build_tfidf()
             self.backend = "tfidf"
-
-        if self.backend != "sentence-transformers":
-            # A TF-IDF fallback is cheap to rebuild and cannot be stored as a dense array.
             return
+
         np.savez_compressed(
             self.cache_path,
             chunk_ids=chunk_ids,
             embeddings=self.chunk_embeddings,
-            backend=np.array(self.backend),
+            backend=np.array("embedding"),
             content_hash=np.array(content_hash),
         )
 
-    def _load_sentence_transformer(self):
-        from sentence_transformers import SentenceTransformer
-
-        return SentenceTransformer(self.model_name)
-
     def _build_tfidf(self) -> None:
-        from sklearn.feature_extraction.text import TfidfVectorizer
-        from sklearn.preprocessing import normalize
-
-        self.vectorizer = TfidfVectorizer(
-            lowercase=True,
-            ngram_range=(1, 2),
-            token_pattern=r"(?u)\b\w+\b",
-            preprocessor=lambda text: normalize_text(text, self.aliases),
-        )
-        matrix = self.vectorizer.fit_transform([chunk["content"] for chunk in self.chunks])
-        self.chunk_embeddings = normalize(matrix).astype(np.float32)
+        self.tfidf = TfidfIndex([chunk["content"] for chunk in self.chunks], self.aliases)
 
     def search(self, query: str) -> np.ndarray:
-        if self.backend == "sentence-transformers":
-            query_embedding = self.model.encode([query], normalize_embeddings=True)[0].astype(np.float32)
-            return np.asarray(self.chunk_embeddings @ query_embedding, dtype=np.float32)
+        if self.backend == "tfidf":
+            return self.tfidf.search(query)
+        query_embedding = self.encoder.encode([query])[0]
+        return np.asarray(self.chunk_embeddings @ query_embedding, dtype=np.float32)
 
-        from sklearn.preprocessing import normalize
 
-        query_vector = normalize(self.vectorizer.transform([query])).astype(np.float32)
-        return np.asarray((self.chunk_embeddings @ query_vector.T).toarray()).ravel().astype(np.float32)
+class TfidfIndex:
+    """Small TF-IDF index (words and word pairs, cosine similarity), used when no search model is available.
+
+    Same weighting as scikit-learn's TfidfVectorizer defaults (smooth idf, L2 norm), without the dependency.
+    """
+
+    WORD_RE = re.compile(r"(?u)\b\w+\b")
+
+    def __init__(self, texts: list[str], aliases: dict[str, str] | None = None):
+        self.aliases = aliases or {}
+        counts = [Counter(self._terms(text)) for text in texts]
+        doc_freq = Counter(term for terms in counts for term in terms)
+        self.size = len(texts)
+        self.idf = {term: math.log((1 + self.size) / (1 + freq)) + 1 for term, freq in doc_freq.items()}
+        self.postings: dict[str, list[tuple[int, float]]] = {}
+        for index, terms in enumerate(counts):
+            weights = {term: count * self.idf[term] for term, count in terms.items()}
+            norm = math.sqrt(sum(weight * weight for weight in weights.values())) or 1.0
+            for term, weight in weights.items():
+                self.postings.setdefault(term, []).append((index, weight / norm))
+
+    def _terms(self, text: str) -> list[str]:
+        words = self.WORD_RE.findall(normalize_text(text, self.aliases))
+        return words + [f"{left} {right}" for left, right in zip(words, words[1:])]
+
+    def search(self, query: str) -> np.ndarray:
+        scores = np.zeros(self.size, dtype=np.float32)
+        weights = {term: count * self.idf[term] for term, count in Counter(self._terms(query)).items() if term in self.idf}
+        norm = math.sqrt(sum(weight * weight for weight in weights.values()))
+        if not norm:
+            return scores
+        for term, weight in weights.items():
+            for index, doc_weight in self.postings[term]:
+                scores[index] += (weight / norm) * doc_weight
+        return scores
 
 
 class HybridRetriever:
@@ -276,12 +305,18 @@ class HybridRetriever:
         aliases: dict[str, str] | None = None,
         logistics_terms: Iterable[str] = (),
         rebuild_index: bool = False,
+        engine: str = "auto",
+        device: str = "auto",
+        model_path: str | None = None,
     ):
         self.aliases = aliases or {}
         self.logistics_terms = set(logistics_terms)
         self.chunks = load_chunks(chunks_path)
         self.bm25 = BM25Index([tokenize(chunk["content"], self.aliases) for chunk in self.chunks], self.aliases)
-        self.embedding = EmbeddingIndex(self.chunks, cache_dir, model_name, self.aliases, rebuild=rebuild_index)
+        self.embedding = EmbeddingIndex(
+            self.chunks, cache_dir, model_name, self.aliases, rebuild=rebuild_index, engine=engine, device=device,
+            model_path=model_path,
+        )
 
     def normalize(self, text: str) -> str:
         return normalize_text(text, self.aliases)
@@ -360,6 +395,7 @@ class HybridRetriever:
                     temporal_context=chunk.get("temporal_context"),
                     content=chunk["content"],
                     content_preview=self._preview(chunk["content"]),
+                    location=chunk.get("location", ""),
                 )
             )
         return results

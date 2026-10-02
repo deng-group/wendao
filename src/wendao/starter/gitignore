@@ -1,3 +1,8 @@
 .env
 build/index/
 build/reports/history/
+build/*.wendao
+# Student data: never commit it
+students.csv
+usage.db
+.wendao-secret

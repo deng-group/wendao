@@ -166,6 +166,7 @@ class PromptBuilder:
                 {
                     "chunk_id": item["chunk_id"],
                     "file_path": item["file_path"],
+                    "location": item.get("location", ""),
                     "title": item["title"],
                     "score": item["score"],
                     "time_sensitive": item["time_sensitive"],
@@ -197,8 +198,9 @@ class PromptBuilder:
             temporal = ""
             if item.get("temporal_context"):
                 temporal = f" | temporal_context={item['temporal_context'].get('year')}"
+            where = f" ({item['location']})" if item.get("location") else ""
             lines.append(
-                f"[Source {idx}] title={item['title']} | file={item['file_path']} | "
+                f"[Source {idx}] title={item['title']} | file={item['file_path']}{where} | "
                 f"score={item['score']:.3f}{temporal}\n{item['content']}"
             )
         return "\n\n".join(lines)

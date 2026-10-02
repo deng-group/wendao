@@ -105,6 +105,30 @@ sudo systemctl reload nginx
 
 Open `http://YOUR_DOMAIN/` and try the widget in the bottom-right corner.
 
+## 6b. The course website (optional)
+
+Steps 5 and 6 run the API for the chat widget inside your course book. To also give students the Wendao website itself
+(the knowledge graph with the AI agent), run a second service and give it its own domain, for example
+`wendao.course.example.edu`:
+
+```bash
+sudo cp /srv/mle-course-helper/wendao/deploy/wendao-site.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now wendao-site
+```
+
+Then add an Nginx site for that domain that sends everything to `http://127.0.0.1:5057` (use the same `proxy_set_header`
+lines and `proxy_buffering off;` as the `/api/` block in `nginx-mle-course-helper.conf`).
+
+How students use AI is set under `[student]` in the workspace's `wendao.toml`. With `ai = "teacher"`, set
+`questions_per_day` to cap each student's daily questions on your key. Put the website's address in `[student] server`
+so that course files made with `wendao pack` send their questions to it.
+
+With a class list (`[student] roster = "students.csv"`), students sign in with their email and the daily limit counts per
+student. The server keeps the counts in `usage.db` and its sign-in key in `.wendao-secret`, both next to `wendao.toml`.
+`sync_to_server.sh` never overwrites or deletes them, and the class list is reread when you upload a new one. Check usage
+on the server with `cd /srv/mle-course-helper/workspace && /srv/mle-course-helper/wendao/.venv/bin/wendao students`.
+
 ## 7. HTTPS
 
 If the server is public and the domain points to it:

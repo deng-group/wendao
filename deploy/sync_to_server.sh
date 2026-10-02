@@ -30,7 +30,7 @@ rsync -az --delete \
 
 echo "Syncing the workspace to $REMOTE:/srv/mle-course-helper/workspace/"
 rsync -az --delete \
-  --exclude .env --exclude build/reports \
+  --exclude .env --exclude build/reports --exclude usage.db --exclude .wendao-secret \
   "$WORKSPACE/" "$REMOTE:/srv/mle-course-helper/workspace/"
 
 echo "Syncing book HTML to $REMOTE:/srv/mle-course-helper/book/"
