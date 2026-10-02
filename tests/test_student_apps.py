@@ -339,12 +339,6 @@ class SignInTest(unittest.TestCase):
         self.assertIn("needs an `email` column", errors.getvalue())
 
 
-def _read_secret(folder: str) -> bytes:
-    from wendao.web.accounts import TokenSigner
-
-    return TokenSigner.for_folder(Path(folder)).secret
-
-
 class RedirectServer(BaseHTTPRequestHandler):
     def do_POST(self):  # noqa: N802
         self.rfile.read(int(self.headers["Content-Length"]))
@@ -414,12 +408,16 @@ class ReviewFixesTest(unittest.TestCase):
         self.assertIn("all 2 of today's questions", results[2]["message"])
 
     def test_workers_starting_together_share_one_secret(self):
-        import multiprocessing
+        import subprocess
+        import sys
 
         folder = Path(self.tmp.name)
-        with mock.patch.dict(os.environ, {}, clear=True):
-            with multiprocessing.get_context("spawn").Pool(8) as pool:
-                secrets_seen = set(pool.map(_read_secret, [str(folder)] * 8))
+        code = "import sys; from pathlib import Path; from wendao.web.accounts import TokenSigner; print(TokenSigner.for_folder(Path(sys.argv[1])).secret.decode())"
+        # Keep the normal environment: Windows needs variables such as SYSTEMROOT to start Python.
+        env = {key: value for key, value in os.environ.items() if key != "WENDAO_SECRET"}
+        workers = [subprocess.Popen([sys.executable, "-c", code, str(folder)], stdout=subprocess.PIPE, text=True, env=env)
+                   for _ in range(8)]
+        secrets_seen = {worker.communicate(timeout=120)[0].strip() for worker in workers}
         self.assertEqual(len(secrets_seen), 1)
         self.assertEqual(sorted(path.name for path in folder.iterdir()), [".wendao-secret"])
 
