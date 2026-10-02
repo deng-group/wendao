@@ -197,7 +197,7 @@ class ContentExtractor:
 
         # Extract metadata
         metadata = {
-            'file_path': str(file_path.relative_to(self.repo_path)),
+            'file_path': file_path.relative_to(self.repo_path).as_posix(),
             'file_type': 'markdown',
             'module': module,
             'section': section,
@@ -235,7 +235,7 @@ class ContentExtractor:
         headings = self.extract_headings(full_content)
 
         metadata = {
-            'file_path': str(file_path.relative_to(self.repo_path)),
+            'file_path': file_path.relative_to(self.repo_path).as_posix(),
             'file_type': 'notebook',
             'module': module,
             'section': section,
@@ -250,7 +250,7 @@ class ContentExtractor:
     def extract_document(self, file_path: Path, module: str, section: str) -> List[Dict[str, Any]]:
         """Extract a PDF, PowerPoint, Word, LaTeX, HTML, or text file via `readers.py`."""
         document = READERS[file_path.suffix.lower()](file_path)
-        relative = str(file_path.relative_to(self.repo_path))
+        relative = file_path.relative_to(self.repo_path).as_posix()
         if not document.parts:
             hint = " It may be a scanned PDF, which needs OCR first." if document.file_type == "pdf" else ""
             self.warnings.append(f"No text found in {relative}.{hint}")
@@ -349,7 +349,7 @@ def discover_content_files(
     suffixes = suffixes or SUPPORTED_SUFFIXES
     repo = Path(repo_path)
     ignored_parts = set(ignore_dirs)
-    excluded = {str(Path(item)) for item in exclude}
+    excluded = {Path(item).as_posix() for item in exclude}
     files = []
 
     for path in repo.rglob('*'):
@@ -360,7 +360,7 @@ def discover_content_files(
         relative = path.relative_to(repo)
         if any(part in ignored_parts or part.endswith('.egg-info') for part in relative.parts[:-1]):
             continue
-        relative_str = str(relative)
+        relative_str = relative.as_posix()  # forward slashes on every OS, so paths match across machines
         if relative_str in excluded:
             continue
         files.append(relative_str)

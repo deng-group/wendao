@@ -26,6 +26,7 @@ import re
 import secrets
 import sqlite3
 import threading
+from contextlib import closing
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
@@ -125,7 +126,8 @@ class UsageStore:
     def __init__(self, path: Path):
         self.path = path
         self._lock = threading.Lock()
-        with self._connect() as db:
+        # closing(): `with connection` only commits; the file must also be closed (Windows can't delete open files).
+        with closing(self._connect()) as db, db:
             db.execute("CREATE TABLE IF NOT EXISTS usage (email TEXT, day TEXT, questions INTEGER, PRIMARY KEY (email, day))")
 
     def _connect(self) -> sqlite3.Connection:
@@ -161,7 +163,7 @@ class UsageStore:
         return max(limit - used - 1, 0) if limit > 0 else -1
 
     def report(self, day: str | None = None) -> list[tuple[str, int]]:
-        with self._connect() as db:
+        with closing(self._connect()) as db:
             # Rows for anonymous visitors (no roster) are keyed "address:<ip>"; reports show students only.
             if day:
                 rows = db.execute("SELECT email, questions FROM usage WHERE day = ? AND email NOT LIKE 'address:%' "

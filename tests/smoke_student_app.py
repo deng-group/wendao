@@ -18,6 +18,7 @@ from wendao.web.explorer import create_app
 
 
 def main() -> None:
+    sys.stdout.reconfigure(errors="replace")
     course_file, question = Path(sys.argv[1]), sys.argv[2]
     leaked = [name for name in ("pypdf", "docx", "pptx", "nbformat") if importlib.util.find_spec(name)]
     assert not leaked, f"teacher tools are installed in the student environment: {leaked}"

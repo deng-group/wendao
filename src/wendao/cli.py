@@ -48,6 +48,7 @@ def cmd_init(args: argparse.Namespace) -> None:
         try:
             source_setting = source.relative_to(root).as_posix()
         except ValueError:
+            # Forward slashes work in wendao.toml on every OS (backslashes would be escapes in TOML).
             source_setting = Path(_relpath(source, root)).as_posix()
     else:
         source_setting = "notes"
@@ -85,9 +86,13 @@ def cmd_init(args: argparse.Namespace) -> None:
 
 
 def _relpath(path: Path, start: Path) -> str:
+    """Relative path when possible; the full path when there is none (on Windows, across drives like C: and D:)."""
     import os
 
-    return os.path.relpath(path, start)
+    try:
+        return os.path.relpath(path, start)
+    except ValueError:
+        return str(path)
 
 
 # build steps ----------------------------------------------------------------------------------
@@ -504,6 +509,10 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> None:
+    # Windows consoles and pipes may not use UTF-8; never crash on characters like "→".
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure") and (stream.encoding or "").lower().replace("-", "") != "utf8":
+            stream.reconfigure(errors="replace")
     parser = build_parser()
     args = parser.parse_args(argv)
     if not getattr(args, "func", None):
