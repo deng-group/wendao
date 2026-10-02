@@ -62,6 +62,14 @@ def temperature_setting() -> dict:
         raise RuntimeError(f"LLM_TEMPERATURE must be a number or `none`, not `{raw}`.") from None
 
 
+def _curl_value(value: str, what: str) -> str:
+    """Quote a value for a curl config file. Control characters (line breaks, tabs...) are refused,
+    because a line break would start a new curl option (for example a second `url`)."""
+    if any(ord(char) < 32 or ord(char) == 127 for char in value):
+        raise RuntimeError(f"The {what} contains a line break or other control character; remove it and try again.")
+    return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
 @contextmanager
 def _curl_config(write):
     """A private curl config file (owner-only) that curl can open on every OS, deleted afterwards.
@@ -77,8 +85,13 @@ def _curl_config(write):
     finally:
         try:
             os.unlink(path)
-        except OSError:
-            pass
+        except OSError as exc:
+            # The file holds an API key: never leave it behind silently. Empty it, then report the problem.
+            try:
+                open(path, "w", encoding="utf-8").close()
+            except OSError:
+                pass
+            raise RuntimeError(f"Could not delete the temporary file with the API key ({path}): {exc}. Delete it by hand.") from exc
 
 
 class _NoRedirect(request.HTTPRedirectHandler):
@@ -122,7 +135,9 @@ def _open(req: request.Request, label: str, timeout: int, follow_redirects: bool
         if pinned_ip:
             if urlsplit(req.full_url).scheme != "https":
                 raise RuntimeError(f"{label}: a checked AI server address must use https.")
-            return request.build_opener(_NoRedirect, _PinnedHTTPSHandler(pinned_ip)).open(req, timeout=timeout)
+            # No proxy: connect straight to the checked address (a proxy would resolve the name itself).
+            opener = request.build_opener(request.ProxyHandler({}), _NoRedirect, _PinnedHTTPSHandler(pinned_ip))
+            return opener.open(req, timeout=timeout)
         if not follow_redirects:
             return _NO_REDIRECT_OPENER.open(req, timeout=timeout)
         return request.urlopen(req, timeout=timeout)
@@ -390,12 +405,11 @@ class AnthropicProvider:
         return _setting(self, self.model, "ANTHROPIC_MODEL", default=DEFAULT_ANTHROPIC_MODEL)
 
     def _write_curl_config(self, config, base_url: str, token: str) -> None:
-        escaped_token = token.replace("\\", "\\\\").replace('"', '\\"')
-        config.write(f'url = "{base_url}/v1/messages"\n')
+        config.write(f"url = {_curl_value(base_url + '/v1/messages', 'AI server address')}\n")
         self._write_pin(config, base_url)
         config.write('header = "content-type: application/json"\n')
         config.write('header = "anthropic-version: 2023-06-01"\n')
-        config.write(f'header = "x-api-key: {escaped_token}"\n')
+        config.write(f"header = {_curl_value('x-api-key: ' + token, 'API key')}\n")
         config.write('request = "POST"\n')
 
     def _write_pin(self, config, base_url: str) -> None:
@@ -403,7 +417,9 @@ class AnthropicProvider:
             return
         parts = urlsplit(base_url)
         address = f"[{self.pinned_ip}]" if ":" in self.pinned_ip else self.pinned_ip
-        config.write(f'resolve = "{parts.hostname}:{parts.port or 443}:{address}"\n')
+        config.write(f"resolve = {_curl_value(f'{parts.hostname}:{parts.port or 443}:{address}', 'AI server address')}\n")
+        # No proxy: with a proxy, the proxy would resolve the name itself and the pin would not apply.
+        config.write('noproxy = "*"\n')
 
     def _endpoint(self) -> tuple[str, str | None]:
         base_url = _setting(self, self.base_url, "ANTHROPIC_BASE_URL", default="https://api.anthropic.com").rstrip("/")

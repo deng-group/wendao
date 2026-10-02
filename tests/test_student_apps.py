@@ -496,3 +496,69 @@ class PinnedEndpointTest(unittest.TestCase):
         with mock.patch.object(providers.subprocess, "run", fake_run), self.assertRaises(OSError):
             provider.generate({"messages": [{"content": "s"}, {"content": "q"}], "evidence": []})
         self.assertIn('resolve = "relay.example.com:443:93.184.216.34"', seen["config"])
+
+
+class ConfigInjectionAndProxyTest(unittest.TestCase):
+    """Second review round: hidden characters, proxies, and cleanup of the key file."""
+
+    INJECTION = 'https://api.example.com/v1\nurl = "http://127.0.0.1:8080'
+
+    def test_hidden_characters_are_refused_before_checking(self):
+        from wendao.web.ai import check_public_endpoint
+
+        with self.assertRaisesRegex(AiUnavailable, "hidden characters"):
+            check_public_endpoint(self.INJECTION)
+        for field_name, value in [("base_url", self.INJECTION), ("api_key", 'sk\nconnect-to = "::127.0.0.1:"')]:
+            ai = {"provider": "anthropic", "api_key": "sk", "base_url": "https://api.example.com", field_name: value}
+            with self.subTest(field=field_name), self.assertRaisesRegex(AiUnavailable, "hidden character"):
+                AiPolicy.from_settings("either").choose({"ai": ai}, "s")
+
+    def test_curl_config_values_cannot_add_options(self):
+        from wendao.rag import providers
+
+        with self.assertRaisesRegex(RuntimeError, "control character"):
+            providers._curl_value("x\nurl = http://127.0.0.1", "AI server address")
+        self.assertEqual(providers._curl_value('a"b\\c', "key"), '"a\\"b\\\\c"')
+
+        provider = providers.AnthropicProvider(model="m", api_key='sk"x', base_url="https://relay.example.com",
+                                               use_env=False, pinned_ip="93.184.216.34")
+        seen = {}
+
+        def fake_run(args, **kwargs):
+            seen["config"] = Path(args[args.index("--config") + 1]).read_text(encoding="utf-8")
+            raise OSError("stop here")
+
+        with mock.patch.object(providers.subprocess, "run", fake_run), self.assertRaises(OSError):
+            provider.generate({"messages": [{"content": "s"}, {"content": "q"}], "evidence": []})
+        self.assertIn('noproxy = "*"', seen["config"])
+        self.assertIn('header = "x-api-key: sk\\"x"', seen["config"])
+        self.assertEqual(seen["config"].count("url = "), 1)
+
+    def test_pinned_requests_ignore_proxy_settings(self):
+        from wendao.rag import providers
+
+        provider = providers.OpenAICompatibleProvider(
+            model="m", api_key="sk", base_url="https://api.example.com/v1", use_env=False,
+            follow_redirects=False, pinned_ip="93.184.216.34")
+        connected = []
+
+        def fake_connect(address, *args, **kwargs):
+            connected.append(address)
+            raise OSError("stop here")
+
+        with mock.patch.dict(os.environ, {"HTTPS_PROXY": "http://127.0.0.1:3128", "https_proxy": "http://127.0.0.1:3128"}), \
+                mock.patch.object(providers.socket, "create_connection", fake_connect):
+            with self.assertRaises(RuntimeError):
+                provider.generate({"messages": [{"content": "s"}, {"content": "q"}], "evidence": []})
+        self.assertEqual(connected, [("93.184.216.34", 443)])
+
+    def test_failed_cleanup_of_the_key_file_is_reported(self):
+        from wendao.rag import providers
+
+        real_unlink = os.unlink
+        with mock.patch.object(providers.os, "unlink", side_effect=OSError("file in use")):
+            with self.assertRaisesRegex(RuntimeError, "Could not delete the temporary file with the API key"):
+                with providers._curl_config(lambda handle: handle.write('header = "x-api-key: secret"\n')) as path:
+                    leftover = path
+        self.assertEqual(Path(leftover).read_text(encoding="utf-8"), "", "the key must be wiped even if deleting fails")
+        real_unlink(leftover)

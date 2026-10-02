@@ -46,6 +46,10 @@ def check_public_endpoint(url: str) -> str:
     Returns the checked IP address; the provider connects only to it, so the name can't be
     re-pointed at a private machine between this check and the request (DNS rebinding).
     """
+    # Check the raw text first: urlsplit silently drops line breaks and tabs, which could otherwise
+    # smuggle extra settings past this check into the request (for example into curl's config).
+    if any(ord(char) < 32 or ord(char) == 127 for char in url) or " " in url.strip():
+        raise AiUnavailable("Your AI server address contains spaces, line breaks, or other hidden characters.")
     parts = urlsplit(url)
     if parts.scheme != "https" or not parts.hostname:
         raise AiUnavailable("Your AI server address must start with https:// (local models work only in the course app).")
@@ -187,6 +191,10 @@ class AiPolicy:
         sign-in token from the app, if the student signed in.
         """
         own = payload.get("ai") or {}
+        for field_name in ("provider", "model", "api_key", "base_url"):
+            value = str(own.get(field_name) or "")
+            if any(ord(char) < 32 or ord(char) == 127 for char in value):
+                raise AiUnavailable(f"Your AI {field_name.replace('_', ' ')} contains a line break or other hidden character.")
         if own.get("api_key") or (own.get("provider") == "openai" and own.get("base_url")):
             if not self.allows_student_keys:
                 raise AiUnavailable("This course uses the course AI; personal AI keys are turned off.")
