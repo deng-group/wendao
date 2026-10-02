@@ -100,6 +100,7 @@ def pack(workspace, output: Path | None = None, include_model: bool = True) -> t
         "ai": {
             "mode": workspace.student_ai,
             "server": workspace.student_server,
+            "login": bool(workspace.roster),
         },
     }
 
@@ -182,6 +183,12 @@ class CourseApp:
     search_device: str = "cpu"
     # On a student's laptop the "course AI" is the teacher's website, never keys found on this computer.
     uses_local_key: bool = False
+    server_needs_login: bool = False
+    roster: str = ""
+
+    def accounts(self):
+        """Sign-in happens on the teacher's website, not in the course app."""
+        return None
 
     @property
     def chunks_path(self) -> Path:
@@ -235,4 +242,5 @@ def open_pack(path: Path) -> CourseApp:
         out_of_scope_terms=search.get("out_of_scope_terms", []),
         student_ai=ai.get("mode", "teacher"),
         student_server=ai.get("server", ""),
+        server_needs_login=bool(ai.get("login", False)),
     )

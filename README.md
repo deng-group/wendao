@@ -118,6 +118,7 @@ Run `wendao` commands anywhere inside the workspace. Wendao finds `wendao.toml` 
 | `wendao serve` | teacher | Run the course website (the knowledge graph with the AI agent) |
 | `wendao serve --widget` | teacher | Run the API for the chat widget on your existing course website |
 | `wendao pack` | teacher | Put the built course into one file to share with students |
+| `wendao students` | teacher | See your class list and how many questions each student asked |
 | `wendao open my-course.wendao` | student | Open a course file from your teacher |
 
 Run any command with `--help` to see its options.
@@ -250,6 +251,23 @@ questions_per_day = 50            # per student, on your key (0 = no limit)
 | `"either"` | your model by default; students may add their own key instead | you, unless a student adds a key |
 
 A student's own key is saved only in their browser and sent with each question. It's never stored on any server.
+
+**Sign-in and daily limits per student.** To limit questions per student (not per network), give Wendao your class list.
+Save it as `students.csv` with an `email` column (export it from your learning platform; optional columns: `name`, and
+`limit` for a personal daily limit), then add it under `[student]`:
+
+```toml
+roster = "students.csv"
+questions_per_day = 30
+```
+
+Students then sign in with their email before using your course AI; emails not on the list can still browse the graph,
+but can't use your AI. See who asked how much with `wendao students` (today) or `wendao students --all`. Wendao keeps
+only emails and daily question counts (in `usage.db`, next to `wendao.toml`), not the questions. The class list and
+`usage.db` are personal data, so keep them out of git (new workspaces already ignore them).
+
+Signing in uses the email alone, so someone who knows a classmate's email could use that classmate's questions for the
+day, but never more than that.
 
 Then share the course in one or both ways:
 

@@ -210,3 +210,5 @@ kbd { padding: 3px 6px; border: 1px solid var(--line); border-radius: 5px; color
 .ai-settings-actions button { font: inherit; font-size: 0.84rem; padding: 7px 14px; border-radius: 8px; border: 1px solid var(--line); background: #fff; color: var(--text); cursor: pointer; }
 .ai-settings-actions #ai-forget { margin-right: auto; border-color: transparent; color: var(--muted); }
 .ai-settings-actions .primary { background: var(--chapter); border-color: var(--chapter); color: #fff; }
+.sign-in-error { color: #b42318 !important; margin: -4px 0 8px !important; }
+.ai-settings-actions #sign-out { margin-right: auto; border-color: transparent; color: var(--muted); }

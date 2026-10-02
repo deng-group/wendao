@@ -124,6 +124,11 @@ How students use AI is set under `[student]` in the workspace's `wendao.toml`. W
 `questions_per_day` to cap each student's daily questions on your key. Put the website's address in `[student] server`
 so that course files made with `wendao pack` send their questions to it.
 
+With a class list (`[student] roster = "students.csv"`), students sign in with their email and the daily limit counts per
+student. The server keeps the counts in `usage.db` and its sign-in key in `.wendao-secret`, both next to `wendao.toml`.
+`sync_to_server.sh` never overwrites or deletes them, and the class list is reread when you upload a new one. Check usage
+on the server with `cd /srv/mle-course-helper/workspace && /srv/mle-course-helper/wendao/.venv/bin/wendao students`.
+
 ## 7. HTTPS
 
 If the server is public and the domain points to it:

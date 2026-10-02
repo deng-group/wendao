@@ -27,11 +27,14 @@ class StudentKeyServer(BaseHTTPRequestHandler):
     keys: list[str] = []
 
     def do_POST(self):  # noqa: N802
-        self.rfile.read(int(self.headers["Content-Length"]))
+        body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
         StudentKeyServer.keys.append(self.headers.get("Authorization", ""))
         self.send_response(200)
         self.end_headers()
-        self.wfile.write(b'data: {"choices": [{"delta": {"content": "Kinetic energy is energy of motion."}}]}\n\ndata: [DONE]\n\n')
+        if body.get("stream"):
+            self.wfile.write(b'data: {"choices": [{"delta": {"content": "Kinetic energy is energy of motion."}}]}\n\ndata: [DONE]\n\n')
+        else:
+            self.wfile.write(b'{"choices": [{"message": {"content": "Kinetic energy is energy of motion."}}]}')
 
     def log_message(self, *args):
         pass
@@ -221,3 +224,114 @@ class CourseAppTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SignInTest(unittest.TestCase):
+    """Roster sign-in: only enrolled emails, limits counted per student, tokens can't be forged."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.server = HTTPServer(("127.0.0.1", 0), StudentKeyServer)
+        threading.Thread(target=cls.server.serve_forever, daemon=True).start()
+        cls.base_url = f"http://127.0.0.1:{cls.server.server_port}/v1"
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.server.shutdown()
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name) / "physics"
+        self.env = mock.patch.dict(os.environ, {
+            "WENDAO_CACHE": str(Path(self.tmp.name) / "cache"),
+            "LLM_PROVIDER": "openai", "OPENAI_BASE_URL": self.base_url, "OPENAI_API_KEY": "sk-teacher",
+        }, clear=True)
+        self.env.start()
+        make_workspace(self.root, 'ai = "teacher"\nroster = "students.csv"\nquestions_per_day = 2')
+        (self.root / "students.csv").write_text(
+            "Email,Name,Limit\nAda@uni.edu,Ada Lovelace,\nbo@uni.edu,Bo,3\n", encoding="utf-8"
+        )
+        run_cli("build", "-w", str(self.root))
+        self.workspace = workspace_module.load(self.root)
+
+    def tearDown(self):
+        self.env.stop()
+        self.tmp.cleanup()
+
+    def sign_in(self, client, email):
+        return client.post("/api/login", json={"email": email})
+
+    def ask(self, client, token=""):
+        response = client.post("/api/answer/stream", json={"query": "What is kinetic energy?"},
+                               headers={"Authorization": f"Bearer {token}"} if token else {})
+        return [json.loads(line) for line in response.get_data(as_text=True).splitlines() if line.strip()][-1]
+
+    def test_only_roster_students_can_use_the_course_ai(self):
+        client = create_explorer(self.workspace).test_client()
+        self.assertTrue(client.get("/api/health").get_json()["ai"]["login_required"])
+        self.assertEqual(self.ask(client)["error"], "LoginRequired")
+
+        refused = self.sign_in(client, "stranger@uni.edu")
+        self.assertEqual(refused.status_code, 403)
+        self.assertIn("not on the class list", refused.get_json()["message"])
+
+        reply = self.sign_in(client, "  ADA@uni.edu ").get_json()
+        self.assertEqual((reply["email"], reply["name"]), ("ada@uni.edu", "Ada Lovelace"))
+        self.assertEqual(self.ask(client, reply["token"])["type"], "done")
+        self.assertEqual(self.ask(client, reply["token"])["type"], "done")
+        third = self.ask(client, reply["token"])
+        self.assertEqual(third["error"], "AiUnavailable")
+        self.assertIn("all 2 of today's questions", third["message"])
+
+        bo = self.sign_in(client, "bo@uni.edu").get_json()["token"]  # personal limit of 3, counted separately
+        self.assertEqual([self.ask(client, bo)["type"] for _ in range(3)], ["done", "done", "done"])
+        self.assertEqual(self.ask(client, bo)["error"], "AiUnavailable")
+
+        forged = reply["token"].split(".")[0] + ".0123456789abcdef0123456789abcdef"
+        self.assertEqual(self.ask(client, forged)["error"], "LoginRequired")
+
+        output = run_cli("students", "-w", str(self.root))
+        self.assertIn("2 students", output)
+        self.assertRegex(output, r"ada@uni.edu\s+2/2\s+Ada Lovelace")
+        self.assertRegex(output, r"bo@uni.edu\s+3/3")
+
+    def test_removing_a_student_from_the_roster_signs_them_out(self):
+        client = create_explorer(self.workspace).test_client()
+        token = self.sign_in(client, "bo@uni.edu").get_json()["token"]
+        roster = self.root / "students.csv"
+        roster.write_text("email\nada@uni.edu\n", encoding="utf-8")
+        os.utime(roster, (roster.stat().st_mtime + 5,) * 2)
+        self.assertEqual(self.ask(client, token)["error"], "LoginRequired")
+
+    def test_widget_uses_the_same_sign_in(self):
+        client = create_widget(self.workspace).test_client()
+        self.assertEqual(client.post("/api/answer", json={"query": "What is kinetic energy?"}).status_code, 401)
+        token = client.post("/api/login", json={"email": "ada@uni.edu"}).get_json()["token"]
+        answered = client.post("/api/answer", json={"query": "What is kinetic energy?"}, headers={"Authorization": f"Bearer {token}"})
+        self.assertEqual(answered.status_code, 200)
+
+    def test_course_app_signs_in_through_the_teachers_website(self):
+        config = self.root / "wendao.toml"
+        config.write_text(config.read_text(encoding="utf-8").replace('ai = "teacher"', 'ai = "teacher"\nserver = "http://127.0.0.1:9"'),
+                          encoding="utf-8")
+        run_cli("pack", "-w", str(self.root))
+        course = open_pack(self.root / "build" / "physics.wendao")
+        self.assertTrue(course.server_needs_login)
+        app_client = create_explorer(course).test_client()
+        self.assertTrue(app_client.get("/api/health").get_json()["ai"]["login_required"])
+        teacher_site = create_explorer(workspace_module.load(self.root)).test_client()
+
+        def fake_forward_login(server, email):
+            return teacher_site.post("/api/login", json={"email": email}).get_json()
+
+        with mock.patch("wendao.web.explorer.forward_login", fake_forward_login):
+            reply = app_client.post("/api/login", json={"email": "ada@uni.edu"})
+        self.assertEqual(reply.status_code, 200)
+        self.assertTrue(reply.get_json()["token"])
+
+    def test_bad_roster_is_reported(self):
+        (self.root / "students.csv").write_text("name\nAda\n", encoding="utf-8")
+        errors = io.StringIO()
+        with contextlib.redirect_stderr(errors), self.assertRaises(SystemExit):
+            run_cli("students", "-w", str(self.root))
+        self.assertIn("needs an `email` column", errors.getvalue())

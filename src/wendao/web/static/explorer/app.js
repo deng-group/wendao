@@ -2,6 +2,7 @@ const SVG_NS = "http://www.w3.org/2000/svg";
 const MEMORY_KEY = "wendao_course_memory_v1";
 const MAX_MEMORY_ITEMS = 6;
 const AI_SETTINGS_KEY = "wendao_ai_settings_v1";
+const SIGN_IN_KEY = "wendao_sign_in_v1";
 
 const elements = {
   shell: document.querySelector(".app-shell"),
@@ -42,7 +43,50 @@ const elements = {
   aiModel: document.querySelector("#ai-model"),
   aiBaseUrl: document.querySelector("#ai-base-url"),
   aiKey: document.querySelector("#ai-key"),
+  signInButton: document.querySelector("#open-sign-in"),
+  signInDialog: document.querySelector("#sign-in"),
+  signInNote: document.querySelector("#sign-in-note"),
+  signInEmail: document.querySelector("#sign-in-email"),
+  signInError: document.querySelector("#sign-in-error"),
 };
+
+function signedIn() {
+  try { return JSON.parse(localStorage.getItem(SIGN_IN_KEY) || "null"); } catch { return null; }
+}
+
+function updateSignInButton() {
+  const account = signedIn();
+  elements.signInButton.hidden = !courseAi.login_required;
+  elements.signInButton.textContent = account ? (account.name || account.email).split(" ")[0] : "Sign in";
+  elements.signInButton.title = account ? `Signed in as ${account.email}` : "Sign in";
+}
+
+function openSignIn(note) {
+  const account = signedIn();
+  elements.signInEmail.value = account ? account.email : "";
+  elements.signInNote.textContent = note || (account
+    ? `Signed in as ${account.email}.`
+    : "Use the email your course knows you by. It is used to count your daily questions.");
+  elements.signInError.hidden = true;
+  document.querySelector("#sign-out").hidden = !account;
+  elements.signInDialog.showModal();
+}
+
+async function signIn() {
+  elements.signInError.hidden = true;
+  try {
+    const response = await fetch("/api/login", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: elements.signInEmail.value.trim() }),
+    });
+    const reply = await response.json();
+    if (!reply.ok) throw new Error(reply.message || "Sign-in failed.");
+    localStorage.setItem(SIGN_IN_KEY, JSON.stringify({ token: reply.token, email: reply.email, name: reply.name || "" }));
+    elements.signInDialog.close("signed-in"); updateSignInButton();
+  } catch (error) {
+    elements.signInError.textContent = error.message; elements.signInError.hidden = false;
+  }
+}
 
 // What the server says about AI for this course: { mode, teacher_ai, student_keys, needs_student_key }.
 let courseAi = { mode: "teacher", teacher_ai: true, student_keys: false, needs_student_key: false };
@@ -76,7 +120,7 @@ async function loadCourseAi() {
     const response = await fetch("/api/health");
     if (response.ok) courseAi = { ...courseAi, ...((await response.json()).ai || {}) };
   } catch { /* keep the defaults; questions will report any problem */ }
-  updateAiBadge();
+  updateAiBadge(); updateSignInButton();
 }
 
 const state = {
@@ -822,7 +866,8 @@ function setSources(sources = []) {
 async function streamQuestion(query, assistant, options = {}) {
   elements.suggestions.hidden = true;
   const response = await fetch("/api/answer/stream", {
-    method: "POST", headers: { "Content-Type": "application/json" },
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...(signedIn() ? { Authorization: `Bearer ${signedIn().token}` } : {}) },
     body: JSON.stringify({
       query, context_node_ids: state.selectedId ? [state.selectedId] : [], short_memory: readMemory(),
       ...(studentAi() ? { ai: studentAi() } : {}),
@@ -839,7 +884,7 @@ async function streamQuestion(query, assistant, options = {}) {
     for (const line of lines) {
       if (!line.trim()) continue;
       const event = JSON.parse(line);
-      if (event.type === "error") throw new Error(event.message || "The course assistant could not answer.");
+      if (event.type === "error") { const failure = new Error(event.message || "The course assistant could not answer."); failure.code = event.error; throw failure; }
       if (event.type === "start") setSources(event.sources || []);
       if (event.type === "delta") { answer += event.text || ""; renderMarkdown(assistant.body, answer); scrollMessagesToBottom(); }
       if (event.type === "done") { answer = event.answer || answer; renderMarkdown(assistant.body, answer); setSources(event.sources || []); }
@@ -885,6 +930,10 @@ async function submitQuestion(query) {
     openAiSettings("This course asks you to use your own AI key. Add it to start asking questions.");
     return;
   }
+  if (courseAi.login_required && !studentAi() && !signedIn()) {
+    openSignIn("Sign in with your email to ask the course AI.");
+    return;
+  }
   abortAutomaticExplanation();
   const controller = new AbortController();
   state.activeQuestionController = controller;
@@ -900,6 +949,7 @@ async function submitQuestion(query) {
       return;
     }
     assistant.article.classList.add("error"); assistant.body.textContent = error.message;
+    if (error.code === "LoginRequired") { localStorage.removeItem(SIGN_IN_KEY); updateSignInButton(); openSignIn(error.message); }
   } finally {
     if (state.activeQuestionController === controller) {
       state.activeQuestionController = null;
@@ -980,6 +1030,12 @@ elements.aiDialog.addEventListener("close", () => {
     }));
   }
   updateAiBadge();
+});
+elements.signInButton.addEventListener("click", () => openSignIn());
+document.querySelector("#sign-in-submit").addEventListener("click", signIn);
+elements.signInEmail.addEventListener("keydown", (event) => { if (event.key === "Enter") { event.preventDefault(); signIn(); } });
+document.querySelector("#sign-out").addEventListener("click", () => {
+  localStorage.removeItem(SIGN_IN_KEY); updateSignInButton(); elements.signInDialog.close("cancel");
 });
 document.querySelector("#ai-forget").addEventListener("click", () => {
   localStorage.removeItem(AI_SETTINGS_KEY); elements.aiDialog.close("cancel");

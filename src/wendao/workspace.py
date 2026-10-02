@@ -86,6 +86,7 @@ class Workspace:
     student_server: str = ""
     questions_per_day: int = 0
     allowed_origins: list[str] = field(default_factory=list)
+    roster: str = ""
 
     # Workspace files
     @property
@@ -131,6 +132,19 @@ class Workspace:
         if not self.file_types:
             return None
         return {"." + kind.lower().lstrip(".") for kind in self.file_types}
+
+    @property
+    def roster_path(self) -> Path | None:
+        return self.root / self.roster if self.roster else None
+
+    def accounts(self):
+        """Student sign-in for this course server, or None when there is no roster (see web/accounts.py)."""
+        if not self.roster_path:
+            return None
+        from wendao.web.accounts import Accounts
+
+        self.require(self.roster_path, "Add your class list there, or remove `roster` under [student].")
+        return Accounts(self.roster_path, self.root, self.questions_per_day)
 
     @property
     def display_name(self) -> str:
@@ -241,5 +255,6 @@ def load(start: Path | None = None) -> Workspace:
         student_server=str(student.get("server", "")),
         questions_per_day=int(student.get("questions_per_day", 0) or 0),
         allowed_origins=[str(item) for item in student.get("allowed_origins", [])],
+        roster=str(student.get("roster", "")),
     )
     return workspace

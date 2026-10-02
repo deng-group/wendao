@@ -17,7 +17,8 @@ from wendao.rag.answer import AnswerGenerator
 from wendao.rag.pipeline import QueryPipeline
 from wendao.rag.prompts import PromptBuilder
 from wendao.web import STATIC_DIR, TEMPLATES_DIR
-from wendao.web.ai import AiPolicy, AiUnavailable, student_id
+from wendao.web.accounts import SignInError
+from wendao.web.ai import AiPolicy, AiUnavailable, bearer_token, student_id
 
 
 def public_sources(sources: list[dict]) -> list[dict]:
@@ -54,11 +55,11 @@ def create_app(workspace=None) -> Flask:
     pipeline = QueryPipeline.for_workspace(workspace, top_k=5)
     prompt_builder = PromptBuilder(evidence_score_threshold=0.60, course_name=workspace.display_name)
     # The widget runs where the teacher's key is, so it never forwards to another server.
-    policy = AiPolicy.from_settings(workspace.student_ai, "", workspace.questions_per_day)
+    policy = AiPolicy.from_settings(workspace.student_ai, "", workspace.questions_per_day, accounts=workspace.accounts())
     origins = {origin_of(workspace.website)} | {origin_of(item) or item for item in workspace.allowed_origins}
 
     def generator_for(payload: dict) -> AnswerGenerator:
-        _, provider = policy.choose(payload, student_id(request))
+        _, provider = policy.choose(payload, student_id(request), bearer_token(request))
         return AnswerGenerator(
             pipeline=pipeline,
             prompt_builder=prompt_builder,
@@ -72,12 +73,13 @@ def create_app(workspace=None) -> Flask:
         if allowed_origin(origin, origins):
             response.headers["Access-Control-Allow-Origin"] = origin
             response.headers["Vary"] = "Origin"
-            response.headers["Access-Control-Allow-Headers"] = "Content-Type"
+            response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
             response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
         return response
 
     @app.route("/api/answer", methods=["OPTIONS"])
     @app.route("/api/answer/stream", methods=["OPTIONS"])
+    @app.route("/api/login", methods=["OPTIONS"])
     def answer_options():
         return ("", 204)
 
@@ -90,6 +92,16 @@ def create_app(workspace=None) -> Flask:
         ai = policy.describe()
         return jsonify({"ok": True, "ai": ai, "default_provider": ai["provider"]})
 
+    @app.post("/api/login")
+    def login():
+        if policy.accounts is None:
+            return jsonify({"ok": False, "message": "This course doesn't use sign-in."}), 400
+        try:
+            token, student = policy.accounts.sign_in(str((request.get_json(force=True) or {}).get("email", "")))
+        except SignInError as exc:
+            return jsonify({"ok": False, "message": str(exc)}), 403
+        return jsonify({"ok": True, "token": token, "email": student.email, "name": student.name})
+
     @app.post("/api/answer")
     def answer():
         payload = request.get_json(force=True) or {}
@@ -99,7 +111,7 @@ def create_app(workspace=None) -> Flask:
         try:
             result = generator_for(payload).answer(query, short_memory=payload.get("short_memory") or [])
         except AiUnavailable as exc:
-            return jsonify({"ok": False, "error": "AiUnavailable", "message": str(exc)}), 429
+            return jsonify({"ok": False, "error": exc.code, "message": str(exc)}), 401 if exc.code == "LoginRequired" else 429
         except Exception as exc:  # noqa: BLE001 - report provider failures to the widget
             return jsonify({"ok": False, "error": type(exc).__name__, "message": str(exc)}), 502
 
@@ -131,7 +143,7 @@ def create_app(workspace=None) -> Flask:
                 for event in generator.stream_answer(query, short_memory=payload.get("short_memory") or []):
                     yield json.dumps(event, ensure_ascii=False) + "\n"
             except Exception as exc:  # noqa: BLE001 - report every failure as a stream event
-                error = "AiUnavailable" if isinstance(exc, AiUnavailable) else type(exc).__name__
+                error = exc.code if isinstance(exc, AiUnavailable) else type(exc).__name__
                 yield json.dumps({"type": "error", "ok": False, "error": error, "message": str(exc)}, ensure_ascii=False) + "\n"
 
         response = Response(

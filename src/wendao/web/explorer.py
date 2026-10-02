@@ -14,7 +14,8 @@ from wendao.rag.answer import AnswerGenerator
 from wendao.rag.pipeline import QueryPipeline
 from wendao.rag.prompts import PromptBuilder
 from wendao.web import STATIC_DIR
-from wendao.web.ai import AiPolicy, AiUnavailable, forward_stream, student_id
+from wendao.web.accounts import SignInError
+from wendao.web.ai import AiPolicy, AiUnavailable, bearer_token, forward_login, forward_stream, student_id
 
 EXPLORER_DIR = STATIC_DIR / "explorer"
 
@@ -80,6 +81,8 @@ def create_app(workspace=None) -> Flask:
         workspace.student_server if in_course_app else "",
         workspace.questions_per_day,
         use_local_key=not in_course_app,
+        accounts=workspace.accounts(),
+        server_needs_login=getattr(workspace, "server_needs_login", False),
     )
     app = Flask(__name__, static_folder=None)
 
@@ -123,6 +126,20 @@ def create_app(workspace=None) -> Flask:
     def course_graph():
         return jsonify(graph)
 
+    @app.post("/api/login")
+    def login():
+        email = str((request.get_json(force=True) or {}).get("email", ""))
+        if policy.accounts is not None:
+            try:
+                token, student = policy.accounts.sign_in(email)
+            except SignInError as exc:
+                return jsonify({"ok": False, "message": str(exc)}), 403
+            return jsonify({"ok": True, "token": token, "email": student.email, "name": student.name})
+        if policy.server and policy.server_needs_login:
+            reply = forward_login(policy.server, email)
+            return jsonify(reply), (200 if reply.get("ok") else 403)
+        return jsonify({"ok": False, "message": "This course doesn't use sign-in."}), 400
+
     @app.post("/api/answer/stream")
     def answer_stream():
         payload = request.get_json(force=True) or {}
@@ -133,12 +150,13 @@ def create_app(workspace=None) -> Flask:
         memory = payload.get("short_memory") or []
         context = selected_context(payload)
         student = student_id(request)
+        token = bearer_token(request)
 
         def events():
             try:
-                how, chosen = policy.choose(payload, student)
+                how, chosen = policy.choose(payload, student, token)
                 if how == "forward":
-                    yield from forward_stream(chosen, payload)
+                    yield from forward_stream(chosen, payload, token)
                     return
                 generator = AnswerGenerator(
                     pipeline=pipeline,
@@ -161,7 +179,7 @@ def create_app(workspace=None) -> Flask:
                         }
                     yield json.dumps(event, ensure_ascii=False) + "\n"
             except AiUnavailable as exc:
-                yield json.dumps({"type": "error", "ok": False, "message": str(exc), "error": "AiUnavailable"}) + "\n"
+                yield json.dumps({"type": "error", "ok": False, "message": str(exc), "error": exc.code}) + "\n"
             except Exception as exc:
                 yield json.dumps(
                     {

@@ -29,6 +29,14 @@ AI_MODES = ("teacher", "student", "either")
 class AiUnavailable(Exception):
     """The question cannot be answered with the current AI settings; the message tells the student why."""
 
+    code = "AiUnavailable"
+
+
+class LoginRequired(AiUnavailable):
+    """The course AI needs the student to sign in with their email first."""
+
+    code = "LoginRequired"
+
 
 @dataclass
 class DailyLimit:
@@ -61,14 +69,37 @@ class AiPolicy:
     limit: DailyLimit = field(default_factory=DailyLimit)
     # False in course apps on students' laptops: "the course AI" is then only the teacher's website.
     use_local_key: bool = True
+    # Roster sign-in on this server (see accounts.py), or, in a course app, whether the teacher's website needs it.
+    accounts: object | None = None
+    server_needs_login: bool = False
 
     @classmethod
     def from_settings(
-        cls, mode: str = "teacher", server: str = "", questions_per_day: int = 0, use_local_key: bool = True
+        cls,
+        mode: str = "teacher",
+        server: str = "",
+        questions_per_day: int = 0,
+        use_local_key: bool = True,
+        accounts=None,
+        server_needs_login: bool = False,
     ) -> AiPolicy:
         if mode not in AI_MODES:
             raise ValueError(f"[student] ai must be one of {', '.join(AI_MODES)}, not `{mode}`.")
-        return cls(mode=mode, server=server.rstrip("/"), limit=DailyLimit(int(questions_per_day or 0)), use_local_key=use_local_key)
+        return cls(
+            mode=mode,
+            server=server.rstrip("/"),
+            limit=DailyLimit(int(questions_per_day or 0)),
+            use_local_key=use_local_key,
+            accounts=accounts,
+            server_needs_login=server_needs_login,
+        )
+
+    @property
+    def login_required(self) -> bool:
+        """Students must sign in to use the course AI (their own key needs no sign-in)."""
+        if self.mode == "student":
+            return False
+        return bool(self.accounts) if not self.server else self.server_needs_login
 
     def local_key(self) -> str:
         """The provider configured on this machine for the course AI, or "dry_run" if none may be used."""
@@ -90,12 +121,17 @@ class AiPolicy:
             "teacher_ai": teacher,
             "student_keys": self.allows_student_keys,
             "needs_student_key": self.mode == "student" or (self.mode == "either" and not teacher),
+            "login_required": self.login_required,
             "provider": provider,
             "model": default_model_name(provider) if provider else None,
         }
 
-    def choose(self, payload: dict, student: str):
-        """Return ("provider", provider) or ("forward", server URL) for this question, or raise AiUnavailable."""
+    def choose(self, payload: dict, student: str, token: str = ""):
+        """Return ("provider", provider) or ("forward", server URL) for this question, or raise AiUnavailable.
+
+        `student` is the client's address (for the limit when there is no roster); `token` is the
+        sign-in token from the app, if the student signed in.
+        """
         own = payload.get("ai") or {}
         if own.get("api_key") or (own.get("provider") == "openai" and own.get("base_url")):
             if not self.allows_student_keys:
@@ -118,17 +154,56 @@ class AiPolicy:
         if name == "dry_run":
             hint = " or add your own AI key in Settings" if self.allows_student_keys else ""
             raise AiUnavailable(f"The course AI is not set up yet. Ask your teacher{hint}.")
-        self.limit.take(student)
+        if self.accounts is not None:
+            from wendao.web.accounts import SignInError
+
+            enrolled = self.accounts.student_for(token)
+            if enrolled is None:
+                raise LoginRequired("Sign in with your email to use the course AI.")
+            try:
+                self.accounts.take_question(enrolled)
+            except SignInError as exc:
+                raise AiUnavailable(str(exc)) from exc
+        else:
+            self.limit.take(student)
         return "provider", provider_from_name(name, model=default_model_name(name))
 
 
-def forward_stream(server: str, payload: dict) -> Iterator[str]:
+def bearer_token(req) -> str:
+    """The sign-in token the app sends as `Authorization: Bearer <token>`."""
+    header = req.headers.get("Authorization", "")
+    return header[7:].strip() if header.lower().startswith("bearer ") else ""
+
+
+def _headers(token: str = "") -> dict:
+    headers = {"Content-Type": "application/json"}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    return headers
+
+
+def forward_login(server: str, email: str) -> dict:
+    """Sign in on the teacher's Wendao website (from a course app); returns its JSON reply."""
+    req = request.Request(f"{server}/api/login", data=json.dumps({"email": email}).encode("utf-8"), headers=_headers(), method="POST")
+    try:
+        with request.urlopen(req, timeout=30) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except error.HTTPError as exc:
+        try:
+            return json.loads(exc.read().decode("utf-8"))
+        except ValueError:
+            return {"ok": False, "message": f"The course website answered with an error ({exc.code})."}
+    except error.URLError:
+        return {"ok": False, "message": f"Can't reach the course website ({server}). Check your internet connection."}
+
+
+def forward_stream(server: str, payload: dict, token: str = "") -> Iterator[str]:
     """Send a question to the teacher's Wendao website and pass its streamed answer through."""
     body = {key: payload[key] for key in ("query", "short_memory", "context_node_ids") if key in payload}
     req = request.Request(
         f"{server}/api/answer/stream",
         data=json.dumps(body).encode("utf-8"),
-        headers={"Content-Type": "application/json"},
+        headers=_headers(token),
         method="POST",
     )
     try:

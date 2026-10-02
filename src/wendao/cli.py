@@ -306,6 +306,44 @@ def cmd_serve(args: argparse.Namespace) -> None:
     app.run(host=args.host, port=port, debug=False, threaded=True)
 
 
+# students -------------------------------------------------------------------------------------
+
+
+def cmd_students(args: argparse.Namespace) -> None:
+    from datetime import date
+
+    from wendao.web.accounts import UsageStore, load_roster
+
+    workspace = load_workspace(args)
+    if not workspace.roster_path:
+        raise RuntimeError(
+            "No class list is set. Add one to use sign-in and per-student limits:\n"
+            '  1. Save your class list as students.csv with an "email" column (optional: "name", "limit").\n'
+            '  2. Under [student] in wendao.toml, add: roster = "students.csv"'
+        )
+    roster = load_roster(workspace.require(workspace.roster_path, "Add your class list there."))
+    default = workspace.questions_per_day
+    say(f"Class list: {relative(workspace, workspace.roster_path)} ({len(roster)} students)")
+    say(f"Daily limit: {default if default > 0 else 'none'} questions per student on the course AI")
+    usage_db = workspace.root / "usage.db"
+    if not usage_db.exists():
+        say("No questions yet. Usage is recorded on the computer that runs `wendao serve`.")
+        return
+    day = None if args.all else date.today().isoformat()
+    usage = dict(UsageStore(usage_db).report(day))
+    say()
+    say(f"{'All days' if args.all else 'Today'}:")
+    width = max([len(email) for email in roster] + [10])
+    for email, student in sorted(roster.items(), key=lambda item: -usage.get(item[0], 0)):
+        limit = student.limit if student.limit is not None else default
+        used = usage.get(email, 0)
+        shown = f"{used}/{limit}" if limit > 0 and not args.all else str(used)
+        say(f"  {email:<{width}}  {shown:>7}  {student.name}")
+    unknown = sorted(set(usage) - set(roster))
+    if unknown:
+        say(f"  (+ {len(unknown)} no longer on the class list: {', '.join(unknown)})")
+
+
 # pack and open --------------------------------------------------------------------------------
 
 
@@ -431,6 +469,10 @@ def build_parser() -> argparse.ArgumentParser:
     ask.set_defaults(func=cmd_ask)
 
     commands.add_parser("check", parents=[common], help="check the workspace and the model connection").set_defaults(func=cmd_check)
+
+    students = commands.add_parser("students", parents=[common], help="see the class list and questions asked per student")
+    students.add_argument("--all", action="store_true", help="total questions over all days instead of today")
+    students.set_defaults(func=cmd_students)
 
     pack = commands.add_parser("pack", parents=[common], help="package the built course into one file for students")
     pack.add_argument("-o", "--output", help="where to write it (default: build/<course-name>.wendao)")
