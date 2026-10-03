@@ -125,6 +125,7 @@ def create_app(workspace=None) -> Flask:
             "default_provider": ai["provider"],
             "course": {"name": workspace.course_name, "code": workspace.course_code, "display": workspace.display_name},
             "graph": graph_view is not None,
+            "web_search": workspace.web_search,  # search engines for highlighted text
         })
 
     @app.get("/api/page")

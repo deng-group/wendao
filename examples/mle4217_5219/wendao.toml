@@ -113,6 +113,10 @@ bridge_stop_concepts = [
 # let them use the course AI instead.
 ai = "either"
 
+[widget]
+# Search engines for text students highlight on the course website.
+web_search = ["google", "scholar", "wikipedia", "arxiv"]
+
 [model]
 # The course uses an Anthropic-compatible relay. Put ANTHROPIC_AUTH_TOKEN in .env.
 provider = "anthropic"

@@ -39,6 +39,13 @@ ai = "teacher"                # "teacher" (your key, kept on your server), "stud
                               # course AI, after signing in with their email. See `wendao students`.
 # allowed_origins = []        # other websites allowed to embed the chat widget
 
+[widget]
+# The chat widget on your course website (`wendao widget install`). When students highlight text,
+# they can ask the AI about it or look it up with these search engines.
+# Built in: google, scholar, wikipedia, bing, duckduckgo, baidu, semantic_scholar, arxiv, youtube.
+# Add your own with {q} where the text goes, or use [] to hide the Search button.
+# web_search = ["google", "scholar", "wikipedia", { name = "arXiv", url = "https://arxiv.org/search/?query={q}" }]
+
 [model]
 # Which language model answers questions. Put API keys in .env, not here.
 # provider = "openai"         # "anthropic", "openai" (any OpenAI-compatible server), or "gemini"

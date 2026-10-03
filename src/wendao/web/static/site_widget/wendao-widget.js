@@ -31,6 +31,8 @@
     close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>',
     expand: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>',
     shrink: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7"/></svg>',
+    search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></svg>',
+    caret: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 10 5 5 5-5"/></svg>',
     key: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="m10.8 12.2 8.2-8.2M17 6l2 2M15 8l2 2"/></svg>',
   };
 
@@ -156,6 +158,12 @@
     ai: { mode: "teacher", login_required: false, student_keys: false, needs_student_key: false },
     course: null, graph: false, pageNode: null, history: [], center: null, selected: null, busy: false,
     quote: "", // text the student highlighted on the page, sent with the next question
+    // where highlighted text can be looked up; the teacher sets this in wendao.toml ([widget] web_search)
+    webSearch: [
+      { name: "Google", url: "https://www.google.com/search?q={q}" },
+      { name: "Google Scholar", url: "https://scholar.google.com/scholar?q={q}" },
+      { name: "Wikipedia", url: "https://en.wikipedia.org/w/index.php?search={q}" },
+    ],
   };
   const account = () => readJson(localStorage, KEY("account"), null);
   const ownAi = () => {
@@ -281,6 +289,8 @@
         <span class="wdw-pick-mark">${MARK}</span>
         <button type="button" data-ref="pickExplain">Explain</button>
         <button type="button" data-ref="pickAsk">Ask about it</button>
+        <button type="button" class="wdw-pick-search" data-ref="pickSearch" aria-haspopup="menu" aria-expanded="false">Search</button>
+        <div class="wdw-pick-menu" data-ref="pickMenu" role="menu" hidden></div>
       </div>`;
     document.body.appendChild(root);
     ui = { launcher: root.querySelector(".wdw-launcher"), panel: root.querySelector(".wdw-panel") };
@@ -427,7 +437,7 @@
 
   function placePick() {
     const picked = pageSelection();
-    if (!picked) { ui.pick.hidden = true; return; }
+    if (!picked) { hidePick(); return; }
     state.picked = picked.text;
     ui.pick.hidden = false;
     const box = ui.pick.getBoundingClientRect();
@@ -440,9 +450,57 @@
     ui.pick.style.left = `${Math.min(Math.max(8, left), window.innerWidth - box.width - 8)}px`;
   }
 
+  function hidePick() {
+    ui.pick.hidden = true;
+    ui.pickMenu.hidden = true;
+    ui.pickSearch.setAttribute("aria-expanded", "false");
+  }
+
+  // ---------- look the highlighted text up with a search engine ----------
+  function updateSearch() {
+    const engines = state.webSearch;
+    ui.pickSearch.hidden = !engines.length;
+    ui.pickSearch.innerHTML = engines.length === 1
+      ? `${ICONS.search}<span>${escapeHtml(engines[0].name)}</span>`
+      : `${ICONS.search}<span>Search</span>${ICONS.caret}`;
+    ui.pickSearch.title = engines.length === 1 ? `Search ${engines[0].name} for the highlighted text` : "Look the highlighted text up";
+  }
+
+  function searchUrl(engine, text) {
+    // Search engines work best with short queries: keep the first 300 characters, ending on a whole word.
+    const query = text.length > 300 ? text.slice(0, 300).replace(/\s+\S*$/, "") : text;
+    const url = String(engine.url || "").split("{q}").join(encodeURIComponent(query));
+    return /^https?:\/\//i.test(url) ? url : null;
+  }
+
+  function openSearch(engine) {
+    const url = state.picked && searchUrl(engine, state.picked);
+    hidePick();
+    if (url) window.open(url, "_blank", "noopener,noreferrer");
+  }
+
+  function toggleSearchMenu() {
+    const engines = state.webSearch;
+    if (engines.length === 1) { openSearch(engines[0]); return; }
+    if (!ui.pickMenu.hidden) { ui.pickMenu.hidden = true; ui.pickSearch.setAttribute("aria-expanded", "false"); return; }
+    ui.pickMenu.innerHTML = "";
+    for (const engine of engines) {
+      const item = el("button", "", engine.name);
+      item.type = "button";
+      item.setAttribute("role", "menuitem");
+      item.addEventListener("click", () => openSearch(engine));
+      ui.pickMenu.appendChild(item);
+    }
+    ui.pickMenu.hidden = false;
+    ui.pickSearch.setAttribute("aria-expanded", "true");
+    // Open upwards when there is no room below the bubble.
+    const bubble = ui.pick.getBoundingClientRect();
+    ui.pickMenu.classList.toggle("up", bubble.bottom + ui.pickMenu.offsetHeight + 12 > window.innerHeight);
+  }
+
   function useSelection(explain) {
     const text = state.picked;
-    ui.pick.hidden = true;
+    hidePick();
     if (!text) return;
     setQuote(text);
     setOpen(true);
@@ -455,8 +513,8 @@
     let dragging = false;
     let timer = null;
     const later = (delay) => { clearTimeout(timer); timer = setTimeout(placePick, delay); };
-    document.addEventListener("mousedown", (event) => { if (!ui.pick.contains(event.target)) { dragging = true; ui.pick.hidden = true; } }, true);
-    document.addEventListener("mouseup", () => { dragging = false; later(10); }, true);
+    document.addEventListener("mousedown", (event) => { if (!ui.pick.contains(event.target)) { dragging = true; hidePick(); } }, true);
+    document.addEventListener("mouseup", (event) => { dragging = false; if (!ui.pick.contains(event.target)) later(10); }, true);
     // Keyboard (shift + arrows) and touch selections arrive as selection changes.
     document.addEventListener("selectionchange", () => { if (!dragging) later(window.getSelection().isCollapsed ? 0 : 350); });
     window.addEventListener("scroll", () => { if (!ui.pick.hidden) placePick(); }, { passive: true, capture: true });
@@ -464,6 +522,7 @@
     ui.pick.addEventListener("mousedown", (event) => event.preventDefault()); // keep the highlight while clicking
     ui.pickExplain.addEventListener("click", () => useSelection(true));
     ui.pickAsk.addEventListener("click", () => useSelection(false));
+    ui.pickSearch.addEventListener("click", toggleSearchMenu);
     ui.quoteClear.addEventListener("click", () => { setQuote(""); ui.question.focus(); });
   }
 
@@ -652,7 +711,8 @@
     root.querySelectorAll(".wdw-tab").forEach((tab) => tab.addEventListener("click", () => setTab(tab.dataset.tab)));
     document.addEventListener("keydown", (event) => {
       if (event.key !== "Escape") return;
-      if (!ui.pick.hidden) ui.pick.hidden = true;
+      if (!ui.pickMenu.hidden) { ui.pickMenu.hidden = true; ui.pickSearch.setAttribute("aria-expanded", "false"); ui.pickSearch.focus(); }
+      else if (!ui.pick.hidden) hidePick();
       else if (!ui.panel.hidden) setOpen(false);
     });
     watchSelection();
@@ -742,11 +802,13 @@
       state.ai = { ...state.ai, ...(health.ai || {}) };
       state.course = health.course || null;
       state.graph = Boolean(health.graph);
+      if (Array.isArray(health.web_search)) state.webSearch = health.web_search.filter((engine) => engine && engine.name && engine.url);
       if (state.course) ui.course.textContent = state.course.display || state.course.name;
     } catch {
       ui.course.textContent = "Course AI (offline)";
     }
     ui.graphTab.hidden = !state.graph;
+    updateSearch();
     updateAccount();
     restore();
     await syncPage();
