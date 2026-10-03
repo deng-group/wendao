@@ -159,14 +159,6 @@
 .wdw-pick button:hover, .wdw-pick button:focus-visible { background: var(--wdw-accent-soft); color: var(--wdw-primary); outline: none; }
 .wdw-pick .wdw-pick-search { display: inline-flex; align-items: center; gap: 4px; margin-left: 2px; padding-left: 9px; border-left: 1px solid var(--wdw-line); border-radius: 0 8px 8px 0; }
 .wdw-pick-search svg { width: 15px; height: 15px; flex: none; }
-.wdw-pick-search svg:last-child:not(:first-child) { width: 13px; height: 13px; opacity: 0.7; }
-.wdw-pick-menu {
-  position: absolute; top: calc(100% + 6px); right: 0; min-width: 180px; padding: 4px;
-  display: flex; flex-direction: column; border: 1px solid var(--wdw-line-strong); border-radius: 11px;
-  background: var(--wdw-bg); box-shadow: var(--wdw-shadow);
-}
-.wdw-pick-menu.up { top: auto; bottom: calc(100% + 6px); }
-.wdw-pick-menu button { text-align: left; font-weight: 500; padding: 7px 10px; }
 @keyframes wdw-pop { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
 
 .wdw-composer { display: flex; align-items: flex-end; gap: 8px; padding: 12px 14px 14px; border-top: 1px solid var(--wdw-line); }

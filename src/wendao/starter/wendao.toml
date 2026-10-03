@@ -41,10 +41,10 @@ ai = "teacher"                # "teacher" (your key, kept on your server), "stud
 
 [widget]
 # The chat widget on your course website (`wendao widget install`). When students highlight text,
-# they can ask the AI about it or look it up with these search engines.
-# Built in: google, scholar, wikipedia, bing, duckduckgo, baidu, semantic_scholar, arxiv, youtube.
-# Add your own with {q} where the text goes, or use [] to hide the Search button.
-# web_search = ["google", "scholar", "wikipedia", { name = "arXiv", url = "https://arxiv.org/search/?query={q}" }]
+# they can ask the AI about it, or click Search to look it up on the web with this search engine.
+# Built in: google, scholar, wikipedia, bing, duckduckgo, baidu, semantic_scholar, arxiv, youtube;
+# or a web address with {q} where the text goes; "" hides the Search button.
+# web_search = "google"
 
 [model]
 # Which language model answers questions. Put API keys in .env, not here.

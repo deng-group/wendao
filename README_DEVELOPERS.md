@@ -130,10 +130,10 @@ characters) with the question. The pipeline searches with it ahead of the questi
 "summarize this" as too broad when there is a selection. The prompt quotes the text as
 what the question is about; it is not used as evidence.
 
-The highlight bubble's **Search** menu opens the text (first 300 characters) in a search engine in
-a new tab. The engines come from `[widget] web_search` in `wendao.toml` (built-in names in
-`WEB_SEARCH_ENGINES` in `workspace.py`, or `{name, url}` with `{q}`) and reach the widget through
-`/api/health` as `web_search`. Nothing is sent to the Wendao server.
+The highlight bubble's **Search** button opens the text (first 300 characters) in a search
+engine in a new tab. The engine is `[widget] web_search` in `wendao.toml` (default `google`;
+built-in names in `WEB_SEARCH_ENGINES` in `workspace.py`, or an address with `{q}`) and reaches
+the widget through `/api/health` as `web_search`. Nothing is sent to the Wendao server.
 
 This checks the model, starts the API at `http://127.0.0.1:5055`, serves the
 site at `http://127.0.0.1:8000`, and opens it. Use the `?` button at the

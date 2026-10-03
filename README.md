@@ -303,13 +303,12 @@ Students get a Wendao button at the bottom-right of each page. It opens a chat w
 that follows the site's light or dark theme. A **Graph** tab shows the part of the knowledge graph around the page they are
 reading: click a concept to explore around it, open its page, or ask the AI to explain it. Students can also highlight
 any text on a page and click **Explain** or **Ask about it** to ask about that passage, or **Search** to look it up on
-the web. Choose the search engines in `wendao.toml`:
+Google. To use another search engine, set it in `wendao.toml`:
 
 ```toml
 [widget]
-web_search = ["google", "scholar", "wikipedia"]   # the default; [] hides the Search button
-# Also built in: bing, duckduckgo, baidu, semantic_scholar, arxiv, youtube. Add your own with {q} for the text:
-# web_search = ["google", { name = "Materials Project", url = "https://next-gen.materialsproject.org/materials?formula={q}" }]
+web_search = "scholar"   # or bing, duckduckgo, baidu, wikipedia, semantic_scholar, arxiv, youtube,
+                         # or your own address with {q} for the text; "" hides the Search button
 ```
 
 The widget talks to a Wendao

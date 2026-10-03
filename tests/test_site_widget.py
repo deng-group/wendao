@@ -84,9 +84,8 @@ class WidgetApiTest(unittest.TestCase):
         self.assertEqual(focused["status"], "answerable")
         self.assertEqual(focused["evidence"][0]["file_path"], "high_throughput/thermodynamics.md")
 
-    def test_health_lists_the_search_engines_from_wendao_toml(self):
-        names = [engine["name"] for engine in self.client.get("/api/health").get_json()["web_search"]]
-        self.assertEqual(names, ["Google", "Google Scholar", "Wikipedia", "arXiv"])
+    def test_health_names_the_search_engine(self):
+        self.assertEqual(self.client.get("/api/health").get_json()["web_search"]["name"], "Google")
 
 
 class WebSearchSettingTest(unittest.TestCase):
@@ -95,20 +94,17 @@ class WebSearchSettingTest(unittest.TestCase):
             Path(folder, "wendao.toml").write_text(f'[course]\nname = "Test"\n{widget}', encoding="utf-8")
             return workspace_module.load(Path(folder)).web_search
 
-    def test_default_built_in_and_own_engines(self):
-        self.assertEqual([e["name"] for e in self.load("")], ["Google", "Google Scholar", "Wikipedia"])
-        engines = self.load('[widget]\nweb_search = ["Baidu", { name = "Materials Project", '
-                            'url = "https://next-gen.materialsproject.org/materials?formula={q}" }]\n')
-        self.assertEqual(engines[0]["url"], "https://www.baidu.com/s?wd={q}")
-        self.assertEqual(engines[1]["name"], "Materials Project")
-        self.assertEqual(self.load("[widget]\nweb_search = []\n"), [])
+    def test_google_by_default_or_the_one_chosen(self):
+        self.assertEqual(self.load("")["url"], "https://www.google.com/search?q={q}")
+        self.assertEqual(self.load('[widget]\nweb_search = "Scholar"\n')["name"], "Google Scholar")
+        own = "https://next-gen.materialsproject.org/materials?formula={q}"
+        self.assertEqual(self.load(f'[widget]\nweb_search = "{own}"\n')["url"], own)
+        self.assertIsNone(self.load('[widget]\nweb_search = ""\n'))
 
     def test_mistakes_are_explained(self):
-        with self.assertRaisesRegex(workspace_module.WorkspaceError, "Built in: google"):
-            self.load('[widget]\nweb_search = ["altavista"]\n')
-        for bad in ['{ name = "X", url = "javascript:alert({q})" }', '{ name = "X", url = "https://x.org/" }', '{ url = "https://x.org/?q={q}" }']:
-            with self.subTest(bad=bad), self.assertRaisesRegex(workspace_module.WorkspaceError, "needs a `name`"):
-                self.load(f"[widget]\nweb_search = [{bad}]\n")
+        for bad in ["altavista", "javascript:alert({q})", "https://example.org/search"]:
+            with self.subTest(bad=bad), self.assertRaisesRegex(workspace_module.WorkspaceError, "must be one of google"):
+                self.load(f'[widget]\nweb_search = "{bad}"\n')
 
 
 class SelectionPromptTest(unittest.TestCase):

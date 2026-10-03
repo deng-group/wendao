@@ -40,7 +40,7 @@ DEFAULT_OUT_OF_SCOPE_TERMS = [
 
 CHAPTER_VISIBILITY = {"primary", "secondary", "hidden"}
 
-# Search engines students can send highlighted text to from the course-website widget ({q} = the text).
+# Search engines for the widget's Search button, which looks up highlighted text ({q} = the text).
 WEB_SEARCH_ENGINES = {
     "google": {"name": "Google", "url": "https://www.google.com/search?q={q}"},
     "scholar": {"name": "Google Scholar", "url": "https://scholar.google.com/scholar?q={q}"},
@@ -52,7 +52,7 @@ WEB_SEARCH_ENGINES = {
     "arxiv": {"name": "arXiv", "url": "https://arxiv.org/search/?query={q}&searchtype=all"},
     "youtube": {"name": "YouTube", "url": "https://www.youtube.com/results?search_query={q}"},
 }
-DEFAULT_WEB_SEARCH = ["google", "scholar", "wikipedia"]
+DEFAULT_WEB_SEARCH = "google"
 
 # Maps [model] settings in wendao.toml to the environment variables the providers read.
 MODEL_ENV = {
@@ -101,7 +101,7 @@ class Workspace:
     questions_per_day: int = 0
     allowed_origins: list[str] = field(default_factory=list)
     roster: str = ""
-    web_search: list[dict] = field(default_factory=lambda: web_search_engines(DEFAULT_WEB_SEARCH))
+    web_search: dict | None = field(default_factory=lambda: web_search_engine(DEFAULT_WEB_SEARCH))
 
     # Workspace files
     @property
@@ -215,25 +215,20 @@ def find_root(start: Path | None = None) -> Path:
     )
 
 
-def web_search_engines(items: list) -> list[dict]:
-    """[widget] web_search: built-in names (see WEB_SEARCH_ENGINES) or {name, url} tables with {q} in the url."""
-    engines = []
-    for item in items:
-        if isinstance(item, str):
-            if item.lower() not in WEB_SEARCH_ENGINES:
-                known = ", ".join(WEB_SEARCH_ENGINES)
-                raise WorkspaceError(f"Unknown search engine \"{item}\" in [widget] web_search. Built in: {known}.")
-            engines.append(dict(WEB_SEARCH_ENGINES[item.lower()]))
-            continue
-        name = str(item.get("name", "")).strip() if isinstance(item, dict) else ""
-        url = str(item.get("url", "")).strip() if isinstance(item, dict) else ""
-        if not name or not url.startswith(("https://", "http://")) or "{q}" not in url:
-            raise WorkspaceError(
-                "Each search engine in [widget] web_search needs a `name` and an http(s) `url` with {q} "
-                'where the text goes, e.g. { name = "arXiv", url = "https://arxiv.org/search/?query={q}" }.'
-            )
-        engines.append({"name": name, "url": url})
-    return engines
+def web_search_engine(value: str) -> dict | None:
+    """[widget] web_search: a built-in name (see WEB_SEARCH_ENGINES), or an address with {q} for the text. "" = no Search button."""
+    value = str(value or "").strip()
+    if not value:
+        return None
+    if value.lower() in WEB_SEARCH_ENGINES:
+        return dict(WEB_SEARCH_ENGINES[value.lower()])
+    if value.startswith(("https://", "http://")) and "{q}" in value:
+        return {"name": "", "url": value}
+    known = ", ".join(WEB_SEARCH_ENGINES)
+    raise WorkspaceError(
+        f"[widget] web_search in {CONFIG_NAME} must be one of {known}, or a web address with {{q}} where the "
+        'text goes (e.g. "https://arxiv.org/search/?query={q}"), or "" for no Search button.'
+    )
 
 
 def load(start: Path | None = None) -> Workspace:
@@ -302,6 +297,6 @@ def load(start: Path | None = None) -> Workspace:
         questions_per_day=int(student.get("questions_per_day", 0) or 0),
         allowed_origins=[str(item) for item in student.get("allowed_origins", [])],
         roster=str(student.get("roster", "")),
-        web_search=web_search_engines(widget.get("web_search", DEFAULT_WEB_SEARCH)),
+        web_search=web_search_engine(widget.get("web_search", DEFAULT_WEB_SEARCH)),
     )
     return workspace
