@@ -81,6 +81,7 @@ class Workspace:
     course_code: str = ""
     website: str = ""
     term: str = ""
+    instructor: str = ""
     source: Path | None = None
     use_toc: bool = False
     file_types: list[str] = field(default_factory=list)
@@ -277,6 +278,7 @@ def load(start: Path | None = None) -> Workspace:
         course_code=course.get("code", ""),
         website=course.get("website", ""),
         term=course.get("term", ""),
+        instructor=str(course.get("instructor", "")),
         use_toc=bool(source.get("use_toc", False)),
         file_types=[str(kind) for kind in source.get("file_types", [])],
         source=(root / source["path"]).resolve() if source.get("path") else None,

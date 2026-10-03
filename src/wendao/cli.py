@@ -334,6 +334,51 @@ def cmd_widget(args: argparse.Namespace) -> None:
     say("Try it locally:  wendao serve --widget --site " + str(site))
 
 
+# site -----------------------------------------------------------------------------------------
+
+
+def cmd_site(args: argparse.Namespace) -> None:
+    from wendao.course_site import build, new, point_source_at
+
+    workspace = load_workspace(args)
+    if args.action == "new":
+        require_teacher_tools()
+        out = args.out or workspace.root / "site"
+        result = new(workspace, out)
+        folder = relative(workspace, result["folder"])
+        say(f"Made the course website in {folder}:")
+        say(f"  {result['chapters']} chapters, {result['copied']} pages copied, {result['converted']} made from slides, "
+            f"Word, PDF or LaTeX files, {result['files']} other files (images, data, downloads).")
+        if result["used_own"]:
+            say(f"  Used your own {', '.join(result['used_own'])}.")
+        for warning in result["warnings"]:
+            say(f"  Warning: {warning}")
+        old = point_source_at(workspace, result["folder"])
+        say(f"  {CONFIG_NAME}: Wendao now reads the website's pages ([source] path = \"{folder}\""
+            + (f", was \"{old}\")." if old else ")."))
+        say()
+        say("Next:")
+        say(f"  1. Fill in {folder}/syllabus.md and {folder}/calendar.md, and edit any page you like.")
+        say("  2. wendao site build    builds the website and adds the chat widget")
+        say("  3. wendao build         rebuilds the knowledge graph and search from the website's pages")
+        say(f"  4. wendao serve --widget --site {folder}/_build/html    to try it")
+        return
+    site = Path(args.site) if args.site else website_folder(workspace)
+    say(f"Building the website in {relative(workspace, site)} with MyST ...")
+    result = build(site, api=args.api or "")
+    html = relative(workspace, result["html"])
+    say(f"Built {html} and added the chat widget to {result['pages']} pages.")
+    say("Publish that folder on any web server. Try it first with:")
+    say(f"  wendao serve --widget --site {html}")
+
+
+def website_folder(workspace) -> Path:
+    """The site to build: the notes folder if it is a MyST site, else site/ in the workspace."""
+    if workspace.source and (Path(workspace.source) / "myst.yml").exists():
+        return Path(workspace.source)
+    return workspace.root / "site"
+
+
 # students -------------------------------------------------------------------------------------
 
 
@@ -503,6 +548,14 @@ def build_parser() -> argparse.ArgumentParser:
     widget.add_argument("site", help="the built website folder, for example _build/html")
     widget.add_argument("--api", help="address of your Wendao widget API (default: the same website, under /api)")
     widget.set_defaults(func=cmd_widget)
+
+    site = commands.add_parser("site", parents=[common], help="make a course website (MyST) from your files, and build it")
+    site.add_argument("action", choices=["new", "build"],
+                      help="new: make the website from your notes folder; build: build it and add the chat widget")
+    site.add_argument("--out", type=Path, help="new: where to put the website (default: site/ in the workspace)")
+    site.add_argument("--site", help="build: the website folder (default: your notes folder if it is a MyST site, else site/)")
+    site.add_argument("--api", help="build: address of your Wendao widget API (default: the same website, under /api)")
+    site.set_defaults(func=cmd_site)
 
     students = commands.add_parser("students", parents=[common], help="see the class list and questions asked per student")
     students.add_argument("--all", action="store_true", help="total questions over all days instead of today")

@@ -122,6 +122,8 @@ Run `wendao` commands anywhere inside the workspace. Wendao finds `wendao.toml` 
 | `wendao check` | teacher | Check your settings and the connection to the model |
 | `wendao serve` | teacher | Run the course website (the knowledge graph with the AI agent) |
 | `wendao serve --widget` | teacher | Run the API for the chat widget on your existing course website |
+| `wendao site new` | teacher | Make a course website (MyST) from your files: slides, Word, PDF, notebooks, Markdown |
+| `wendao site build` | teacher | Build that website and add the chat widget |
 | `wendao widget install _build/html` | teacher | Add the chat widget (with the graph) to every page of a built course website |
 | `wendao pack` | teacher | Put the built course into one file to share with students |
 | `wendao students` | teacher | See your class list and how many questions each student asked |
@@ -319,6 +321,26 @@ by default it uses the same website address under `/api`, or pass `--api https:/
 <p align="center">
   <img src="https://raw.githubusercontent.com/deng-group/wendao/main/docs/assets/demo/widget_chat.png" width="52%" alt="The Wendao widget on a course page: an answer about convex hulls with links to the course pages it used">
   <img src="https://raw.githubusercontent.com/deng-group/wendao/main/docs/assets/demo/widget_graph_dark.png" width="46%" alt="The widget's Graph tab in dark mode: the concepts and pages around the Thermodynamics page">
+</p>
+
+**No course website yet?** Wendao can make one from your files, in the same style as the
+[MLE4217/5219 course](https://mle4217-5219.matsci.dev):
+
+```bash
+wendao site new      # makes site/ from your notes folder
+wendao site build    # builds it and adds the chat widget; publish site/_build/html
+wendao build         # rebuilds the graph and search from the website's pages
+```
+
+You get a home page, a syllabus and a calendar to fill in, and one chapter per folder in your notes
+(named and ordered as in `[[chapters]]`). Markdown pages and notebooks are used as they are. PowerPoint,
+Word, PDF, and LaTeX files become pages, with the original file as a download. Edit the pages afterwards like any
+MyST site. Wendao then reads the website's pages, so the AI's sources link to them. Building needs
+[Node.js](https://nodejs.org) (or `pip install jupyter-book`). Add `instructor = "..."` under `[course]` to show your name.
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/deng-group/wendao/main/docs/assets/demo/site_home.png" width="49%" alt="Home page of a course website made by wendao site new: course title, term, a Get started button and a card per chapter">
+  <img src="https://raw.githubusercontent.com/deng-group/wendao/main/docs/assets/demo/site_lecture.png" width="49%" alt="A lecture page made from a PowerPoint file: a download link, the slide titles as headings, bullets and speaker notes">
 </p>
 
 ## Testing your agent
