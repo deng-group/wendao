@@ -18,9 +18,10 @@ from wendao.rag.answer import AnswerGenerator
 from wendao.rag.pipeline import QueryPipeline
 from wendao.rag.prompts import PromptBuilder
 from wendao.web import STATIC_DIR, TEMPLATES_DIR
-from wendao.web.accounts import SignInError
+from wendao.web.accounts import SignInError, TokenSigner
 from wendao.web.ai import AiPolicy, AiUnavailable, bearer_token, student_id
 from wendao.web.explorer import course_source_url
+from wendao.web.feedback import FeedbackError, FeedbackStore
 from wendao.web.graph_api import GraphView
 
 MAX_SELECTION = 1500  # characters of highlighted page text sent with a question
@@ -78,6 +79,14 @@ def create_app(workspace=None) -> Flask:
                 context.append(f"{node['type']}: {node.get('label', node_id)}")
         return context
 
+    feedback_store: list[FeedbackStore] = []  # made on first use, so a server nobody rates creates no files
+
+    def feedback() -> FeedbackStore:
+        if not feedback_store:
+            root = Path(workspace.root)
+            feedback_store.append(FeedbackStore(root / "usage.db", TokenSigner.for_folder(root).secret))
+        return feedback_store[0]
+
     def selection(payload: dict) -> str:
         """Text the student highlighted on the course page, tidied and cut to a reasonable length."""
         return " ".join(str(payload.get("selection") or "").split())[:MAX_SELECTION]
@@ -109,6 +118,7 @@ def create_app(workspace=None) -> Flask:
     @app.route("/api/answer", methods=["OPTIONS"])
     @app.route("/api/answer/stream", methods=["OPTIONS"])
     @app.route("/api/login", methods=["OPTIONS"])
+    @app.route("/api/feedback", methods=["OPTIONS"])
     def answer_options():
         return ("", 204)
 
@@ -125,8 +135,18 @@ def create_app(workspace=None) -> Flask:
             "default_provider": ai["provider"],
             "course": {"name": workspace.course_name, "code": workspace.course_code, "display": workspace.display_name},
             "graph": graph_view is not None,
-            "web_search": workspace.web_search,  # where the Search button looks up highlighted text
+            "web_search": workspace.web_search,
+            "feedback": True,  # this server takes thumbs up / down on answers  # where the Search button looks up highlighted text
         })
+
+    @app.post("/api/feedback")
+    def give_feedback():
+        """A student's thumbs up / down on an answer, stored without who sent it (see web/feedback.py)."""
+        try:
+            feedback().add(student_id(request), request.get_json(force=True) or {})
+        except FeedbackError as exc:
+            return jsonify({"ok": False, "message": str(exc)}), 400
+        return jsonify({"ok": True})
 
     @app.get("/api/page")
     def page():

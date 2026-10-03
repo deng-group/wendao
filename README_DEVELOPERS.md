@@ -135,6 +135,14 @@ engine in a new tab. The engine is `[widget] web_search` in `wendao.toml` (defau
 built-in names in `WEB_SEARCH_ENGINES` in `workspace.py`, or an address with `{q}`) and reaches
 the widget through `/api/health` as `web_search`. Nothing is sent to the Wendao server.
 
+Under each answer the widget shows follow-ups (Simpler / Example / Test me: the chat shows a short
+label, the AI gets a fuller instruction; after "Test me" the student's next message is sent as
+"My answer to that question: ...") and 👍/👎. Ratings go to `POST /api/feedback` and are stored by
+`web/feedback.py` in `usage.db` (table `feedback`), with the sender as a daily keyed hash (to cap
+spam at 100 a day per sender), never the IP or email. `wendao feedback` lists them. Formulas are
+set aside before the Markdown renderer and drawn by KaTeX 0.16.22 from jsDelivr, pinned with
+subresource integrity; without it they stay as text.
+
 This checks the model, starts the API at `http://127.0.0.1:5055`, serves the
 site at `http://127.0.0.1:8000`, and opens it. Use the `?` button at the
 bottom-right. Stop both with `Ctrl+C`.

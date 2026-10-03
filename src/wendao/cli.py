@@ -334,6 +334,37 @@ def cmd_widget(args: argparse.Namespace) -> None:
     say("Try it locally:  wendao serve --widget --site " + str(site))
 
 
+# feedback -------------------------------------------------------------------------------------
+
+
+def cmd_feedback(args: argparse.Namespace) -> None:
+    from wendao.web.accounts import TokenSigner
+    from wendao.web.feedback import FeedbackStore
+
+    workspace = load_workspace(args)
+    if not (workspace.root / "usage.db").exists():
+        say("No feedback yet. Students rate answers with the thumbs buttons in the chat widget.")
+        return
+    items = FeedbackStore(workspace.root / "usage.db", TokenSigner.for_folder(workspace.root).secret).recent(args.days)
+    span = "today" if args.days == 1 else f"the last {args.days} days"
+    up = sum(item["rating"] == "up" for item in items)
+    say(f"Feedback in {span}: {up} helpful, {len(items) - up} not helpful.")
+    shown = items if args.all else [item for item in items if item["rating"] == "down"]
+    for item in shown[: args.limit]:
+        say()
+        mark = "Helpful" if item["rating"] == "up" else "Not helpful"
+        say(f"{mark}  {item['time'].replace('T', ' ')}" + (f"  on {item['page']}" if item["page"] else ""))
+        say(f"  Q: {item['question']}")
+        answer = " ".join(item["answer"].split())
+        say(f"  A: {answer[:300]}{'...' if len(answer) > 300 else ''}")
+        if item["note"]:
+            say(f"  Student's note: {item['note']}")
+    if len(shown) > args.limit:
+        say(f"\n... and {len(shown) - args.limit} more. Use --limit to see more.")
+    if not args.all and up:
+        say("\n(Only answers marked not helpful are listed. Add --all to see every rating.)")
+
+
 # students -------------------------------------------------------------------------------------
 
 
@@ -503,6 +534,12 @@ def build_parser() -> argparse.ArgumentParser:
     widget.add_argument("site", help="the built website folder, for example _build/html")
     widget.add_argument("--api", help="address of your Wendao widget API (default: the same website, under /api)")
     widget.set_defaults(func=cmd_widget)
+
+    feedback = commands.add_parser("feedback", parents=[common], help="see which answers students marked helpful or not")
+    feedback.add_argument("--days", type=int, default=7, help="how many days back (default: 7)")
+    feedback.add_argument("--all", action="store_true", help="list helpful answers too, not only the unhelpful ones")
+    feedback.add_argument("--limit", type=int, default=20, help="how many to list (default: 20)")
+    feedback.set_defaults(func=cmd_feedback)
 
     students = commands.add_parser("students", parents=[common], help="see the class list and questions asked per student")
     students.add_argument("--all", action="store_true", help="total questions over all days instead of today")

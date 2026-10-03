@@ -124,6 +124,27 @@
 }
 .wdw-sources a:hover { color: var(--wdw-primary); border-color: var(--wdw-primary); }
 
+/* Under an answer: follow-ups on the left, thumbs on the right */
+.wdw-answer-tools { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; width: 100%; margin-top: 2px; }
+.wdw-followups { display: flex; flex-wrap: wrap; gap: 6px; }
+.wdw-followups .wdw-chip { padding: 3px 10px; font-size: 11.5px; }
+.wdw-rate { display: flex; align-items: center; gap: 2px; margin-left: auto; }
+.wdw-rate .wdw-icon-button { width: 26px; min-width: 26px; height: 26px; padding: 5px; }
+.wdw-rate .wdw-icon-button svg { width: 15px; height: 15px; }
+.wdw-rate-thanks { color: var(--wdw-muted); font-size: 11.5px; }
+.wdw-rate-form { display: flex; gap: 6px; width: 100%; }
+.wdw-rate-form input {
+  flex: 1; min-width: 0; padding: 5px 9px; border: 1px solid var(--wdw-line-strong); border-radius: 8px;
+  background: var(--wdw-raised); font-size: 12px; outline: none;
+}
+.wdw-rate-form input:focus { border-color: var(--wdw-accent); }
+.wdw-rate-form .wdw-button { padding: 4px 10px; font-size: 12px; }
+
+/* Formulas (KaTeX) */
+.wdw-math .katex { font-size: 1.05em; }
+.wdw-math.display { display: block; margin: 6px 0; overflow-x: auto; overflow-y: hidden; text-align: center; }
+.wdw-message.user .wdw-math .katex { color: inherit; }
+
 .wdw-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 0 18px 10px; }
 .wdw-chips[hidden] { display: none; }
 .wdw-chips span { color: var(--wdw-muted); font-size: 11.5px; margin-right: 2px; }

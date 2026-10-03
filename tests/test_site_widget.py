@@ -88,6 +88,57 @@ class WidgetApiTest(unittest.TestCase):
         self.assertEqual(self.client.get("/api/health").get_json()["web_search"]["name"], "Google")
 
 
+
+class FeedbackTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        (self.root / "wendao.toml").write_text('[course]\nname = "Demo"\n[search]\nembedding_model = "tfidf"\n', encoding="utf-8")
+        (self.root / "build").mkdir()
+        (self.root / "build" / "chunks.jsonl").write_text(json.dumps({
+            "chunk_id": "a.md_0", "file_path": "a.md", "module": "root", "title": "A", "content": "Convex hull and stable phases."}) + "\n",
+            encoding="utf-8")
+        self.client = create_app(workspace_module.load(self.root)).test_client()
+        self.down = {"rating": "down", "question": "What is a convex hull?", "answer": "It is a kind of fruit.",
+                     "note": "Wrong!", "sources": ["a.md"], "page": "/thermo/"}
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def rate(self, payload, address="10.0.0.7"):
+        return self.client.post("/api/feedback", json=payload, environ_base={"REMOTE_ADDR": address})
+
+    def test_ratings_are_stored_without_who_sent_them(self):
+        self.assertTrue(self.client.get("/api/health").get_json()["feedback"])
+        self.assertFalse((self.root / "usage.db").exists())  # nothing is created until someone rates an answer
+        self.assertEqual(self.rate(self.down).status_code, 200)
+        self.assertEqual(self.rate({**self.down, "rating": "up", "note": ""}).status_code, 200)
+        self.assertEqual(self.rate({**self.down, "rating": "meh"}).status_code, 400)
+        self.assertEqual(self.rate({**self.down, "question": ""}).status_code, 400)
+        stored = (self.root / "usage.db").read_bytes()
+        self.assertNotIn(b"10.0.0.7", stored)
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            main(["feedback", "-w", str(self.root)])
+        text = output.getvalue()
+        self.assertIn("1 helpful, 1 not helpful", text)
+        self.assertIn("Q: What is a convex hull?", text)
+        self.assertIn("Student's note: Wrong!", text)
+        self.assertIn("on /thermo/", text)
+
+    def test_one_sender_cannot_flood_the_database(self):
+        with mock.patch("wendao.web.feedback.MAX_PER_SENDER_PER_DAY", 2):
+            codes = [self.rate(self.down).status_code for _ in range(3)]
+            self.assertEqual(codes, [200, 200, 400])
+            self.assertEqual(self.rate(self.down, address="10.0.0.8").status_code, 200)  # someone else still can
+
+    def test_command_without_feedback(self):
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            main(["feedback", "-w", str(self.root)])
+        self.assertIn("No feedback yet", output.getvalue())
+
+
 class WebSearchSettingTest(unittest.TestCase):
     def load(self, widget: str):
         with tempfile.TemporaryDirectory() as folder:

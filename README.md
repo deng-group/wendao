@@ -124,6 +124,7 @@ Run `wendao` commands anywhere inside the workspace. Wendao finds `wendao.toml` 
 | `wendao serve --widget` | teacher | Run the API for the chat widget on your existing course website |
 | `wendao widget install _build/html` | teacher | Add the chat widget (with the graph) to every page of a built course website |
 | `wendao pack` | teacher | Put the built course into one file to share with students |
+| `wendao feedback` | teacher | See which answers students marked as not helpful, and why |
 | `wendao students` | teacher | See your class list and how many questions each student asked |
 | `wendao open my-course.wendao` | student | Open a course file from your teacher |
 
@@ -310,6 +311,12 @@ Google. To use another search engine, set it in `wendao.toml`:
 web_search = "scholar"   # or bing, duckduckgo, baidu, wikipedia, semantic_scholar, arxiv, youtube,
                          # or your own address with {q} for the text; "" hides the Search button
 ```
+
+Under each answer, students can tap **Simpler**, **Example**, or **Test me** (the AI asks them a short question
+and then checks their answer), and mark the answer 👍 or 👎 with an optional note. `wendao feedback` shows you the
+answers marked not helpful, so you can see where the AI goes wrong. Feedback is stored on your server in `usage.db`,
+without names or addresses. Formulas in answers are drawn with [KaTeX](https://katex.org), which the widget loads
+from the jsDelivr CDN; if it can't load, formulas show as plain text.
 
 The widget talks to a Wendao
 widget API (`wendao serve --widget`, or the server in [`deploy/DEPLOYMENT.md`](https://github.com/deng-group/wendao/blob/main/deploy/DEPLOYMENT.md));

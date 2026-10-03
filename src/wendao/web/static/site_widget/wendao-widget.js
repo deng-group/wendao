@@ -32,6 +32,8 @@
     expand: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>',
     shrink: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7"/></svg>',
     search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></svg>',
+    up: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10v12"/><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z"/></svg>',
+    down: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 14V2"/><path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22a3.13 3.13 0 0 1-3-3.88Z"/></svg>',
     key: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="m10.8 12.2 8.2-8.2M17 6l2 2M15 8l2 2"/></svg>',
   };
 
@@ -138,7 +140,66 @@
     return blocks.join("");
   }
 
-  function renderMarkdown(text) {
+  // Formulas ($...$, $$...$$, \(...\), \[...\]) are set aside before the Markdown is rendered, then drawn by KaTeX.
+  // "$10k" or "$5 and $10" stay text: an inline formula can't start or end with a space or be followed by a digit.
+  const MATH = /(```[\s\S]*?```|`[^`\n]*`)|\$\$([\s\S]+?)\$\$|\\\[([\s\S]+?)\\\]|\\\(([\s\S]+?)\\\)|\$(?=\S)([^$\n]+?)(?<=\S)\$(?!\d)/g;
+
+  function protectMath(text, formulas) {
+    return text.replace(MATH, (match, code, display, display2, inline, inline2) => {
+      if (code) return match;
+      const tex = display || display2 || inline || inline2;
+      formulas.push({ tex, display: Boolean(display || display2), source: match });
+      return `\uE000${formulas.length - 1}\uE001`;
+    });
+  }
+
+  function restoreMath(html, formulas) {
+    return html.replace(/\uE000(\d+)\uE001/g, (_m, index) => {
+      const formula = formulas[Number(index)];
+      return `<span class="wdw-math${formula.display ? " display" : ""}" data-tex="${escapeHtml(formula.tex)}">${escapeHtml(formula.source)}</span>`;
+    });
+  }
+
+  let katexLoading = null;
+  function loadKatex() {
+    if (window.katex) return Promise.resolve(window.katex);
+    if (katexLoading) return katexLoading;
+    const KATEX = "https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/";
+    katexLoading = new Promise((resolve, reject) => {
+      const style = el("link");
+      Object.assign(style, { rel: "stylesheet", href: `${KATEX}katex.min.css`, crossOrigin: "anonymous",
+        integrity: "sha384-5TcZemv2l/9On385z///+d7MSYlvIEw9FuZTIdZ14vJLqWphw7e7ZPuOiCHJcFCP" });
+      document.head.appendChild(style);
+      const script = el("script");
+      Object.assign(script, { src: `${KATEX}katex.min.js`, crossOrigin: "anonymous", async: true,
+        integrity: "sha384-cMkvdD8LoxVzGF/RPUKAcvmm49FQ0oxwDF3BGKtDXcEc+T1b2N+teh/OJfpU0jr6" });
+      script.onload = () => (window.katex ? resolve(window.katex) : reject(new Error("KaTeX did not load")));
+      script.onerror = () => reject(new Error("KaTeX could not be loaded"));
+      document.head.appendChild(script);
+    });
+    return katexLoading;
+  }
+
+  function typeset(container) {
+    const pending = container.querySelectorAll(".wdw-math:not([data-done])");
+    if (!pending.length) return;
+    loadKatex().then((katex) => {
+      for (const node of container.querySelectorAll(".wdw-math:not([data-done])")) {
+        try {
+          katex.render(node.dataset.tex, node, { displayMode: node.classList.contains("display"), throwOnError: false });
+        } catch { /* keep the formula as text */ }
+        node.dataset.done = "1";
+      }
+    }).catch(() => { /* no KaTeX (offline or blocked): formulas stay readable as text */ });
+  }
+
+  function renderMarkdown(source) {
+    const formulas = [];
+    const text = protectMath(String(source), formulas);
+    return restoreMath(renderMarkdownText(text), formulas);
+  }
+
+  function renderMarkdownText(text) {
     const pieces = [];
     const pattern = /```([a-zA-Z0-9_-]+)?\n?([\s\S]*?)```/g;
     let cursor = 0;
@@ -157,6 +218,8 @@
     ai: { mode: "teacher", login_required: false, student_keys: false, needs_student_key: false },
     course: null, graph: false, pageNode: null, history: [], center: null, selected: null, busy: false,
     quote: "", // text the student highlighted on the page, sent with the next question
+    quizzing: false, // the last answer asked the student a question: their next message is their answer
+    feedback: false, // the server takes thumbs up / down
     // where the Search button looks up highlighted text; the teacher sets it in wendao.toml ([widget] web_search)
     webSearch: { name: "Google", url: "https://www.google.com/search?q={q}" },
   };
@@ -301,6 +364,7 @@
     wrapper.appendChild(bubble);
     if (meta) wrapper.appendChild(el("div", "wdw-meta", meta));
     ui.messages.appendChild(wrapper);
+    typeset(wrapper);
     ui.messages.scrollTop = ui.messages.scrollHeight;
     return wrapper;
   }
@@ -320,6 +384,7 @@
       wrapper.appendChild(list);
     }
     if (meta) wrapper.appendChild(el("div", "wdw-meta", meta));
+    typeset(wrapper);
     ui.messages.scrollTop = ui.messages.scrollHeight;
   }
 
@@ -343,11 +408,15 @@
     return false;
   }
 
-  async function ask(query, contextIds) {
+  async function ask(query, contextIds, sendAs) {
     query = query.trim();
     if (!query || state.busy || needsSetup()) return;
     const quote = state.quote;
     setQuote("");
+    const sent = sendAs || query;
+    state.quizzing = false;
+    ui.question.placeholder = "Ask about this course…";
+    ui.messages.querySelectorAll(".wdw-followups").forEach((node) => node.remove()); // only the latest answer has them
     // With highlighted text, the page itself is useful context too.
     if (quote && state.pageNode) contextIds = [...(contextIds || []), state.pageNode.id];
     state.busy = true;
@@ -360,7 +429,7 @@
     let streamed = "";
     let sources = [];
     try {
-      const result = await streamAnswer(query, contextIds, quote, (event) => {
+      const result = await streamAnswer(sent, contextIds, quote, (event) => {
         if (event.sources) { sources = event.sources; sources.forEach((s) => { if (s.url) sourceUrls[s.file_path] = s.url; }); }
         if (event.type === "delta") streamed += event.text || "";
       });
@@ -368,9 +437,15 @@
       const meta = `Answered in ${seconds(performance.now() - started)}`;
       clearInterval(timer);
       updateMessage(pending, answer, meta, "", result.sources || sources);
+      const askedText = quote ? `About "${shorten(quote, 300)}": ${sent}` : sent;
+      addAnswerTools(pending, { question: askedText, answer, sources: result.sources || sources, answered: result.llm_action === "generate_answer" });
+      if (sent === FOLLOW_UPS.quiz.ask && result.llm_action === "generate_answer") {
+        state.quizzing = true;
+        ui.question.placeholder = "Type your answer…";
+      }
       const memory = readJson(sessionStorage, MEMORY_KEY, []);
       // `content` is what the AI sees in later turns; `shown` and `quote` redraw the chat after a reload.
-      const asked = quote ? { role: "user", content: `About "${shorten(quote, 300)}": ${query}`, shown: query, quote } : { role: "user", content: query };
+      const asked = { role: "user", content: askedText, ...(askedText !== query ? { shown: query } : {}), ...(quote ? { quote } : {}) };
       memory.push(asked, { role: "assistant", content: answer, meta });
       sessionStorage.setItem(MEMORY_KEY, JSON.stringify(memory.slice(-MAX_MEMORY)));
     } catch (error) {
@@ -382,6 +457,66 @@
       ui.composer.querySelector("button").disabled = false;
       ui.question.focus();
     }
+  }
+
+  // ---------- under each answer: one-tap follow-ups, and thumbs up / down for the teacher ----------
+  const FOLLOW_UPS = {
+    // label: the button; shown: what appears in the chat; ask: what the AI gets
+    simpler: { label: "Simpler", shown: "Explain it more simply", ask: "Explain that again more simply, in a few short sentences." },
+    example: { label: "Example", shown: "Give me an example", ask: "Give me a concrete example of that from the course." },
+    quiz: { label: "Test me", shown: "Test me on this", ask: "Ask me one short question to check that I understood this. Wait for my answer before explaining." },
+  };
+
+  function addAnswerTools(wrapper, item) {
+    const bar = el("div", "wdw-answer-tools");
+    if (item.answered) {
+      const follow = el("div", "wdw-followups");
+      for (const choice of Object.values(FOLLOW_UPS)) {
+        const button = el("button", "wdw-chip", choice.label);
+        button.type = "button";
+        button.addEventListener("click", () => ask(choice.shown, [], choice.ask));
+        follow.appendChild(button);
+      }
+      bar.appendChild(follow);
+    }
+    if (state.feedback) bar.appendChild(ratingButtons(item));
+    if (bar.childElementCount) wrapper.appendChild(bar);
+    ui.messages.scrollTop = ui.messages.scrollHeight;
+  }
+
+  function ratingButtons(item) {
+    const rate = el("div", "wdw-rate");
+    const send = async (rating, note) => {
+      rate.innerHTML = "";
+      rate.appendChild(el("span", "wdw-rate-thanks", "Sending…"));
+      const body = { rating, note: note || "", question: item.question, answer: item.answer,
+        sources: (item.sources || []).map((source) => source.file_path).filter(Boolean), page: window.location.pathname };
+      try {
+        const response = await fetch(`${API}/api/feedback`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+        const reply = await response.json().catch(() => ({}));
+        rate.firstChild.textContent = reply.ok ? "Thanks! Your teacher sees this, without your name." : (reply.message || "Couldn't send that.");
+      } catch { rate.firstChild.textContent = "Couldn't send that."; }
+    };
+    const button = (rating, label) => {
+      const node = el("button", "wdw-icon-button");
+      Object.assign(node, { type: "button", title: label, innerHTML: ICONS[rating] });
+      node.setAttribute("aria-label", label);
+      return node;
+    };
+    const up = button("up", "Helpful");
+    const down = button("down", "Not helpful");
+    up.addEventListener("click", () => send("up"));
+    down.addEventListener("click", () => {
+      // Ask what was wrong; the note is optional.
+      rate.innerHTML = "";
+      const form = el("form", "wdw-rate-form");
+      form.innerHTML = '<input maxlength="1000" placeholder="What was wrong? (optional)" aria-label="What was wrong? (optional)"><button class="wdw-button primary" type="submit">Send</button>';
+      form.addEventListener("submit", (event) => { event.preventDefault(); send("down", form.querySelector("input").value.trim()); });
+      rate.appendChild(form);
+      form.querySelector("input").focus();
+    });
+    rate.append(up, down);
+    return rate;
   }
 
   async function showChips() {
@@ -686,7 +821,12 @@
     });
     watchSelection();
 
-    ui.composer.addEventListener("submit", (event) => { event.preventDefault(); const q = ui.question.value; ui.question.value = ""; ask(q); });
+    ui.composer.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const q = ui.question.value.trim();
+      ui.question.value = "";
+      if (q) ask(q, [], state.quizzing ? `My answer to that question: ${q}` : undefined);
+    });
     ui.question.addEventListener("keydown", (event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); ui.composer.requestSubmit(); } });
     ui.question.addEventListener("input", () => { ui.question.style.height = "auto"; ui.question.style.height = `${Math.min(ui.question.scrollHeight, 140)}px`; });
 
@@ -771,6 +911,7 @@
       state.ai = { ...state.ai, ...(health.ai || {}) };
       state.course = health.course || null;
       state.graph = Boolean(health.graph);
+      state.feedback = Boolean(health.feedback);
       if ("web_search" in health) state.webSearch = health.web_search && health.web_search.url ? health.web_search : null;
       if (state.course) ui.course.textContent = state.course.display || state.course.name;
     } catch {
