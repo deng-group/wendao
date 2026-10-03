@@ -102,12 +102,64 @@ class SuggestTest(unittest.TestCase):
             {"question": "How does disorder change entropy?", "page": "thermo/entropy.md", "key_terms": ["kelvin"]},  # term not on the page
         ])])
         existing = suggest.read_questions(self.workspace.questions_path)
-        questions = suggest.suggest_questions(self.workspace, model, suggest.load_chapters(self.workspace), existing, say=lambda *_: None)
+        questions, had = suggest.suggest_questions(self.workspace, model, suggest.load_chapters(self.workspace), existing, say=lambda *_: None)
+        self.assertEqual(had, 1)
         self.assertEqual(len(questions), 1)
         question = questions[0]
         self.assertEqual(question["expected_files"], ["thermo/hull.md"])
         self.assertEqual(question["expected_terms"], ["stable phases"])
         self.assertEqual(question["expected_status"], "answerable")
+
+    def test_odd_model_replies_do_not_crash_or_merge_concepts(self):
+        model = FakeModel([json.dumps([
+            {"label": "Convex Hull", "aliases": "convex hull"},          # one string, not a list: not split into letters
+            {"label": "Hull", "aliases": ["hull"]},
+            {"label": "hull", "aliases": ["the hull"]},                  # same concept again: merged
+            {"label": "Stable phases", "aliases": 5},                    # nonsense aliases: the label still counts
+        ])])
+        concepts, _ = suggest.suggest_concepts(self.workspace, model, suggest.load_chapters(self.workspace), [], say=lambda *_: None)
+        by_id = {item["id"]: item for item in concepts}
+        self.assertEqual(by_id["convex-hull"]["aliases"], ["convex hull"])
+        self.assertEqual(sorted(by_id["hull"]["aliases"]), ["hull", "the hull"])
+        self.assertEqual(by_id["stable-phases"]["aliases"], ["stable phases"])
+        self.assertEqual(suggest.slug("C++"), "c")
+        self.assertEqual(suggest.slug("凸包"), "凸包")  # not "item" for every non-English label
+
+        model = FakeModel([json.dumps([
+            {"question": "Why do phases above the hull decompose?", "page": "thermo/hull.md", "key_terms": "stable phases"},
+            {"question": "What does the hull connect in a diagram?", "page": "thermo/hull.md", "key_terms": 42},
+            {"question": "What happens to phases at the edge?", "page": "thermo/hull.md", "key_terms": ["phase"]},  # only inside "phases"
+        ])])
+        questions, _ = suggest.suggest_questions(self.workspace, model, suggest.load_chapters(self.workspace), [], say=lambda *_: None)
+        self.assertEqual([item["expected_terms"] for item in questions], [["stable phases"]])
+
+    def test_different_concepts_with_the_same_id_stay_apart(self):
+        chapters = [("code", "Code", [{"file_path": "code/c.md", "content": "C and C++ are languages."}])]
+        model = FakeModel([json.dumps([{"label": "C", "aliases": ["c"]}, {"label": "C++", "aliases": ["c++"]}])])
+        concepts, _ = suggest.suggest_concepts(self.workspace, model, chapters, [], say=lambda *_: None)
+        self.assertEqual(sorted((item["id"], item["label"]) for item in concepts), [("c", "C"), ("c-2", "C++")])
+
+    def test_excerpt_covers_the_whole_chapter_within_the_budget(self):
+        chunks = [{"content": f"Part {number} " + "x" * 500} for number in range(200)]
+        text = suggest.excerpt(chunks, 4000)
+        self.assertLessEqual(len(text), 4000)
+        self.assertIn("Part 0 ", text)
+        self.assertIn("Part 199 ", text)  # later parts are not dropped
+
+    def test_edited_drafts_are_checked(self):
+        folder = suggest.suggestions_dir(self.workspace)
+        folder.mkdir()
+        (folder / "concepts.json").write_text('{"version": 1, "concepts": [\n  {"label": "Hull",}\n]}', encoding="utf-8")
+        with self.assertRaisesRegex(suggest.SuggestError, "isn't valid JSON \\(line 2"):
+            suggest.add_to_workspace(self.workspace)
+        suggest.write_json(folder / "concepts.json", {"version": 1, "concepts": [
+            {"label": "Convex Hull", "aliases": "Convex Hull"},   # id left out, aliases as one string
+            {"id": "nolabel", "aliases": ["x"]},                  # label deleted: can't be used
+        ]})
+        added = suggest.add_to_workspace(self.workspace)
+        self.assertEqual((added["concepts"], added["unusable"]), (1, 1))
+        concept = suggest.read_concepts(self.workspace.concepts_path)[-1]
+        self.assertEqual((concept["id"], concept["aliases"], concept["category"]), ("convex-hull", ["convex hull"], "general"))
 
     def test_a_reply_that_is_not_json_is_skipped(self):
         model = FakeModel(["Sorry, I can't help with that."])
@@ -121,8 +173,8 @@ class SuggestTest(unittest.TestCase):
         suggest.write_json(folder / "questions.json", [
             {"id": "why-decompose", "query": "Why do phases above the hull decompose?", "expected_status": "answerable",
              "expected_files": ["thermo/hull.md"], "expected_terms": ["stable phases"], "chapter": "Thermodynamics", "search_finds_it": False}])
-        self.assertEqual(suggest.add_to_workspace(self.workspace), {"concepts": 1, "questions": 1})
-        self.assertEqual(suggest.add_to_workspace(self.workspace), {"concepts": 0, "questions": 0})
+        self.assertEqual(suggest.add_to_workspace(self.workspace), {"concepts": 1, "questions": 1, "unusable": 0})
+        self.assertEqual(suggest.add_to_workspace(self.workspace), {"concepts": 0, "questions": 0, "unusable": 0})
         concepts = suggest.read_concepts(self.workspace.concepts_path)
         self.assertEqual([item["id"] for item in concepts], ["entropy", "convex-hull"])  # the starter example is gone
         self.assertNotIn("mentions", concepts[1])
@@ -152,7 +204,7 @@ class SuggestTest(unittest.TestCase):
             main(["suggest", "-w", str(self.root)])
         text = output.getvalue()
         self.assertIn("1 new concepts", text)
-        self.assertIn("1 test questions", text)
+        self.assertIn("1 new test questions", text)
         self.assertIn("wendao suggest --add", text)
         self.assertEqual((self.root / "concepts.json").read_text(encoding="utf-8"), before)
         drafts = suggest.read_questions(self.root / "suggestions" / "questions.json")

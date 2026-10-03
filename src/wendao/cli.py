@@ -377,6 +377,8 @@ def cmd_suggest(args: argparse.Namespace) -> None:
     if args.add:
         added = suggest.add_to_workspace(workspace)
         say(f"Added {added['concepts']} concepts to concepts.json and {added['questions']} questions to questions.json.")
+        if added["unusable"]:
+            say(f"  Left out {added['unusable']} drafts with no label, aliases, or question text.")
         say("Next: `wendao graph` to redraw the knowledge graph, then `wendao eval` to test the questions.")
         return
 
@@ -395,10 +397,11 @@ def cmd_suggest(args: argparse.Namespace) -> None:
             + (f" ({already} more you already have)." if already else "."))
     if args.what in ("all", "questions"):
         existing = suggest.read_questions(workspace.questions_path)
-        questions = suggest.suggest_questions(workspace, provider, chapters, existing, say=say)
+        questions, had = suggest.suggest_questions(workspace, provider, chapters, existing, say=say)
         found = suggest.check_with_search(workspace, questions)
         suggest.write_json(suggest.suggestions_dir(workspace) / "questions.json", questions)
-        say(f"{len(questions)} test questions → {folder}/questions.json")
+        say(f"{len(questions)} new test questions → {folder}/questions.json"
+            + (f" ({had} more you already have)." if had else "."))
         if found is not None and questions:
             say(f"  Wendao's search already finds the right page for {found} of them; "
                 "the others (\"search_finds_it\": false) show where it needs help.")

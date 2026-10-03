@@ -38,7 +38,16 @@ class SuggestError(RuntimeError):
 
 
 def slug(text: str) -> str:
-    return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")[:60] or "item"
+    return re.sub(r"[\W_]+", "-", text.lower()).strip("-")[:60] or "item"
+
+
+def as_list(value) -> list[str]:
+    """The model may send one string instead of a list (or something else): always get a list of strings."""
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, (list, tuple)):
+        return [str(item) for item in value if isinstance(item, (str, int, float))]
+    return []
 
 
 def suggestions_dir(workspace) -> Path:
@@ -83,14 +92,20 @@ def load_chapters(workspace) -> list[tuple[str, str, list[dict]]]:
     return chapters
 
 
-def excerpt(chunks: list[dict], budget: int) -> str:
-    """The start of every chunk, so the model sees the whole chapter within the budget."""
-    share = max(300, budget // max(len(chunks), 1))
-    parts = []
-    for chunk in chunks:
-        text = chunk.get("content", "").strip()
-        parts.append(text[:share])
-    return "\n\n".join(parts)[:budget]
+def excerpt(chunks: list[dict], budget: int, min_share: int = 200) -> str:
+    """The start of every chunk, so the model sees the whole chapter within the budget.
+
+    With too many chunks to give each `min_share` characters, chunks are picked evenly across the
+    chapter (not just the first ones).
+    """
+    if not chunks:
+        return ""
+    fit = max(1, budget // (min_share + 2))
+    if len(chunks) > fit:
+        step = (len(chunks) - 1) / max(fit - 1, 1)
+        chunks = [chunks[round(index * step)] for index in range(fit)]
+    share = max(1, (budget - 2 * (len(chunks) - 1)) // len(chunks))  # 2 = the "\n\n" between parts
+    return "\n\n".join(chunk.get("content", "").strip()[:share] for chunk in chunks)[:budget]
 
 
 def ask_json(provider, prompt: str) -> list:
@@ -142,7 +157,7 @@ def suggest_concepts(workspace, provider, chapters, existing: list[dict], say=pr
             if not label or len(label) > 60:
                 continue
             aliases = []
-            for alias in [label, *(item.get("aliases") or [])]:
+            for alias in [label, *as_list(item.get("aliases"))]:
                 alias = normalized_text(str(alias))
                 if alias and alias not in aliases and len(alias) <= 60 and alias_pattern(alias).search(chapter_text):
                     aliases.append(alias)
@@ -152,9 +167,11 @@ def suggest_concepts(workspace, provider, chapters, existing: list[dict], say=pr
             if concept_id in known_ids or set(aliases) & known_aliases:
                 already.add(concept_id)
                 continue
-            if concept_id in found:
+            if concept_id in found and found[concept_id]["label"].lower() == label.lower():
                 found[concept_id]["aliases"] = sorted(set(found[concept_id]["aliases"]) | set(aliases))
-                continue
+                continue  # the same concept, named again in another chapter
+            while concept_id in found or concept_id in known_ids:
+                concept_id += "-2"  # a different concept with the same id, e.g. "C" and "C++"
             found[concept_id] = {"id": concept_id, "label": label, "category": slug(folder), "aliases": aliases, "chapter": name}
     for concept in found.values():
         concept["mentions"] = sum(len(alias_pattern(alias).findall(all_text)) for alias in concept["aliases"])
@@ -180,7 +197,9 @@ Mix definitions ("What is ...?"), explanations ("Why ...?", "How does ...?"), an
 Return a JSON array, e.g. [{{"question": "What is a convex hull?", "page": "thermo.md", "key_terms": ["convex hull", "stable"]}}]"""
 
 
-def suggest_questions(workspace, provider, chapters, existing: list[dict], say=print) -> list[dict]:
+def suggest_questions(workspace, provider, chapters, existing: list[dict], say=print) -> tuple[list[dict], int]:
+    """Test questions per chapter, kept only if fair. Returns (new questions, how many you already had)."""
+    skipped = 0
     known_ids = {item.get("id") for item in existing}
     known_queries = {normalized_text(item.get("query", "")) for item in existing}
     questions = []
@@ -198,12 +217,15 @@ def suggest_questions(workspace, provider, chapters, existing: list[dict], say=p
         for item in ask_json(provider, question_prompt(workspace.course_name, name, list(texts.items()))):
             query = " ".join(str(item.get("question", "")).split())
             page = str(item.get("page", "")).strip()
-            if page not in full or not 10 <= len(query) <= 200 or normalized_text(query) in known_queries:
+            if normalized_text(query) in known_queries:
+                skipped += 1
                 continue
-            terms = [str(term).strip() for term in item.get("key_terms") or [] if str(term).strip()]
-            # Keep terms that are on the page and say something (not "the" or "data").
+            if page not in full or not 10 <= len(query) <= 200:
+                continue
+            terms = [term.strip() for term in as_list(item.get("key_terms")) if term.strip()]
+            # Keep terms that are on the page as whole words and say something (not "the" or "data").
             terms = [term for term in terms if len(term) >= 3 and normalized_text(term) not in FILLER
-                     and normalized_text(term) in full[page]][:3]
+                     and alias_pattern(term).search(full[page])][:3]
             if not terms:
                 continue  # its key terms are not on the page: not a fair test
             question_id = slug(query)[:50]
@@ -221,7 +243,7 @@ def suggest_questions(workspace, provider, chapters, existing: list[dict], say=p
                 "notes": f"Drafted by wendao suggest from {name}.",
                 "chapter": name,
             })
-    return questions
+    return questions, skipped
 
 
 def check_with_search(workspace, questions: list[dict]) -> int | None:
@@ -244,12 +266,51 @@ def check_with_search(workspace, questions: list[dict]) -> int | None:
 
 # ---------- files ----------
 
+def read_json(path: Path, default):
+    """Read a JSON file the teacher may have edited; say where a typo is instead of crashing."""
+    if not path.exists():
+        return default
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise SuggestError(f"{path} isn't valid JSON (line {exc.lineno}, column {exc.colno}: {exc.msg}). "
+                           "Fix it, or run `wendao suggest` again for fresh drafts.") from None
+
+
 def read_concepts(path: Path) -> list[dict]:
-    return json.loads(path.read_text(encoding="utf-8")).get("concepts", []) if path.exists() else []
+    data = read_json(path, {})
+    items = data.get("concepts", []) if isinstance(data, dict) else data
+    return [item for item in items if isinstance(item, dict)] if isinstance(items, list) else []
 
 
 def read_questions(path: Path) -> list[dict]:
-    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else []
+    data = read_json(path, [])
+    return [item for item in data if isinstance(item, dict)] if isinstance(data, list) else []
+
+
+def checked_concept(item: dict) -> dict | None:
+    """A drafted concept as concepts.json needs it, after the teacher's edits; None if it can't be used."""
+    label = str(item.get("label", "")).strip()
+    aliases = [normalized_text(alias) for alias in as_list(item.get("aliases")) if normalized_text(alias)]
+    if not label or not aliases:
+        return None
+    concept = {key: value for key, value in item.items() if key not in REVIEW_FIELDS}
+    concept.update({"id": str(item.get("id") or slug(label)), "label": label, "aliases": aliases,
+                    "category": str(item.get("category") or "general")})
+    return concept
+
+
+def checked_question(item: dict) -> dict | None:
+    query = " ".join(str(item.get("query", "")).split())
+    if not query:
+        return None
+    question = {key: value for key, value in item.items() if key not in REVIEW_FIELDS}
+    question.update({"id": str(item.get("id") or slug(query)[:50]), "query": query,
+                     "expected_status": str(item.get("expected_status") or "answerable")})
+    for key in ("expected_files", "expected_terms"):
+        if key in question:
+            question[key] = as_list(question[key])
+    return question
 
 
 def write_json(path: Path, data) -> None:
@@ -265,23 +326,29 @@ def add_to_workspace(workspace) -> dict:
     if not drafts_concepts and not drafts_questions:
         raise SuggestError(f"No drafts in {folder}. Run `wendao suggest` first.")
 
-    added = {"concepts": 0, "questions": 0}
+    added = {"concepts": 0, "questions": 0, "unusable": 0}
     if drafts_concepts:
         concepts = [item for item in read_concepts(workspace.concepts_path) if item.get("id") != "example-concept"]
-        ids = {item["id"] for item in concepts}
+        ids = {item.get("id") for item in concepts}
         for item in drafts_concepts:
-            if item.get("id") and item["id"] not in ids and item.get("aliases"):
-                concepts.append({key: value for key, value in item.items() if key not in REVIEW_FIELDS})
-                ids.add(item["id"])
+            concept = checked_concept(item)
+            if concept is None:
+                added["unusable"] += 1  # e.g. the teacher removed its label or all its aliases
+            elif concept["id"] not in ids:
+                concepts.append(concept)
+                ids.add(concept["id"])
                 added["concepts"] += 1
         write_json(workspace.concepts_path, {"version": 1, "concepts": concepts})
     if drafts_questions:
         questions = read_questions(workspace.questions_path)
         ids = {item.get("id") for item in questions}
         for item in drafts_questions:
-            if item.get("id") and item["id"] not in ids and item.get("query"):
-                questions.append({key: value for key, value in item.items() if key not in REVIEW_FIELDS})
-                ids.add(item["id"])
+            question = checked_question(item)
+            if question is None:
+                added["unusable"] += 1
+            elif question["id"] not in ids:
+                questions.append(question)
+                ids.add(question["id"])
                 added["questions"] += 1
         write_json(workspace.questions_path, questions)
     return added
