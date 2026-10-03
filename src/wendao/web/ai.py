@@ -288,9 +288,14 @@ def forward_stream(server: str, payload: dict, token: str = "") -> Iterator[str]
 
 
 def student_id(req) -> str:
-    """Identify a student for the daily limit: their IP address, also behind a reverse proxy on this machine."""
+    """Identify a student for the daily limit: their IP address, also behind a proxy on this machine.
+
+    The headers are trusted only from this machine: Nginx sets X-Real-IP, and a Cloudflare Tunnel
+    (cloudflared) sets CF-Connecting-IP.
+    """
     if req.remote_addr in {"127.0.0.1", "::1"}:
-        forwarded = req.headers.get("X-Real-IP") or req.headers.get("X-Forwarded-For", "").split(",")[0].strip()
+        forwarded = (req.headers.get("CF-Connecting-IP") or req.headers.get("X-Real-IP")
+                     or req.headers.get("X-Forwarded-For", "").split(",")[0].strip())
         if forwarded:
             return forwarded
     return req.remote_addr or "unknown"
