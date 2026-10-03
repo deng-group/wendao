@@ -124,6 +124,12 @@ The widget source is `src/wendao/web/static/site_widget/` (`wendao-widget.js`, `
 widget API's `/api/page` (which node is this page) and `/api/neighborhood` (a node's
 closest neighbours, `web/graph_api.py`).
 
+When a student highlights text on a page, the widget sends it as `selection` (up to 1500
+characters) with the question. The pipeline searches with it ahead of the question, so
+"explain this" finds the right passage. The gate does not treat short questions like
+"summarize this" as too broad when there is a selection. The prompt quotes the text as
+what the question is about; it is not used as evidence.
+
 This checks the model, starts the API at `http://127.0.0.1:5055`, serves the
 site at `http://127.0.0.1:8000`, and opens it. Use the `?` button at the
 bottom-right. Stop both with `Ctrl+C`.

@@ -72,6 +72,39 @@ class WidgetApiTest(unittest.TestCase):
         self.assertEqual(self.client.get("/api/neighborhood?node=nope").status_code, 404)
         self.assertIsNone(self.client.get("/api/page?path=/nope/").get_json()["node"])
 
+    def test_highlighted_text_focuses_the_search(self):
+        from wendao.rag.pipeline import QueryPipeline
+
+        pipeline = QueryPipeline.for_workspace(workspace_module.load(REPO_ROOT / "examples" / "mle4217_5219"))
+        passage = ("For systems with more than two components, the concept of the convex hull is used to determine "
+                   "phase stability. The convex hull is a geometric construct that represents the lowest-energy phases.")
+        alone = pipeline.ask("Summarize this.")
+        self.assertEqual(alone["status"], "needs_clarification")  # "this" means nothing without the highlight
+        focused = pipeline.ask("Summarize this.", selection=passage)
+        self.assertEqual(focused["status"], "answerable")
+        self.assertEqual(focused["evidence"][0]["file_path"], "high_throughput/thermodynamics.md")
+
+class SelectionPromptTest(unittest.TestCase):
+    def test_highlighted_text_is_quoted_in_the_prompt_and_capped(self):
+        keep = {key: value for key, value in os.environ.items()
+                if not key.startswith(("ANTHROPIC_", "OPENAI_", "GEMINI_", "GOOGLE_API", "LLM_"))}
+        with mock.patch.dict(os.environ, keep, clear=True), \
+                mock.patch("wendao.rag.answer.AnswerGenerator.answer", autospec=True) as answer:
+            answer.return_value = {key: None for key in ("query", "answer", "status", "llm_action", "provider",
+                                                         "model", "confidence", "temporal_context")} | {"sources": []}
+            client = create_app(workspace_module.load(REPO_ROOT / "examples" / "mle4217_5219")).test_client()
+            client.post("/api/answer", json={"query": "What does this mean?", "selection": "  convex\n hull " + "x" * 5000})
+        selection = answer.call_args.kwargs["selection"]
+        self.assertTrue(selection.startswith("convex hull x"))
+        self.assertEqual(len(selection), 1500)
+
+        from wendao.rag.prompts import PromptBuilder
+        pipeline_result = {"query": "What does this mean?", "status": "answerable", "evidence": []}
+        prompt = PromptBuilder(course_name="Test course").build(pipeline_result, selection="the lowest-energy phases")
+        self.assertIn('highlighted on the course page', prompt["final_prompt"])
+        self.assertIn("the lowest-energy phases", prompt["final_prompt"])
+        self.assertNotIn("highlighted", PromptBuilder(course_name="Test course").build(pipeline_result)["final_prompt"])
+
 
 class InstallTest(unittest.TestCase):
     def setUp(self):

@@ -301,7 +301,8 @@ wendao widget install _build/html          # adds the Wendao button to every pag
 
 Students get a Wendao button at the bottom-right of each page. It opens a chat window that they can resize or enlarge, and
 that follows the site's light or dark theme. A **Graph** tab shows the part of the knowledge graph around the page they are
-reading: click a concept to explore around it, open its page, or ask the AI to explain it. The widget talks to a Wendao
+reading: click a concept to explore around it, open its page, or ask the AI to explain it. Students can also highlight
+any text on a page and click **Explain** or **Ask about it** to ask about that passage. The widget talks to a Wendao
 widget API (`wendao serve --widget`, or the server in [`deploy/DEPLOYMENT.md`](https://github.com/deng-group/wendao/blob/main/deploy/DEPLOYMENT.md));
 by default it uses the same website address under `/api`, or pass `--api https://...`. Try it locally with
 `wendao serve --widget --site _build/html`. `wendao widget remove _build/html` takes it out again.

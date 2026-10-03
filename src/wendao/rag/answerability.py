@@ -53,7 +53,8 @@ class AnswerabilityGate:
         self.weak_score = weak_score
         self.min_embedding_score = min_embedding_score
 
-    def decide(self, query: str, results: list[SearchResult]) -> AnswerabilityDecision:
+    def decide(self, query: str, results: list[SearchResult], focused: bool = False) -> AnswerabilityDecision:
+        """`focused`: the student highlighted text on the page, so a short question like "summarize this" is not broad."""
         tokens = set(tokenize(query, self.aliases))
         top = results[0] if results else None
         temporal_context = self._temporal_context(results)
@@ -99,7 +100,7 @@ class AnswerabilityGate:
                 results,
             )
 
-        if tokens & BROAD_TERMS and len(tokens) <= 4:
+        if not focused and tokens & BROAD_TERMS and len(tokens) <= 4:
             return self._decision(
                 query,
                 "needs_clarification",

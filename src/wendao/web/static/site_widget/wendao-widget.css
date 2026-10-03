@@ -133,6 +133,32 @@
 }
 .wdw-chip:hover { border-color: var(--wdw-accent); background: var(--wdw-accent-soft); }
 
+/* Highlighted page text: in sent messages, above the composer, and the bubble next to the highlight */
+.wdw-said {
+  margin: 0; max-width: 100%; padding: 6px 10px; border-left: 3px solid var(--wdw-accent); border-radius: 4px 10px 10px 4px;
+  background: var(--wdw-accent-soft); color: var(--wdw-muted); font-size: 12px; font-style: italic; overflow-wrap: anywhere;
+}
+.wdw-quote {
+  display: flex; align-items: flex-start; gap: 6px; margin: 0 14px; padding: 6px 4px 6px 10px;
+  border-left: 3px solid var(--wdw-accent); border-radius: 4px 10px 10px 4px; background: var(--wdw-accent-soft);
+}
+.wdw-quote span { flex: 1; min-width: 0; color: var(--wdw-muted); font-size: 12px; font-style: italic; overflow-wrap: anywhere; }
+.wdw-quote .wdw-icon-button { flex: none; width: 24px; min-width: 24px; height: 24px; padding: 4px; }
+.wdw-quote:not([hidden]) + .wdw-composer { border-top: 0; padding-top: 8px; }
+.wdw-pick {
+  position: fixed; z-index: 2147483001; display: flex; align-items: center; gap: 2px; padding: 4px;
+  border: 1px solid var(--wdw-line-strong); border-radius: 11px; background: var(--wdw-bg); box-shadow: var(--wdw-shadow);
+  animation: wdw-pop 0.12s ease-out;
+}
+.wdw-pick-mark { display: block; width: 24px; height: 24px; margin: 0 3px 0 1px; flex: none; }
+.wdw-pick-mark svg { display: block; width: 100%; height: 100%; }
+.wdw-pick button {
+  padding: 4px 10px; border: 0; border-radius: 8px; background: transparent; color: var(--wdw-text);
+  font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;
+}
+.wdw-pick button:hover, .wdw-pick button:focus-visible { background: var(--wdw-accent-soft); color: var(--wdw-primary); outline: none; }
+@keyframes wdw-pop { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+
 .wdw-composer { display: flex; align-items: flex-end; gap: 8px; padding: 12px 14px 14px; border-top: 1px solid var(--wdw-line); }
 .wdw-composer textarea {
   flex: 1; min-height: 40px; max-height: 140px; resize: none; padding: 9px 12px; border: 1px solid var(--wdw-line-strong);

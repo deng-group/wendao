@@ -23,6 +23,8 @@ from wendao.web.ai import AiPolicy, AiUnavailable, bearer_token, student_id
 from wendao.web.explorer import course_source_url
 from wendao.web.graph_api import GraphView
 
+MAX_SELECTION = 1500  # characters of highlighted page text sent with a question
+
 
 def public_sources(sources: list[dict]) -> list[dict]:
     return [
@@ -75,6 +77,10 @@ def create_app(workspace=None) -> Flask:
             if node:
                 context.append(f"{node['type']}: {node.get('label', node_id)}")
         return context
+
+    def selection(payload: dict) -> str:
+        """Text the student highlighted on the course page, tidied and cut to a reasonable length."""
+        return " ".join(str(payload.get("selection") or "").split())[:MAX_SELECTION]
 
     def with_links(item: dict) -> dict:
         if item.get("file_path"):
@@ -155,7 +161,10 @@ def create_app(workspace=None) -> Flask:
             return jsonify({"ok": False, "error": "Query is required."}), 400
         try:
             result = generator_for(payload).answer(
-                query, short_memory=payload.get("short_memory") or [], selected_context=selected_context(payload)
+                query,
+                short_memory=payload.get("short_memory") or [],
+                selected_context=selected_context(payload),
+                selection=selection(payload),
             )
         except AiUnavailable as exc:
             return jsonify({"ok": False, "error": exc.code, "message": str(exc)}), 401 if exc.code == "LoginRequired" else 429
@@ -188,7 +197,10 @@ def create_app(workspace=None) -> Flask:
             try:
                 generator = generator_for(payload)
                 for event in generator.stream_answer(
-                    query, short_memory=payload.get("short_memory") or [], selected_context=selected_context(payload)
+                    query,
+                    short_memory=payload.get("short_memory") or [],
+                    selected_context=selected_context(payload),
+                    selection=selection(payload),
                 ):
                     if event.get("sources"):
                         event = {**event, "sources": [with_links(source) for source in event["sources"]]}

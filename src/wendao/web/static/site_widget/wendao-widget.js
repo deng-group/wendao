@@ -19,6 +19,7 @@
   const MEMORY_KEY = KEY("memory");
   const OPEN_KEY = KEY("open");
   const MAX_MEMORY = 6;
+  const MAX_SELECTION = 1500; // characters of highlighted page text sent with a question
 
   const MARK = `<svg viewBox="0 0 128 128" aria-hidden="true"><defs><linearGradient id="wdw-tile" x1="0" y1="0" x2="1" y2="1">
     <stop offset="0" stop-color="#1e1b4b"/><stop offset="1" stop-color="#1d4ed8"/></linearGradient></defs>
@@ -154,6 +155,7 @@
   const state = {
     ai: { mode: "teacher", login_required: false, student_keys: false, needs_student_key: false },
     course: null, graph: false, pageNode: null, history: [], center: null, selected: null, busy: false,
+    quote: "", // text the student highlighted on the page, sent with the next question
   };
   const account = () => readJson(localStorage, KEY("account"), null);
   const ownAi = () => {
@@ -167,10 +169,11 @@
     return response.json();
   }
 
-  async function streamAnswer(query, contextIds, onEvent) {
+  async function streamAnswer(query, contextIds, selection, onEvent) {
     const headers = { "Content-Type": "application/json" };
     if (account()) headers.Authorization = `Bearer ${account().token}`;
     const body = { query, short_memory: readJson(sessionStorage, MEMORY_KEY, []), context_node_ids: contextIds || [] };
+    if (selection) body.selection = selection;
     if (ownAi()) body.ai = ownAi();
     const response = await fetch(`${API}/api/answer/stream`, { method: "POST", headers, body: JSON.stringify(body) });
     if (!response.ok || !response.body) {
@@ -246,6 +249,10 @@
             <label>API key <input type="password" data-ref="apiKey" autocomplete="off"></label>
             <div class="wdw-row"><button class="wdw-button quiet" type="button" data-ref="forgetKey">Forget</button><button class="wdw-button" type="button" data-ref="cancelKey">Cancel</button><button class="wdw-button primary" type="submit">Save</button></div>
           </form>
+          <div class="wdw-quote" data-ref="quote" hidden>
+            <span data-ref="quoteText"></span>
+            <button class="wdw-icon-button" data-ref="quoteClear" type="button" title="Don't ask about this text" aria-label="Don't ask about this text">${ICONS.close}</button>
+          </div>
           <form class="wdw-composer" data-ref="composer">
             <textarea data-ref="question" rows="1" placeholder="Ask about this course…" aria-label="Ask a question"></textarea>
             <button class="wdw-send" type="submit" aria-label="Send">${ICONS.send}</button>
@@ -269,7 +276,12 @@
             </div>
           </div>
         </div>
-      </section>`;
+      </section>
+      <div class="wdw-pick" data-ref="pick" role="toolbar" aria-label="Ask Wendao about the highlighted text" hidden>
+        <span class="wdw-pick-mark">${MARK}</span>
+        <button type="button" data-ref="pickExplain">Explain</button>
+        <button type="button" data-ref="pickAsk">Ask about it</button>
+      </div>`;
     document.body.appendChild(root);
     ui = { launcher: root.querySelector(".wdw-launcher"), panel: root.querySelector(".wdw-panel") };
     root.querySelectorAll("[data-ref]").forEach((node) => { ui[node.dataset.ref] = node; });
@@ -277,8 +289,9 @@
   }
 
   // ---------- chat ----------
-  function addMessage(role, text, meta, kind) {
+  function addMessage(role, text, meta, kind, quote) {
     const wrapper = el("article", `wdw-message ${role} ${kind || ""}`.trim());
+    if (quote) wrapper.appendChild(el("blockquote", "wdw-said", shorten(quote, 220)));
     const bubble = el("div", "wdw-bubble");
     if (role === "assistant") bubble.innerHTML = renderMarkdown(text); else bubble.textContent = text;
     wrapper.appendChild(bubble);
@@ -317,7 +330,7 @@
     const memory = readJson(sessionStorage, MEMORY_KEY, []);
     if (!memory.length) { greet(); return; }
     ui.messages.innerHTML = "";
-    for (const item of memory) addMessage(item.role, item.content, item.meta || "");
+    for (const item of memory) addMessage(item.role, item.shown || item.content, item.meta || "", "", item.quote);
   }
 
   function needsSetup() {
@@ -329,17 +342,21 @@
   async function ask(query, contextIds) {
     query = query.trim();
     if (!query || state.busy || needsSetup()) return;
+    const quote = state.quote;
+    setQuote("");
+    // With highlighted text, the page itself is useful context too.
+    if (quote && state.pageNode) contextIds = [...(contextIds || []), state.pageNode.id];
     state.busy = true;
     ui.composer.querySelector("button").disabled = true;
     ui.chips.hidden = true;
-    addMessage("user", query);
+    addMessage("user", query, "", "", quote);
     const pending = addMessage("assistant", "Thinking…", "Generating… 0.0 s", "pending");
     const started = performance.now();
     const timer = setInterval(() => updateMessage(pending, streamed || "Thinking…", `Generating… ${seconds(performance.now() - started)}`, "pending", sources), 250);
     let streamed = "";
     let sources = [];
     try {
-      const result = await streamAnswer(query, contextIds, (event) => {
+      const result = await streamAnswer(query, contextIds, quote, (event) => {
         if (event.sources) { sources = event.sources; sources.forEach((s) => { if (s.url) sourceUrls[s.file_path] = s.url; }); }
         if (event.type === "delta") streamed += event.text || "";
       });
@@ -348,7 +365,9 @@
       clearInterval(timer);
       updateMessage(pending, answer, meta, "", result.sources || sources);
       const memory = readJson(sessionStorage, MEMORY_KEY, []);
-      memory.push({ role: "user", content: query }, { role: "assistant", content: answer, meta });
+      // `content` is what the AI sees in later turns; `shown` and `quote` redraw the chat after a reload.
+      const asked = quote ? { role: "user", content: `About "${shorten(quote, 300)}": ${query}`, shown: query, quote } : { role: "user", content: query };
+      memory.push(asked, { role: "assistant", content: answer, meta });
       sessionStorage.setItem(MEMORY_KEY, JSON.stringify(memory.slice(-MAX_MEMORY)));
     } catch (error) {
       clearInterval(timer);
@@ -378,6 +397,74 @@
       }
       ui.chips.hidden = false;
     } catch { /* the chat still works without the graph */ }
+  }
+
+  // ---------- highlighted text on the page ----------
+  function shorten(text, length) {
+    return text.length > length ? `${text.slice(0, length - 1).trimEnd()}…` : text;
+  }
+
+  function setQuote(text) {
+    state.quote = text ? text.slice(0, MAX_SELECTION) : "";
+    ui.quote.hidden = !state.quote;
+    ui.quoteText.textContent = state.quote ? `“${shorten(state.quote, 160)}”` : "";
+    ui.question.placeholder = state.quote ? "Ask about the highlighted text…" : "Ask about this course…";
+  }
+
+  function pageSelection() {
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed || !selection.rangeCount) return null;
+    const text = selection.toString().replace(/\s+/g, " ").trim();
+    if (text.length < 2) return null;
+    const range = selection.getRangeAt(0);
+    const start = range.commonAncestorContainer;
+    const element = start.nodeType === 1 ? start : start.parentElement;
+    if (!element || root.contains(element) || element.closest("input, textarea, [contenteditable]")) return null;
+    const lines = range.getClientRects();
+    const rect = lines.length ? lines[0] : range.getBoundingClientRect();
+    return rect.width || rect.height ? { text, rect, last: lines.length ? lines[lines.length - 1] : rect } : null;
+  }
+
+  function placePick() {
+    const picked = pageSelection();
+    if (!picked) { ui.pick.hidden = true; return; }
+    state.picked = picked.text;
+    ui.pick.hidden = false;
+    const box = ui.pick.getBoundingClientRect();
+    // Above the first line; below the last line if there is no room (or on touch screens, where the phone's own menu sits above).
+    const touch = window.matchMedia("(pointer: coarse)").matches;
+    let top = picked.rect.top - box.height - 8;
+    let left = picked.rect.left;
+    if (touch || top < 8) { top = picked.last.bottom + 8; left = picked.last.left; }
+    ui.pick.style.top = `${Math.min(Math.max(8, top), window.innerHeight - box.height - 8)}px`;
+    ui.pick.style.left = `${Math.min(Math.max(8, left), window.innerWidth - box.width - 8)}px`;
+  }
+
+  function useSelection(explain) {
+    const text = state.picked;
+    ui.pick.hidden = true;
+    if (!text) return;
+    setQuote(text);
+    setOpen(true);
+    setTab("chat");
+    if (explain) ask("Explain this in simple terms.");
+    else ui.question.focus();
+  }
+
+  function watchSelection() {
+    let dragging = false;
+    let timer = null;
+    const later = (delay) => { clearTimeout(timer); timer = setTimeout(placePick, delay); };
+    document.addEventListener("mousedown", (event) => { if (!ui.pick.contains(event.target)) { dragging = true; ui.pick.hidden = true; } }, true);
+    document.addEventListener("mouseup", () => { dragging = false; later(10); }, true);
+    // Keyboard (shift + arrows) and touch selections arrive as selection changes.
+    document.addEventListener("selectionchange", () => { if (!dragging) later(window.getSelection().isCollapsed ? 0 : 350); });
+    window.addEventListener("scroll", () => { if (!ui.pick.hidden) placePick(); }, { passive: true, capture: true });
+    window.addEventListener("resize", () => { if (!ui.pick.hidden) placePick(); });
+    ui.pick.addEventListener("mousedown", (event) => event.preventDefault()); // keep the highlight while clicking
+    ui.pickExplain.addEventListener("click", () => useSelection(true));
+    ui.pickAsk.addEventListener("click", () => useSelection(false));
+    ui.quoteClear.addEventListener("click", () => { setQuote(""); ui.question.focus(); });
   }
 
   // ---------- sign-in and own key ----------
@@ -563,7 +650,12 @@
     });
     ui.resize.addEventListener("pointerdown", startResize);
     root.querySelectorAll(".wdw-tab").forEach((tab) => tab.addEventListener("click", () => setTab(tab.dataset.tab)));
-    document.addEventListener("keydown", (event) => { if (event.key === "Escape" && !ui.panel.hidden) setOpen(false); });
+    document.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape") return;
+      if (!ui.pick.hidden) ui.pick.hidden = true;
+      else if (!ui.panel.hidden) setOpen(false);
+    });
+    watchSelection();
 
     ui.composer.addEventListener("submit", (event) => { event.preventDefault(); const q = ui.question.value; ui.question.value = ""; ask(q); });
     ui.question.addEventListener("keydown", (event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); ui.composer.requestSubmit(); } });

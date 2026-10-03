@@ -34,17 +34,21 @@ class AnswerGenerator:
         query: str,
         short_memory: list[dict] | None = None,
         selected_context: list[str] | None = None,
+        selection: str = "",
     ) -> tuple[dict, dict]:
         memory = short_memory or []
         context = selected_context or []
         pipeline_kwargs = {"short_memory": memory}
         if context:
             pipeline_kwargs["context_terms"] = context
+        if selection:
+            pipeline_kwargs["selection"] = selection
         pipeline_result = self.pipeline.ask(query, **pipeline_kwargs)
         prompt_package = self.prompt_builder.build(
             pipeline_result,
             short_memory=memory,
             selected_context=context,
+            selection=selection,
         )
         return pipeline_result, prompt_package
 
@@ -53,8 +57,9 @@ class AnswerGenerator:
         query: str,
         short_memory: list[dict] | None = None,
         selected_context: list[str] | None = None,
+        selection: str = "",
     ) -> dict:
-        pipeline_result, prompt_package = self._prepare(query, short_memory, selected_context)
+        pipeline_result, prompt_package = self._prepare(query, short_memory, selected_context, selection)
         if prompt_package["llm_action"] == "generate_answer":
             provider_result = self.provider.generate(prompt_package)
             sources = self._student_sources(prompt_package["evidence"])
@@ -92,8 +97,9 @@ class AnswerGenerator:
         query: str,
         short_memory: list[dict] | None = None,
         selected_context: list[str] | None = None,
+        selection: str = "",
     ) -> Iterator[dict]:
-        pipeline_result, prompt_package = self._prepare(query, short_memory, selected_context)
+        pipeline_result, prompt_package = self._prepare(query, short_memory, selected_context, selection)
         should_generate = prompt_package["llm_action"] == "generate_answer"
         sources = self._student_sources(prompt_package["evidence"]) if should_generate else []
         resolve_model = getattr(self.provider, "resolved_model", None)
