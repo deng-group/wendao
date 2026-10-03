@@ -19,6 +19,11 @@ The server keeps three folders:
 The widget uses `http://127.0.0.1:5055` when you test locally. On a real domain it calls the same
 address as the page, so Nginx sends `/api/*` to Wendao.
 
+**Is your course website static** (Cloudflare Pages, GitHub Pages, Netlify)? Then it can't run Wendao. Run
+Wendao on any machine that stays on (a lab server or an office PC) and give it its own address. Do steps 1 to 5 below
+on that machine, then follow [Static course website: Cloudflare Tunnel](#static-course-website-cloudflare-tunnel)
+instead of steps 6 and 7.
+
 ## 1. Server packages
 
 Ubuntu example:
@@ -137,6 +142,39 @@ If the server is public and the domain points to it:
 sudo apt install -y certbot python3-certbot-nginx
 sudo certbot --nginx -d YOUR_DOMAIN
 ```
+
+## Static course website: Cloudflare Tunnel
+
+A Cloudflare Tunnel gives the Wendao machine a public HTTPS address, such as `https://wendao.example.edu`,
+without opening any ports or setting up Nginx. You need your domain on Cloudflare (it is, if your site runs on
+Cloudflare Pages with your own domain).
+
+1. In the Cloudflare dashboard, open **Zero Trust → Networks → Tunnels → Create a tunnel**, pick **Cloudflared**, and
+   name it `wendao`.
+2. Cloudflare shows an install command for the connector. Run it on the Wendao machine. It looks like
+   `sudo cloudflared service install eyJ...`, and it keeps the tunnel running after restarts.
+3. Under **Public hostname**, add a subdomain, for example `wendao` on your domain. Set the service to
+   **HTTP** and `localhost:5055`.
+
+Check it from any computer:
+
+```bash
+curl https://wendao.example.edu/api/health
+```
+
+Then point the widget at that address when you build the website:
+
+```bash
+pip install --no-deps "wendao>=0.3"     # enough for `wendao widget install`; quick in a Pages build
+wendao widget install _build/html --api https://wendao.example.edu
+```
+
+The API accepts requests from the website in `[course] website` in `wendao.toml` (add others under
+`[student] allowed_origins`). Behind the tunnel, Wendao reads each student's address from Cloudflare's
+`CF-Connecting-IP` header, so daily limits work per student.
+
+If the website is built by Cloudflare Pages from your repository, put both lines in its build (for example in
+`make web`), after the site is built.
 
 ## 8. Updating later
 

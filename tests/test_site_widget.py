@@ -139,6 +139,22 @@ class FeedbackTest(unittest.TestCase):
         self.assertIn("No feedback yet", output.getvalue())
 
 
+class StudentAddressTest(unittest.TestCase):
+    def test_proxy_headers_are_trusted_only_from_this_machine(self):
+        from flask import Flask, request
+
+        from wendao.web.ai import student_id
+
+        app = Flask(__name__)
+        tunnel = {"CF-Connecting-IP": "203.0.113.9", "X-Forwarded-For": "198.51.100.1"}
+        with app.test_request_context(headers=tunnel, environ_base={"REMOTE_ADDR": "127.0.0.1"}):
+            self.assertEqual(student_id(request), "203.0.113.9")   # Cloudflare Tunnel
+        with app.test_request_context(headers={"X-Real-IP": "198.51.100.2"}, environ_base={"REMOTE_ADDR": "127.0.0.1"}):
+            self.assertEqual(student_id(request), "198.51.100.2")  # Nginx
+        with app.test_request_context(headers=tunnel, environ_base={"REMOTE_ADDR": "192.0.2.50"}):
+            self.assertEqual(student_id(request), "192.0.2.50")    # anyone else can't pretend
+
+
 class WebSearchSettingTest(unittest.TestCase):
     def load(self, widget: str):
         with tempfile.TemporaryDirectory() as folder:
