@@ -151,7 +151,7 @@ def create_app(workspace=None) -> Flask:
     @app.get("/api/page")
     def page():
         """The graph node for the page the student is reading (`?path=` is the browser address)."""
-        found = graph_view.page(request.args.get("path", "")) if graph_view else None
+        found = graph_view.page(request.args.get("path", ""), base=urlsplit(workspace.website or "").path) if graph_view else None
         return jsonify({"ok": True, "node": with_links(found) if found else None})
 
     @app.get("/api/neighborhood")
@@ -203,7 +203,7 @@ def create_app(workspace=None) -> Flask:
                 "model": result["model"],
                 "confidence": result["confidence"],
                 "temporal_context": result["temporal_context"],
-                "sources": public_sources(result["sources"]),
+                "sources": [with_links(source) for source in public_sources(result["sources"])],
             }
         )
 

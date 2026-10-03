@@ -37,6 +37,17 @@ class GraphViewTest(unittest.TestCase):
                 self.assertEqual(self.view.page(address)["id"], "topic:high-throughput-thermodynamics")
         self.assertIsNone(self.view.page("/not/a/page/"))
 
+    def test_home_page_and_escaped_addresses_under_a_sub_folder(self):
+        view = GraphView({"nodes": [
+            {"id": "topic:home", "type": "topic", "label": "Home", "source_files": ["index.md"]},
+            {"id": "topic:unit", "type": "topic", "label": "Unit", "source_files": ["unit 1/topic.md"]},
+        ], "edges": []})
+        for address in ["/book/", "/book/index.html"]:
+            with self.subTest(address=address):
+                self.assertEqual(view.page(address, base="/book/")["id"], "topic:home")
+        self.assertEqual(view.page("/", base="")["id"], "topic:home")
+        self.assertEqual(view.page("/book/unit%201/topic/", base="/book/")["id"], "topic:unit")
+
     def test_neighbourhood_is_small_and_connected(self):
         view = self.view.neighborhood("keyword:convex-hull")
         self.assertEqual(view["center"]["label"], "Convex Hull")
@@ -71,6 +82,15 @@ class WidgetApiTest(unittest.TestCase):
         self.assertTrue(pages and all(item["url"].startswith("https://mle4217-5219.matsci.dev/") for item in pages))
         self.assertEqual(self.client.get("/api/neighborhood?node=nope").status_code, 404)
         self.assertIsNone(self.client.get("/api/page?path=/nope/").get_json()["node"])
+
+    def test_both_answer_apis_link_sources_to_the_course_site(self):
+        fake = {"query": "q", "answer": "a", "status": "answerable", "llm_action": "generate_answer", "provider": "p",
+                "model": "m", "confidence": 1.0, "temporal_context": None,
+                "sources": [{"title": "Thermodynamics", "file_path": "high_throughput/thermodynamics.md", "score": 1.0}]}
+        with mock.patch("wendao.rag.answer.AnswerGenerator.answer", return_value=fake), \
+                mock.patch.dict(os.environ, {"LLM_PROVIDER": "openai", "OPENAI_API_KEY": "sk-test"}):
+            reply = self.client.post("/api/answer", json={"query": "What is a convex hull?"}).get_json()
+        self.assertEqual(reply["sources"][0]["url"], "https://mle4217-5219.matsci.dev/high-throughput/thermodynamics/")
 
     def test_highlighted_text_focuses_the_search(self):
         from wendao.rag.pipeline import QueryPipeline
@@ -221,7 +241,8 @@ class InstallTest(unittest.TestCase):
         self.assertIn('src="../../_wendao/wendao-widget.js', deep)
         self.assertNotIn("ai_agent_widget", deep)
 
-        install(self.site, api="https://api.example.edu/")  # running again replaces, never duplicates
+        again = install(self.site, api="https://api.example.edu/")  # running again replaces, never duplicates
+        self.assertFalse(again["replaced_old_widget"])  # it only replaced its own earlier copy
         home = (self.site / "index.html").read_text(encoding="utf-8")
         self.assertEqual(home.count("wendao-widget.js"), 1)
         self.assertEqual(home.count("wendao-widget.css"), 1)

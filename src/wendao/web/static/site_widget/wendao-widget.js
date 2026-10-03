@@ -15,6 +15,8 @@
   const LOCAL = ["127.0.0.1", "localhost"].includes(window.location.hostname);
   const API = ((SCRIPT && SCRIPT.dataset.api) || (LOCAL ? "http://127.0.0.1:5055" : window.location.origin)).replace(/\/$/, "");
   const ASSETS = SCRIPT && SCRIPT.src ? new URL(".", SCRIPT.src).href : "_wendao/";
+  // The site's own address, also when it is hosted under a sub-folder: the widget files live in <site>/_wendao/.
+  const SITE_BASE = /\/_wendao\/$/.test(ASSETS) ? ASSETS.replace(/_wendao\/$/, "") : "/";
   const KEY = (name) => `wendao-widget:${API}:${name}`;
   const MEMORY_KEY = KEY("memory");
   const OPEN_KEY = KEY("open");
@@ -70,7 +72,7 @@
     const parts = path.replace(/^\/+/, "").replace(/\.(md|ipynb)$/i, "").split("/").filter(Boolean)
       .map((part) => part.replace(/_/g, "-").toLowerCase());
     if (parts[parts.length - 1] === "index") parts.pop();
-    return `/${parts.join("/")}`;
+    return `${SITE_BASE}${parts.join("/")}`;
   }
 
   function normalizeCourseCitations(text) {
@@ -217,6 +219,7 @@
   const state = {
     ai: { mode: "teacher", login_required: false, student_keys: false, needs_student_key: false },
     course: null, graph: false, pageNode: null, history: [], center: null, selected: null, busy: false,
+    conversation: 0, // bumped by Clear, so an answer still on its way isn't saved into the new conversation
     quote: "", // text the student highlighted on the page, sent with the next question
     quizzing: false, // the last answer asked the student a question: their next message is their answer
     feedback: false, // the server takes thumbs up / down
@@ -414,6 +417,7 @@
     const quote = state.quote;
     setQuote("");
     const sent = sendAs || query;
+    const conversation = state.conversation;
     state.quizzing = false;
     ui.question.placeholder = "Ask about this course…";
     ui.messages.querySelectorAll(".wdw-followups").forEach((node) => node.remove()); // only the latest answer has them
@@ -433,9 +437,10 @@
         if (event.sources) { sources = event.sources; sources.forEach((s) => { if (s.url) sourceUrls[s.file_path] = s.url; }); }
         if (event.type === "delta") streamed += event.text || "";
       });
+      clearInterval(timer);
+      if (conversation !== state.conversation) return; // cleared while it was answering
       const answer = normalizeSourceCitations(result.answer, result.sources || sources);
       const meta = `Answered in ${seconds(performance.now() - started)}`;
-      clearInterval(timer);
       updateMessage(pending, answer, meta, "", result.sources || sources);
       const askedText = quote ? `About "${shorten(quote, 300)}": ${sent}` : sent;
       addAnswerTools(pending, { question: askedText, answer, sources: result.sources || sources, answered: result.llm_action === "generate_answer" });
@@ -450,6 +455,7 @@
       sessionStorage.setItem(MEMORY_KEY, JSON.stringify(memory.slice(-MAX_MEMORY)));
     } catch (error) {
       clearInterval(timer);
+      if (conversation !== state.conversation) return;
       updateMessage(pending, streamed ? `${streamed}\n\n${error.message}` : error.message, `Stopped after ${seconds(performance.now() - started)}`, "error");
       if (error.code === "LoginRequired") { localStorage.removeItem(KEY("account")); updateAccount(); ui.signIn.hidden = false; }
     } finally {
@@ -656,10 +662,21 @@
   const svgEl = (tag, attrs) => { const node = document.createElementNS(SVG, tag); for (const [k, v] of Object.entries(attrs || {})) node.setAttribute(k, v); return node; };
   const KIND = { chapter: "Chapter", topic: "Page", keyword: "Concept" };
 
+  function clearGraph(message) {
+    state.view = null;
+    state.center = null;
+    state.selected = null;
+    ui.graph.querySelectorAll("svg").forEach((node) => node.remove());
+    ui.nodeCard.hidden = true;
+    ui.graphTitle.textContent = "Knowledge graph";
+    ui.back.disabled = !state.history.length;
+    ui.graphEmpty.textContent = message;
+    ui.graphEmpty.hidden = false;
+  }
+
   async function showGraph(nodeId, remember) {
     if (!nodeId) {
-      ui.graphEmpty.textContent = state.graph ? "This page isn't in the course knowledge graph." : "This course has no knowledge graph yet.";
-      ui.graphEmpty.hidden = false;
+      clearGraph(state.graph ? "This page isn't in the course knowledge graph." : "This course has no knowledge graph yet.");
       return;
     }
     try {
@@ -673,8 +690,7 @@
       state.view = view;
       drawGraph(view);
     } catch (error) {
-      ui.graphEmpty.textContent = `Couldn't load the graph: ${error.message}`;
-      ui.graphEmpty.hidden = false;
+      clearGraph(`Couldn't load the graph: ${error.message}`);
     }
   }
 
@@ -782,6 +798,7 @@
     }
     ui.maximize.innerHTML = maximized ? ICONS.shrink : ICONS.expand;
     ui.maximize.title = maximized ? "Smaller window" : "Larger window";
+    ui.maximize.setAttribute("aria-label", ui.maximize.title);
   }
 
   function startResize(event) {
@@ -806,7 +823,13 @@
   function wire() {
     ui.launcher.addEventListener("click", () => setOpen(ui.panel.hidden));
     ui.close.addEventListener("click", () => { setOpen(false); ui.launcher.focus(); });
-    ui.clear.addEventListener("click", () => { sessionStorage.removeItem(MEMORY_KEY); greet(); });
+    ui.clear.addEventListener("click", () => {
+      state.conversation += 1;
+      state.quizzing = false;
+      ui.question.placeholder = "Ask about this course…";
+      sessionStorage.removeItem(MEMORY_KEY);
+      greet();
+    });
     ui.maximize.addEventListener("click", () => {
       localStorage.setItem(KEY("max"), localStorage.getItem(KEY("max")) === "1" ? "0" : "1");
       if (localStorage.getItem(KEY("max")) === "0") { ui.panel.style.width = ""; ui.panel.style.height = ""; }
@@ -817,7 +840,7 @@
     document.addEventListener("keydown", (event) => {
       if (event.key !== "Escape") return;
       if (!ui.pick.hidden) hidePick();
-      else if (!ui.panel.hidden) setOpen(false);
+      else if (!ui.panel.hidden) { setOpen(false); ui.launcher.focus(); }
     });
     watchSelection();
 

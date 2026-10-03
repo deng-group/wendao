@@ -24,9 +24,10 @@ MARKERS = [
 ]
 
 
-def strip_blocks(html: str) -> tuple[str, int]:
-    removed = 0
-    for start_marker, end_marker in MARKERS:
+def strip_blocks(html: str) -> tuple[str, int, int]:
+    """Remove widget blocks. Returns (html, blocks removed, of which from the older MLE widget)."""
+    removed = legacy = 0
+    for index, (start_marker, end_marker) in enumerate(MARKERS):
         while True:
             start = html.find(start_marker)
             end = html.find(end_marker, start + len(start_marker)) if start != -1 else -1
@@ -34,7 +35,8 @@ def strip_blocks(html: str) -> tuple[str, int]:
                 break
             html = html[:start] + html[end + len(end_marker):]
             removed += 1
-    return html, removed
+            legacy += index > 0
+    return html, removed, legacy
 
 
 def asset_prefix(page: Path, site: Path) -> str:
@@ -63,8 +65,8 @@ def install(site: Path, api: str = "") -> dict:
     api_attr = f' data-api="{escape(api.rstrip("/"), quote=True)}"' if api else ""
     legacy_removed = 0
     for page in html_pages:
-        html, removed = strip_blocks(page.read_text(encoding="utf-8", errors="replace"))
-        legacy_removed += removed
+        html, _, legacy = strip_blocks(page.read_text(encoding="utf-8", errors="replace"))
+        legacy_removed += legacy
         prefix = asset_prefix(page, site)
         start, end = MARKERS[0]
         head = f'{start}\n<link rel="stylesheet" href="{prefix}/wendao-widget.css?v={version}" data-wendao-widget="style">\n{end}'
@@ -80,7 +82,7 @@ def remove(site: Path) -> int:
     site = Path(site).expanduser().resolve()
     changed = 0
     for page in pages(site):
-        html, removed = strip_blocks(page.read_text(encoding="utf-8", errors="replace"))
+        html, removed, _ = strip_blocks(page.read_text(encoding="utf-8", errors="replace"))
         if removed:
             page.write_text(html, encoding="utf-8")
             changed += 1

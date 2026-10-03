@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import re
 from collections import Counter
+from urllib.parse import unquote
 
 
 def page_slug(file_path: str) -> str | None:
@@ -32,7 +33,7 @@ def page_slug(file_path: str) -> str | None:
 
 def normalize_address(address: str) -> str:
     """Turn a browser path like `/book/structures/crystal-structure/index.html` into `book/structures/crystal-structure`."""
-    path = re.sub(r"[?#].*$", "", str(address or "")).strip("/")
+    path = unquote(re.sub(r"[?#].*$", "", str(address or ""))).strip("/")  # "/unit%201/" → "unit 1"
     path = re.sub(r"(?:^|/)index\.html?$", "", path)
     path = re.sub(r"\.html?$", "", path)
     return path.lower()
@@ -67,9 +68,15 @@ class GraphView:
             item["description"] = node["description"]
         return item
 
-    def page(self, address: str) -> dict | None:
-        """The topic node for a browser address. Works when the site is hosted under a sub-folder."""
+    def page(self, address: str, base: str = "") -> dict | None:
+        """The topic node for a browser address. Works when the site is hosted under a sub-folder.
+
+        `base` is the site's own folder (from `[course] website`, e.g. "book"), so "/book/" is the home page.
+        """
         path = normalize_address(address)
+        base = normalize_address(base)
+        if base and (path == base or path.startswith(base + "/")):
+            path = path[len(base):].strip("/")
         best = None
         for slug, node_id in self.pages.items():
             if slug == path or (slug and path.endswith("/" + slug)) or (not slug and not path):
