@@ -8,6 +8,7 @@ website (`[course] website`), extra origins in `[student] allowed_origins`, and 
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from urllib.parse import urlsplit
 
 from flask import Flask, Response, jsonify, render_template, request, stream_with_context
@@ -19,6 +20,8 @@ from wendao.rag.prompts import PromptBuilder
 from wendao.web import STATIC_DIR, TEMPLATES_DIR
 from wendao.web.accounts import SignInError
 from wendao.web.ai import AiPolicy, AiUnavailable, bearer_token, student_id
+from wendao.web.explorer import course_source_url
+from wendao.web.graph_api import GraphView
 
 
 def public_sources(sources: list[dict]) -> list[dict]:
@@ -59,6 +62,24 @@ def create_app(workspace=None) -> Flask:
         workspace.student_ai, "", workspace.questions_per_day, accounts=workspace.accounts(), limit=workspace.daily_limit()
     )
     origins = {origin_of(workspace.website)} | {origin_of(item) or item for item in workspace.allowed_origins}
+    graph_path = Path(workspace.graph_path)
+    graph_view = GraphView(json.loads(graph_path.read_text(encoding="utf-8"))) if graph_path.exists() else None
+
+    def selected_context(payload: dict) -> list[str]:
+        """Graph nodes the student picked (e.g. a concept in the Graph tab), as labels to focus the search."""
+        if graph_view is None:
+            return []
+        context = []
+        for node_id in payload.get("context_node_ids", [])[:4]:
+            node = graph_view.nodes.get(str(node_id))
+            if node:
+                context.append(f"{node['type']}: {node.get('label', node_id)}")
+        return context
+
+    def with_links(item: dict) -> dict:
+        if item.get("file_path"):
+            item = {**item, "url": course_source_url(item["file_path"], workspace.website)}
+        return item
 
     def generator_for(payload: dict) -> AnswerGenerator:
         _, provider = policy.choose(payload, student_id(request), bearer_token(request))
@@ -92,7 +113,29 @@ def create_app(workspace=None) -> Flask:
     @app.get("/api/health")
     def health():
         ai = policy.describe()
-        return jsonify({"ok": True, "ai": ai, "default_provider": ai["provider"]})
+        return jsonify({
+            "ok": True,
+            "ai": ai,
+            "default_provider": ai["provider"],
+            "course": {"name": workspace.course_name, "code": workspace.course_code, "display": workspace.display_name},
+            "graph": graph_view is not None,
+        })
+
+    @app.get("/api/page")
+    def page():
+        """The graph node for the page the student is reading (`?path=` is the browser address)."""
+        found = graph_view.page(request.args.get("path", "")) if graph_view else None
+        return jsonify({"ok": True, "node": with_links(found) if found else None})
+
+    @app.get("/api/neighborhood")
+    def neighborhood():
+        """A node and its closest neighbours, for the widget's Graph tab."""
+        view = graph_view.neighborhood(request.args.get("node", "")) if graph_view else None
+        if view is None:
+            return jsonify({"ok": False, "message": "This part of the graph was not found."}), 404
+        view["center"] = with_links(view["center"])
+        view["nodes"] = [with_links(node) for node in view["nodes"]]
+        return jsonify({"ok": True, **view})
 
     @app.post("/api/login")
     def login():
@@ -111,7 +154,9 @@ def create_app(workspace=None) -> Flask:
         if not query:
             return jsonify({"ok": False, "error": "Query is required."}), 400
         try:
-            result = generator_for(payload).answer(query, short_memory=payload.get("short_memory") or [])
+            result = generator_for(payload).answer(
+                query, short_memory=payload.get("short_memory") or [], selected_context=selected_context(payload)
+            )
         except AiUnavailable as exc:
             return jsonify({"ok": False, "error": exc.code, "message": str(exc)}), 401 if exc.code == "LoginRequired" else 429
         except Exception as exc:  # noqa: BLE001 - report provider failures to the widget
@@ -142,7 +187,11 @@ def create_app(workspace=None) -> Flask:
         def events():
             try:
                 generator = generator_for(payload)
-                for event in generator.stream_answer(query, short_memory=payload.get("short_memory") or []):
+                for event in generator.stream_answer(
+                    query, short_memory=payload.get("short_memory") or [], selected_context=selected_context(payload)
+                ):
+                    if event.get("sources"):
+                        event = {**event, "sources": [with_links(source) for source in event["sources"]]}
                     yield json.dumps(event, ensure_ascii=False) + "\n"
             except Exception as exc:  # noqa: BLE001 - report every failure as a stream event
                 error = exc.code if isinstance(exc, AiUnavailable) else type(exc).__name__

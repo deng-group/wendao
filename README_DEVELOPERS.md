@@ -109,14 +109,20 @@ marked as **AY2025/2026 Semester 2**.
 
 ## Testing the Course-Website Widget Locally
 
-Build the book and copy the current widget into it from the book repository
-(`make web`, then `python ai_agent_widget/inject_ai_agent_widget.py`). Then start
-the widget API and serve the built site together:
+Build the book, add the widget to the built pages, then start the widget API and
+serve the built site together:
 
 ```bash
-cd examples/mle4217_5219
+cd ../MLE4217_5219_book && make web               # builds the site (and adds the widget)
+cd ../wendao/examples/mle4217_5219
+wendao widget install ../../../MLE4217_5219_book/_build/html   # if the build didn't add it
 wendao serve --widget --site ../../../MLE4217_5219_book/_build/html
 ```
+
+The widget source is `src/wendao/web/static/site_widget/` (`wendao-widget.js`, `.css`);
+`wendao widget install` copies it into `_build/html/_wendao/`. The Graph tab uses the
+widget API's `/api/page` (which node is this page) and `/api/neighborhood` (a node's
+closest neighbours, `web/graph_api.py`).
 
 This checks the model, starts the API at `http://127.0.0.1:5055`, serves the
 site at `http://127.0.0.1:8000`, and opens it. Use the `?` button at the

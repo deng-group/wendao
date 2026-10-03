@@ -310,6 +310,30 @@ def cmd_serve(args: argparse.Namespace) -> None:
     app.run(host=args.host, port=port, debug=False, threaded=True)
 
 
+# course-website widget --------------------------------------------------------------------------
+
+
+def cmd_widget(args: argparse.Namespace) -> None:
+    from wendao.web.site_widget import install, remove
+
+    site = Path(args.site)
+    if args.action == "remove":
+        changed = remove(site)
+        say(f"Removed the Wendao widget from {changed} pages in {site}.")
+        return
+    result = install(site, api=args.api or "")
+    say(f"Added the Wendao widget to {result['pages']} pages in {site}.")
+    if result["replaced_old_widget"]:
+        say("  Replaced the previous course widget on those pages.")
+    say(f"  Widget files: {result['folder']}")
+    if args.api:
+        say(f"  Questions go to {args.api}")
+    else:
+        say("  Questions go to the same website address under /api (on your computer: http://127.0.0.1:5055).")
+    say()
+    say("Try it locally:  wendao serve --widget --site " + str(site))
+
+
 # students -------------------------------------------------------------------------------------
 
 
@@ -473,6 +497,12 @@ def build_parser() -> argparse.ArgumentParser:
     ask.set_defaults(func=cmd_ask)
 
     commands.add_parser("check", parents=[common], help="check the workspace and the model connection").set_defaults(func=cmd_check)
+
+    widget = commands.add_parser("widget", help="add the chat widget to a built course website (MyST, Jupyter Book, ...)")
+    widget.add_argument("action", choices=["install", "remove"], help="install: add it to every page; remove: take it out")
+    widget.add_argument("site", help="the built website folder, for example _build/html")
+    widget.add_argument("--api", help="address of your Wendao widget API (default: the same website, under /api)")
+    widget.set_defaults(func=cmd_widget)
 
     students = commands.add_parser("students", parents=[common], help="see the class list and questions asked per student")
     students.add_argument("--all", action="store_true", help="total questions over all days instead of today")
