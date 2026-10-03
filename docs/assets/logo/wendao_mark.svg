@@ -1,17 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-label="Wendao mark: a question mark drawn as a path through knowledge-graph nodes">
-  <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#ffffff"/>
-      <stop offset="1" stop-color="#eef3fb"/>
-    </linearGradient>
-  </defs>
-  <g transform="translate(0 0)">
-    <rect x="2" y="2" width="124" height="124" rx="28" fill="url(#bg)" stroke="#d7deea" stroke-width="2"/>
-    <path d="M40 50 C40 31 52 23 64 23 C79 23 90 33 90 47 C90 60 80 65 72 70 C66 74 64 78 64 85"
-          fill="none" stroke="#8a98ad" stroke-width="6" stroke-linecap="round"/>
-    <circle cx="40" cy="50" r="9.5" fill="#ffffff" stroke="#2563eb" stroke-width="5"/>
-    <circle cx="90" cy="47" r="10" fill="#2563eb"/>
-    <circle cx="64" cy="85" r="9.5" fill="#ffffff" stroke="#2563eb" stroke-width="5"/>
-    <circle cx="64" cy="106" r="8" fill="#d97706"/>
-  </g>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-label="Wendao mark: a question mark (asking the way)"><defs><linearGradient id="wd-tile" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1e1b4b"/><stop offset="1" stop-color="#1d4ed8"/></linearGradient></defs><rect x="4" y="4" width="120" height="120" rx="28" fill="url(#wd-tile)"/><path d="M44 50 C44 35 53 27 64 27 C77 27 86 36 86 47 C86 58 78 63 71 67 C66 70 64 73 64 81" fill="none" stroke="#ffffff" stroke-width="10" stroke-linecap="butt" stroke-linejoin="round"/><circle cx="64" cy="98" r="7" fill="#38bdf8"/></svg>

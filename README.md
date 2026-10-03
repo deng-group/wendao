@@ -1,5 +1,10 @@
 <p align="center">
-  <a href="https://github.com/deng-group/wendao"><img src="https://raw.githubusercontent.com/deng-group/wendao/main/docs/assets/logo/wendao_logo.svg" width="520" alt="Wendao: ask the way. An AI learning companion."></a>
+  <a href="https://github.com/deng-group/wendao">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/deng-group/wendao/main/docs/assets/logo/wendao_logo_dark.svg">
+      <img src="https://raw.githubusercontent.com/deng-group/wendao/main/docs/assets/logo/wendao_logo.svg" width="460" alt="Wendao: AI learning companion">
+    </picture>
+  </a>
 </p>
 
 <p align="center">
