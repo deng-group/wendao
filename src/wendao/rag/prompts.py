@@ -90,6 +90,7 @@ class PromptBuilder:
         pipeline_result: dict,
         short_memory: list[dict] | None = None,
         selected_context: list[str] | None = None,
+        selection: str = "",
     ) -> dict:
         status = pipeline_result["status"]
         policies = DIRECT_ANSWER_STATUS_POLICIES if self.presentation_mode == "direct" else STATUS_POLICIES
@@ -119,6 +120,12 @@ class PromptBuilder:
                 + "\n".join(f"- {item}" for item in context[:4])
             )
 
+        if selection:
+            prompt_sections.append(
+                "Text the student highlighted on the course page (the question is about this text; "
+                "explain it using the evidence below):\n\"\"\"\n" + selection + "\n\"\"\""
+            )
+
         if policy["llm_action"] == "generate_answer":
             prompt_sections.append("Evidence:\n" + self._format_evidence(evidence))
         else:
@@ -141,6 +148,7 @@ class PromptBuilder:
             },
             "short_memory": memory,
             "selected_context": context[:4],
+            "selection": selection,
             "evidence": evidence,
             "messages": [
                 {"role": "system", "content": system_instruction.strip()},

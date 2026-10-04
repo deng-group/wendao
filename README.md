@@ -122,7 +122,9 @@ Run `wendao` commands anywhere inside the workspace. Wendao finds `wendao.toml` 
 | `wendao check` | teacher | Check your settings and the connection to the model |
 | `wendao serve` | teacher | Run the course website (the knowledge graph with the AI agent) |
 | `wendao serve --widget` | teacher | Run the API for the chat widget on your existing course website |
+| `wendao widget install _build/html` | teacher | Add the chat widget (with the graph) to every page of a built course website |
 | `wendao pack` | teacher | Put the built course into one file to share with students |
+| `wendao feedback` | teacher | See which answers students marked as not helpful, and why |
 | `wendao students` | teacher | See your class list and how many questions each student asked |
 | `wendao open my-course.wendao` | student | Open a course file from your teacher |
 
@@ -290,8 +292,41 @@ Then share the course in one or both ways:
   wendao open my-course.wendao
   ```
 
-To add the agent to an existing course website as a chat widget, run `wendao serve --widget` and see
-[`README_DEVELOPERS.md`](https://github.com/deng-group/wendao/blob/main/README_DEVELOPERS.md).
+**Chat widget on your course website.** If your course already has a website built with MyST, Jupyter Book, or Sphinx,
+add Wendao to every page after each build:
+
+```bash
+make web                                   # or however you build your site, e.g. `jupyter book build --html`
+wendao widget install _build/html          # adds the Wendao button to every page
+```
+
+Students get a Wendao button at the bottom-right of each page. It opens a chat window that they can resize or enlarge, and
+that follows the site's light or dark theme. A **Graph** tab shows the part of the knowledge graph around the page they are
+reading: click a concept to explore around it, open its page, or ask the AI to explain it. Students can also highlight
+any text on a page and click **Explain** or **Ask about it** to ask about that passage, or **Search** to look it up on
+Google. To use another search engine, set it in `wendao.toml`:
+
+```toml
+[widget]
+web_search = "scholar"   # or bing, duckduckgo, baidu, wikipedia, semantic_scholar, arxiv, youtube,
+                         # or your own address with {q} for the text; "" hides the Search button
+```
+
+Under each answer, students can tap **Simpler**, **Example**, or **Test me** (the AI asks them a short question
+and then checks their answer), and mark the answer 👍 or 👎 with an optional note. `wendao feedback` shows you the
+answers marked not helpful, so you can see where the AI goes wrong. Feedback is stored on your server in `usage.db`,
+without names or addresses. Formulas in answers are drawn with [KaTeX](https://katex.org), which the widget loads
+from the jsDelivr CDN; if it can't load, formulas show as plain text.
+
+The widget talks to a Wendao
+widget API (`wendao serve --widget`, or the server in [`deploy/DEPLOYMENT.md`](https://github.com/deng-group/wendao/blob/main/deploy/DEPLOYMENT.md));
+by default it uses the same website address under `/api`, or pass `--api https://...`. Try it locally with
+`wendao serve --widget --site _build/html`. `wendao widget remove _build/html` takes it out again.
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/deng-group/wendao/main/docs/assets/demo/widget_chat.png" width="52%" alt="The Wendao widget on a course page: an answer about convex hulls with links to the course pages it used">
+  <img src="https://raw.githubusercontent.com/deng-group/wendao/main/docs/assets/demo/widget_graph_dark.png" width="46%" alt="The widget's Graph tab in dark mode: the concepts and pages around the Thermodynamics page">
+</p>
 
 ## Testing your agent
 

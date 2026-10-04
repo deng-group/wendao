@@ -109,14 +109,39 @@ marked as **AY2025/2026 Semester 2**.
 
 ## Testing the Course-Website Widget Locally
 
-Build the book and copy the current widget into it from the book repository
-(`make web`, then `python ai_agent_widget/inject_ai_agent_widget.py`). Then start
-the widget API and serve the built site together:
+Build the book, add the widget to the built pages, then start the widget API and
+serve the built site together:
 
 ```bash
-cd examples/mle4217_5219
+cd ../MLE4217_5219_book && make web               # builds the site (and adds the widget)
+cd ../wendao/examples/mle4217_5219
+wendao widget install ../../../MLE4217_5219_book/_build/html   # if the build didn't add it
 wendao serve --widget --site ../../../MLE4217_5219_book/_build/html
 ```
+
+The widget source is `src/wendao/web/static/site_widget/` (`wendao-widget.js`, `.css`);
+`wendao widget install` copies it into `_build/html/_wendao/`. The Graph tab uses the
+widget API's `/api/page` (which node is this page) and `/api/neighborhood` (a node's
+closest neighbours, `web/graph_api.py`).
+
+When a student highlights text on a page, the widget sends it as `selection` (up to 1500
+characters) with the question. The pipeline searches with it ahead of the question, so
+"explain this" finds the right passage. The gate does not treat short questions like
+"summarize this" as too broad when there is a selection. The prompt quotes the text as
+what the question is about; it is not used as evidence.
+
+The highlight bubble's **Search** button opens the text (first 300 characters) in a search
+engine in a new tab. The engine is `[widget] web_search` in `wendao.toml` (default `google`;
+built-in names in `WEB_SEARCH_ENGINES` in `workspace.py`, or an address with `{q}`) and reaches
+the widget through `/api/health` as `web_search`. Nothing is sent to the Wendao server.
+
+Under each answer the widget shows follow-ups (Simpler / Example / Test me: the chat shows a short
+label, the AI gets a fuller instruction; after "Test me" the student's next message is sent as
+"My answer to that question: ...") and 👍/👎. Ratings go to `POST /api/feedback` and are stored by
+`web/feedback.py` in `usage.db` (table `feedback`), with the sender as a daily keyed hash (to cap
+spam at 100 a day per sender), never the IP or email. `wendao feedback` lists them. Formulas are
+set aside before the Markdown renderer and drawn by KaTeX 0.16.22 from jsDelivr, pinned with
+subresource integrity; without it they stay as text.
 
 This checks the model, starts the API at `http://127.0.0.1:5055`, serves the
 site at `http://127.0.0.1:8000`, and opens it. Use the `?` button at the

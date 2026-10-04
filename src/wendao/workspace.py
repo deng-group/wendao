@@ -40,6 +40,20 @@ DEFAULT_OUT_OF_SCOPE_TERMS = [
 
 CHAPTER_VISIBILITY = {"primary", "secondary", "hidden"}
 
+# Search engines for the widget's Search button, which looks up highlighted text ({q} = the text).
+WEB_SEARCH_ENGINES = {
+    "google": {"name": "Google", "url": "https://www.google.com/search?q={q}"},
+    "scholar": {"name": "Google Scholar", "url": "https://scholar.google.com/scholar?q={q}"},
+    "wikipedia": {"name": "Wikipedia", "url": "https://en.wikipedia.org/w/index.php?search={q}"},
+    "bing": {"name": "Bing", "url": "https://www.bing.com/search?q={q}"},
+    "duckduckgo": {"name": "DuckDuckGo", "url": "https://duckduckgo.com/?q={q}"},
+    "baidu": {"name": "Baidu", "url": "https://www.baidu.com/s?wd={q}"},
+    "semantic_scholar": {"name": "Semantic Scholar", "url": "https://www.semanticscholar.org/search?q={q}"},
+    "arxiv": {"name": "arXiv", "url": "https://arxiv.org/search/?query={q}&searchtype=all"},
+    "youtube": {"name": "YouTube", "url": "https://www.youtube.com/results?search_query={q}"},
+}
+DEFAULT_WEB_SEARCH = "google"
+
 # Maps [model] settings in wendao.toml to the environment variables the providers read.
 MODEL_ENV = {
     "anthropic": {"model": "ANTHROPIC_MODEL", "base_url": "ANTHROPIC_BASE_URL"},
@@ -87,6 +101,7 @@ class Workspace:
     questions_per_day: int = 0
     allowed_origins: list[str] = field(default_factory=list)
     roster: str = ""
+    web_search: dict | None = field(default_factory=lambda: web_search_engine(DEFAULT_WEB_SEARCH))
 
     # Workspace files
     @property
@@ -200,6 +215,22 @@ def find_root(start: Path | None = None) -> Path:
     )
 
 
+def web_search_engine(value: str) -> dict | None:
+    """[widget] web_search: a built-in name (see WEB_SEARCH_ENGINES), or an address with {q} for the text. "" = no Search button."""
+    value = str(value or "").strip()
+    if not value:
+        return None
+    if value.lower() in WEB_SEARCH_ENGINES:
+        return dict(WEB_SEARCH_ENGINES[value.lower()])
+    if value.startswith(("https://", "http://")) and "{q}" in value:
+        return {"name": "", "url": value}
+    known = ", ".join(WEB_SEARCH_ENGINES)
+    raise WorkspaceError(
+        f"[widget] web_search in {CONFIG_NAME} must be one of {known}, or a web address with {{q}} where the "
+        'text goes (e.g. "https://arxiv.org/search/?query={q}"), or "" for no Search button.'
+    )
+
+
 def load(start: Path | None = None) -> Workspace:
     root = find_root(start)
     config_path = root / CONFIG_NAME
@@ -213,6 +244,7 @@ def load(start: Path | None = None) -> Workspace:
     search = config.get("search", {})
     graph = config.get("graph", {})
     student = config.get("student", {})
+    widget = config.get("widget", {})
     if student.get("ai", "teacher") not in {"teacher", "student", "either"}:
         raise WorkspaceError(f"[student] ai in {CONFIG_NAME} must be \"teacher\", \"student\", or \"either\".")
 
@@ -265,5 +297,6 @@ def load(start: Path | None = None) -> Workspace:
         questions_per_day=int(student.get("questions_per_day", 0) or 0),
         allowed_origins=[str(item) for item in student.get("allowed_origins", [])],
         roster=str(student.get("roster", "")),
+        web_search=web_search_engine(widget.get("web_search", DEFAULT_WEB_SEARCH)),
     )
     return workspace

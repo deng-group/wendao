@@ -11,6 +11,8 @@ if TYPE_CHECKING:
     from wendao.workspace import Workspace
 
 
+SELECTION_SEARCH_CHARS = 600  # how much highlighted text goes into the search query
+
 NEXT_ACTIONS = {
     "answerable": "answer_from_course_evidence",
     "needs_time_context": "answer_with_time_context",
@@ -56,10 +58,14 @@ class QueryPipeline:
         top_k: int | None = None,
         short_memory: list[dict] | None = None,
         context_terms: list[str] | None = None,
+        selection: str = "",
     ) -> dict:
         retrieval_query = self._contextual_query(query, short_memory or [], context_terms or [])
+        if selection:
+            # The highlighted text says what "this" is; search with it, ahead of the question.
+            retrieval_query = f"{selection[:SELECTION_SEARCH_CHARS]} {retrieval_query}"
         results = self.retriever.search(retrieval_query, top_k=top_k or self.top_k)
-        decision = self.gate.decide(query, results)
+        decision = self.gate.decide(query, results, focused=bool(selection))
         return {
             "query": query,
             "retrieval_query": retrieval_query,
