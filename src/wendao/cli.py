@@ -83,6 +83,7 @@ def cmd_init(args: argparse.Namespace) -> None:
         step += 1
     say(f"  {step}. Edit wendao.toml (course name, website) and concepts.json (concepts for the graph)")
     say(f"  {step + 1}. Add your API key to .env, then run: wendao build")
+    say(f"  {step + 2}. Optional: wendao suggest drafts concepts and test questions from your notes for you to check")
 
 
 def _relpath(path: Path, start: Path) -> str:
@@ -365,6 +366,50 @@ def cmd_feedback(args: argparse.Namespace) -> None:
         say("\n(Only answers marked not helpful are listed. Add --all to see every rating.)")
 
 
+# suggest --------------------------------------------------------------------------------------
+
+
+def cmd_suggest(args: argparse.Namespace) -> None:
+    from wendao import suggest
+
+    workspace = load_workspace(args)
+    folder = relative(workspace, suggest.suggestions_dir(workspace))
+    if args.add:
+        added = suggest.add_to_workspace(workspace)
+        say(f"Added {added['concepts']} concepts to concepts.json and {added['questions']} questions to questions.json.")
+        if added["unusable"]:
+            say(f"  Left out {added['unusable']} drafts with no label, aliases, or question text.")
+        say("Next: `wendao graph` to redraw the knowledge graph, then `wendao eval` to test the questions.")
+        return
+
+    provider, label = suggest.course_model()
+    chapters = suggest.load_chapters(workspace)
+    if not chapters:
+        raise suggest.SuggestError("No chapters to read. Check [source] in wendao.toml and run `wendao build`.")
+    say(f"Reading {len(chapters)} chapters with {label}. This makes about "
+        f"{len(chapters) * (2 if args.what == 'all' else 1)} model calls ...")
+
+    if args.what in ("all", "concepts"):
+        existing = suggest.read_concepts(workspace.concepts_path)
+        concepts, already = suggest.suggest_concepts(workspace, provider, chapters, existing, say=say)
+        suggest.write_json(suggest.suggestions_dir(workspace) / "concepts.json", {"version": 1, "concepts": concepts})
+        say(f"{len(concepts)} new concepts → {folder}/concepts.json"
+            + (f" ({already} more you already have)." if already else "."))
+    if args.what in ("all", "questions"):
+        existing = suggest.read_questions(workspace.questions_path)
+        questions, had = suggest.suggest_questions(workspace, provider, chapters, existing, say=say)
+        found = suggest.check_with_search(workspace, questions)
+        suggest.write_json(suggest.suggestions_dir(workspace) / "questions.json", questions)
+        say(f"{len(questions)} new test questions → {folder}/questions.json"
+            + (f" ({had} more you already have)." if had else "."))
+        if found is not None and questions:
+            say(f"  Wendao's search already finds the right page for {found} of them; "
+                "the others (\"search_finds_it\": false) show where it needs help.")
+    say()
+    say(f"Check the drafts in {folder}/: delete what you don't want and fix what is off.")
+    say("Then add the rest with:  wendao suggest --add")
+
+
 # students -------------------------------------------------------------------------------------
 
 
@@ -540,6 +585,13 @@ def build_parser() -> argparse.ArgumentParser:
     feedback.add_argument("--all", action="store_true", help="list helpful answers too, not only the unhelpful ones")
     feedback.add_argument("--limit", type=int, default=20, help="how many to list (default: 20)")
     feedback.set_defaults(func=cmd_feedback)
+
+    suggest = commands.add_parser("suggest", parents=[common],
+                                  help="draft concepts and test questions with your model, for you to check")
+    suggest.add_argument("what", nargs="?", choices=["all", "concepts", "questions"], default="all",
+                         help="what to draft (default: both)")
+    suggest.add_argument("--add", action="store_true", help="copy the checked drafts into concepts.json and questions.json")
+    suggest.set_defaults(func=cmd_suggest)
 
     students = commands.add_parser("students", parents=[common], help="see the class list and questions asked per student")
     students.add_argument("--all", action="store_true", help="total questions over all days instead of today")

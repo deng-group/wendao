@@ -118,6 +118,7 @@ Run `wendao` commands anywhere inside the workspace. Wendao finds `wendao.toml` 
 | `wendao init my-course` | teacher | Create a new workspace with starter files |
 | `wendao build` | teacher | Read your notes, build the knowledge graph, and build the search index |
 | `wendao ask "question"` | teacher | Ask a question. Add `--search-only` to see what search finds, without a model |
+| `wendao suggest` | teacher | Draft concepts and test questions from your notes with your model, for you to check |
 | `wendao eval` | teacher | Test Wendao with the questions in `questions.json` |
 | `wendao check` | teacher | Check your settings and the connection to the model |
 | `wendao serve` | teacher | Run the course website (the knowledge graph with the AI agent) |
@@ -185,6 +186,19 @@ Then list the concepts for the knowledge graph in `concepts.json`. For each conc
 ```
 
 See [`examples/mle4217_5219/`](https://github.com/deng-group/wendao/tree/main/examples/mle4217_5219/) for a complete example.
+
+**Let the model draft them.** Writing concepts by hand takes time. Once you have run `wendao build` and connected a
+model (steps 3 and 4), Wendao can draft them for you, together with test questions:
+
+```bash
+wendao suggest          # reads your notes chapter by chapter; writes drafts to suggestions/
+wendao suggest --add    # after you've checked them: adds them to concepts.json and questions.json
+wendao graph            # redraws the knowledge graph with the new concepts
+```
+
+The drafts never change your files until you run `--add`. Wendao checks them against your notes: a concept is kept
+only if your notes use it, and a question only if its key terms are on the page it is about. Delete what you don't
+want and fix what is off before adding. This uses your model, about two requests per chapter.
 
 ### 3. Build
 
@@ -349,6 +363,9 @@ wendao eval             # search and answer decisions, no model needed
 wendao eval --answers   # prompts and citations, no model needed
 wendao eval --real      # ask the real model every question, so you can read the answers (uses API credits)
 ```
+
+`wendao suggest questions` drafts test questions from your notes (see step 2). Each draft notes whether
+search already finds the right page (`"search_finds_it"`); the ones it misses are the most useful to keep.
 
 Reports are saved in `build/reports/`.
 
