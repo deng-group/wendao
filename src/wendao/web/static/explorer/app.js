@@ -552,15 +552,42 @@ function updateTabIcon() {
   if (icon) icon.href = `data:image/svg+xml,${svg.replace(/#/g, "%23")}`;
 }
 
+// Pixels per CSS pixel. Sharp (up to 2) when the graph is still; while it moves on a device that can't keep up
+// (most often a phone, with 4-9 times the pixels of its CSS size), fewer pixels, then sharp again when it stops.
+const sharpRatio = () => Math.min(window.devicePixelRatio || 1, 2);
+const REDUCED_MOTION = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const motion = { last: 0, slow: 0, fast: 0, ratio: 0, restore: null };
+
+function setCanvasRatio(ratio) {
+  const canvas = elements.canvas; const { width, height } = state.size;
+  canvas.width = Math.round(width * ratio); canvas.height = Math.round(height * ratio);
+  state.ratio = ratio;
+}
+
+// Called for every drawn frame: count slow frames while moving, and go sharp again once things are still.
+function watchFrameTime() {
+  const now = performance.now(); const gap = now - motion.last; motion.last = now;
+  const sharp = sharpRatio();
+  if (!motion.ratio) motion.ratio = sharp;
+  if (gap < 100) { // moving: frames follow each other
+    motion.slow = gap > 24 ? motion.slow + 1 : Math.max(0, motion.slow - 1);
+    motion.fast = gap < 20 ? motion.fast + 1 : 0;
+    if (motion.slow >= 6 && motion.ratio > 1) { motion.ratio = Math.max(1, motion.ratio - 0.5); motion.slow = 0; }
+    if (motion.fast >= 120 && motion.ratio < sharp) { motion.ratio = Math.min(sharp, motion.ratio + 0.5); motion.fast = 0; } // keeping up easily: try sharper
+    if (state.ratio !== motion.ratio) setCanvasRatio(motion.ratio);
+  }
+  clearTimeout(motion.restore);
+  if (state.ratio !== sharp) motion.restore = setTimeout(() => { setCanvasRatio(sharp); render(); }, 180);
+}
+
 function resizeCanvas() {
-  const canvas = elements.canvas; const ratio = Math.min(window.devicePixelRatio || 1, 2);
+  const canvas = elements.canvas; const ratio = sharpRatio();
   const width = elements.stage.clientWidth; const height = elements.stage.clientHeight;
   // Keep the same part of the graph in the middle when the area grows or shrinks (e.g. the widget is enlarged).
   if (state.size) { state.transform.x += (width - state.size.width) / 2; state.transform.y += (height - state.size.height) / 2; }
   state.size = { width, height };
-  canvas.width = Math.round(width * ratio); canvas.height = Math.round(height * ratio);
   canvas.style.width = `${width}px`; canvas.style.height = `${height}px`;
-  state.ratio = ratio;
+  setCanvasRatio(ratio);
   draw();
   // Bigger or smaller area (e.g. the widget was enlarged): frame the same thing again, unless the view was moved by hand.
   if (state.sim && !state.viewTouched && !state.fitPending) {
@@ -583,6 +610,7 @@ function draw() {
 
 function render() {
   if (!state.sim || !state.colours) return;
+  if (state.size) watchFrameTime();
   const canvas = elements.canvas; const context = canvas.getContext("2d");
   const { x, y, k } = state.transform; const ratio = state.ratio || 1;
   context.setTransform(1, 0, 0, 1, 0, 0);
@@ -591,13 +619,18 @@ function render() {
   const colours = state.colours;
   const focus = focusId();
   const near = focus ? new Set([focus, ...state.sim.neighbours.get(focus) || []]) : null;
+  // Highlights fade in quickly instead of switching on at once.
+  const now = performance.now();
+  if (focus !== state.lastFocus) { state.lastFocus = focus; state.focusSince = now; }
+  const fade = !near || REDUCED_MOTION ? 1 : Math.min(1, (now - state.focusSince) / 180);
+  if (fade < 1) draw();
   // The part of the graph on screen (with a margin): anything outside is not drawn.
   const view = { left: -x / k - 60, top: -y / k - 60, right: (canvas.width / ratio - x) / k + 60, bottom: (canvas.height / ratio - y) / k + 60 };
   const onScreen = (item) => item.x > view.left && item.x < view.right && item.y > view.top && item.y < view.bottom;
 
   context.lineWidth = 1 / k;
   context.strokeStyle = colours.link;
-  context.globalAlpha = near ? 0.25 : 0.7;
+  context.globalAlpha = near ? 0.7 - 0.45 * fade : 0.7;
   context.beginPath();
   for (const { source, target } of shownLinks()) {
     if ((source.x < view.left && target.x < view.left) || (source.x > view.right && target.x > view.right)
@@ -607,7 +640,7 @@ function render() {
   context.stroke();
   if (near) {
     const centre = state.sim.byId.get(focus);
-    context.globalAlpha = 1; context.strokeStyle = colours.linkActive; context.lineWidth = 1.4 / k;
+    context.globalAlpha = fade; context.strokeStyle = colours.linkActive; context.lineWidth = 1.4 / k;
     context.beginPath();
     for (const id of state.sim.neighbours.get(focus) || []) {
       const other = state.sim.byId.get(id);
@@ -628,7 +661,7 @@ function render() {
   }
   for (const [key, items] of batches) {
     const [type, faded] = key.split("|");
-    context.globalAlpha = faded === "1" ? 0.18 : 1;
+    context.globalAlpha = faded === "1" ? 1 - 0.82 * fade : 1;
     context.fillStyle = colours[type] || colours.keyword;
     context.beginPath();
     for (const item of items) { context.moveTo(item.x + item.r, item.y); context.arc(item.x, item.y, item.r, 0, Math.PI * 2); }
@@ -644,6 +677,19 @@ function render() {
   if (selected && isShownNode(selected)) {
     context.globalAlpha = 1; context.lineWidth = 2.5 / k; context.strokeStyle = colours.text;
     context.beginPath(); context.arc(selected.x, selected.y, selected.r + 3 / k, 0, Math.PI * 2); context.stroke();
+  }
+
+  // A ripple from a node that was just chosen.
+  const pulse = state.pulse && state.sim.byId.get(state.pulse.id);
+  if (pulse) {
+    const t = (now - state.pulse.start) / 650;
+    if (t >= 1 || !isShownNode(pulse)) state.pulse = null;
+    else {
+      const grow = 1 - Math.pow(1 - t, 3);
+      context.globalAlpha = 0.55 * (1 - t); context.lineWidth = 2 / k; context.strokeStyle = colours[pulse.node.type] || colours.keyword;
+      context.beginPath(); context.arc(pulse.x, pulse.y, pulse.r + (4 + 28 * grow) / k, 0, Math.PI * 2); context.stroke();
+      draw();
+    }
   }
 
   drawLabels(context, nodes, near, focus, onScreen);
@@ -754,6 +800,7 @@ function selectNode(nodeId, options = {}) {
   clearNodeExplanation();
   if (state.hiddenKinds.delete(node.type)) { state.shown = null; updateModeControls(); }
   state.selectedId = nodeId;
+  if (!REDUCED_MOTION) state.pulse = { id: nodeId, start: performance.now() };
   showNodeCard(node);
   updateContext();
   updateSuggestions(node);
@@ -771,7 +818,10 @@ function focusOn(nodeId) {
 }
 
 function viewFor(items, maxScale = 1.6) {
-  const width = elements.stage.clientWidth; const height = elements.stage.clientHeight;
+  const width = elements.stage.clientWidth;
+  // On a narrow screen the node card covers the bottom of the graph: frame the part above it.
+  const card = elements.nodeCard; const covered = !card.hidden && width < 600 ? card.offsetHeight + 20 : 0;
+  const height = Math.max(160, elements.stage.clientHeight - covered);
   if (!items.length) return { x: width / 2, y: height / 2, k: 1 };
   const xs = items.map((item) => item.x); const ys = items.map((item) => item.y);
   const minX = Math.min(...xs) - 40; const maxX = Math.max(...xs) + 40;
@@ -813,9 +863,26 @@ function nodeAt(point) {
   return best;
 }
 
+// Fingers on the graph, for pinch-to-zoom with two.
+const touches = new Map();
+function pinchState() {
+  const [a, b] = [...touches.values()];
+  const rect = elements.canvas.getBoundingClientRect();
+  return { distance: Math.hypot(a.x - b.x, a.y - b.y) || 1, x: (a.x + b.x) / 2 - rect.left, y: (a.y + b.y) / 2 - rect.top };
+}
+
 elements.canvas.addEventListener("pointerdown", (event) => {
-  const point = graphPoint(event); const item = nodeAt(point);
+  touches.set(event.pointerId, { x: event.clientX, y: event.clientY });
   elements.canvas.setPointerCapture(event.pointerId);
+  if (touches.size === 2) { // a second finger: stop dragging, start pinching
+    const dragged = state.pointer?.kind === "node" && state.pointer.item;
+    if (dragged) { dragged.fx = null; dragged.fy = null; state.alphaTarget = 0; }
+    cancelAnimationFrame(state.viewFrame);
+    state.pointer = { kind: "pinch", start: pinchState(), transform: { ...state.transform }, moved: true };
+    return;
+  }
+  if (touches.size > 2) return;
+  const point = graphPoint(event); const item = nodeAt(point);
   if (item) {
     item.fx = item.x; item.fy = item.y;
     state.alphaTarget = 0.2; startPhysics(0.2); // dragging stirs the graph a little, not a lot
@@ -833,6 +900,17 @@ elements.canvas.addEventListener("pointermove", (event) => {
     if (id !== state.hoverId) { state.hoverId = id; elements.canvas.style.cursor = id ? "pointer" : "grab"; draw(); }
     return;
   }
+  if (touches.has(event.pointerId)) touches.set(event.pointerId, { x: event.clientX, y: event.clientY });
+  if (pointer.kind === "pinch") {
+    if (touches.size < 2) return;
+    const now = pinchState(); const { start, transform } = pointer;
+    const k = Math.min(4, Math.max(0.1, transform.k * (now.distance / start.distance)));
+    // Keep the point between the fingers under the fingers.
+    const gx = (start.x - transform.x) / transform.k; const gy = (start.y - transform.y) / transform.k;
+    state.transform = { k, x: now.x - gx * k, y: now.y - gy * k };
+    state.viewTouched = true; draw();
+    return;
+  }
   const dx = event.clientX - pointer.startX; const dy = event.clientY - pointer.startY;
   if (Math.abs(dx) + Math.abs(dy) > 3) pointer.moved = true;
   if (pointer.kind === "pan") {
@@ -845,9 +923,11 @@ elements.canvas.addEventListener("pointermove", (event) => {
 
 function endPointer(event) {
   const pointer = state.pointer;
+  touches.delete(event.pointerId);
   if (elements.canvas.hasPointerCapture(event.pointerId)) elements.canvas.releasePointerCapture(event.pointerId);
+  if (pointer?.kind === "pinch" && touches.size) return; // one finger still down: the pinch ends with the last one
   state.pointer = null;
-  if (!pointer) return;
+  if (!pointer || pointer.kind === "pinch") return;
   if (pointer.kind === "node") {
     pointer.item.fx = null; pointer.item.fy = null; // let go: it springs back into place
     state.alphaTarget = 0;
@@ -1210,6 +1290,11 @@ async function initialize() {
   }
 }
 
+// A short hint on narrow screens, where the long one is cut off.
+const narrow = window.matchMedia("(max-width: 590px)");
+const searchHint = () => { elements.search.placeholder = narrow.matches ? "Search" : "Find a chapter or concept"; };
+searchHint(); narrow.addEventListener?.("change", searchHint);
+
 elements.search.addEventListener("input", () => state.graph && showSearchResults(elements.search.value));
 elements.search.addEventListener("keydown", (event) => {
   if (event.key === "Escape") { elements.search.value = ""; showSearchResults(""); elements.search.blur(); }
@@ -1272,7 +1357,14 @@ elements.messages.addEventListener("scroll", () => {
 elements.question.addEventListener("keydown", (event) => {
   if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); elements.form.requestSubmit(); }
 });
-window.addEventListener("resize", () => { if (state.graph) resizeCanvas(); });
+// The graph area can change size without the window (the chat panel opens, the widget is resized): follow it,
+// once per frame.
+let resizeQueued = false;
+new ResizeObserver(() => {
+  if (resizeQueued || !state.graph) return;
+  resizeQueued = true;
+  requestAnimationFrame(() => { resizeQueued = false; resizeCanvas(); });
+}).observe(elements.stage);
 elements.aiButton.addEventListener("click", () => openAiSettings());
 elements.aiDialog.addEventListener("close", () => {
   if (elements.aiDialog.returnValue === "save") {

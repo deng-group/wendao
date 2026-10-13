@@ -125,6 +125,17 @@ class WidgetApiTest(unittest.TestCase):
         graph = self.client.get("/api/graph").get_json()
         self.assertGreater(len(graph["nodes"]), 100)
 
+    def test_graph_is_sent_small_and_only_when_changed(self):
+        import gzip
+
+        plain = self.client.get("/api/graph")
+        packed = self.client.get("/api/graph", headers={"Accept-Encoding": "gzip, br"})
+        self.assertEqual(packed.headers["Content-Encoding"], "gzip")
+        self.assertLess(len(packed.data), len(plain.data) / 3)
+        self.assertEqual(json.loads(gzip.decompress(packed.data)), plain.get_json())
+        again = self.client.get("/api/graph", headers={"If-None-Match": plain.headers["ETag"]})
+        self.assertEqual((again.status_code, again.data), (304, b""))
+
     def test_home_page_shows_the_new_widget(self):
         page = self.client.get("/").data.decode()
         self.assertIn("/static/site_widget/wendao-widget.js", page)

@@ -9,6 +9,8 @@ The widget shows the part of the graph around the page a student is reading. Two
 
 from __future__ import annotations
 
+import gzip
+import hashlib
 import json
 import re
 from collections import Counter
@@ -141,17 +143,18 @@ class GraphFile:
         self._stamp = None
         self._graph: dict | None = None
         self._view: GraphView | None = None
+        self._browser: tuple[bytes, bytes, str] | None = None
 
     def _refresh(self) -> None:
         try:
             stat = self.path.stat()
         except OSError:
-            self._stamp, self._graph, self._view = None, None, None
+            self._stamp, self._graph, self._view, self._browser = None, None, None, None
             return
         stamp = (stat.st_mtime_ns, stat.st_size)
         if stamp != self._stamp:
             graph = json.loads(self.path.read_text(encoding="utf-8"))
-            self._graph, self._view, self._stamp = graph, GraphView(graph), stamp
+            self._graph, self._view, self._stamp, self._browser = graph, GraphView(graph), stamp, None
 
     @property
     def graph(self) -> dict | None:
@@ -162,6 +165,33 @@ class GraphFile:
     def view(self) -> GraphView | None:
         self._refresh()
         return self._view
+
+    def browser_json(self, link_for) -> tuple[bytes, bytes, str] | None:
+        """The graph the browser gets, as JSON, gzipped, and its ETag: made once per version of graph.json."""
+        self._refresh()
+        if self._graph is None:
+            return None
+        if self._browser is None:
+            body = json.dumps(browser_graph(self._graph, link_for), ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+            self._browser = (body, gzip.compress(body, 6), f'"{hashlib.sha256(body).hexdigest()[:20]}"')
+        return self._browser
+
+
+def graph_response(graph_file: GraphFile, link_for):
+    """/api/graph: gzipped when the browser accepts it (a few times smaller, which matters on phones), and
+    "not modified" when the browser already has this version. None when there is no graph yet."""
+    from flask import Response, request
+
+    made = graph_file.browser_json(link_for)
+    if made is None:
+        return None
+    body, packed, etag = made
+    headers = {"ETag": etag, "Cache-Control": "no-cache", "Vary": "Accept-Encoding"}
+    if etag in request.headers.get("If-None-Match", ""):
+        return Response(status=304, headers=headers)
+    if "gzip" in request.headers.get("Accept-Encoding", ""):
+        return Response(packed, mimetype="application/json", headers={**headers, "Content-Encoding": "gzip"})
+    return Response(body, mimetype="application/json", headers=headers)
 
 
 NODE_FIELDS = ("id", "type", "label", "visibility", "order", "chapter_id", "chapter_ids", "aliases", "mention_count", "summary")

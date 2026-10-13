@@ -17,7 +17,7 @@ from wendao.rag.prompts import PromptBuilder
 from wendao.web import STATIC_DIR
 from wendao.web.accounts import SignInError
 from wendao.web.ai import AiPolicy, AiUnavailable, bearer_token, student_id
-from wendao.web.graph_api import GraphFile, browser_graph
+from wendao.web.graph_api import GraphFile, browser_graph, graph_response
 
 EXPLORER_DIR = STATIC_DIR / "explorer"
 
@@ -135,7 +135,8 @@ def create_app(workspace=None) -> Flask:
 
     @app.get("/api/graph")
     def course_graph():
-        return jsonify(browser_graph(graph_file.graph or {}, lambda path: course_source_url(path, workspace.website)))
+        link_for = lambda path: course_source_url(path, workspace.website)  # noqa: E731
+        return graph_response(graph_file, link_for) or jsonify(browser_graph({}, link_for))
 
     @app.post("/api/login")
     def login():

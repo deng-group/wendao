@@ -178,7 +178,8 @@ kbd { padding: 3px 6px; border: 1px solid var(--line); border-radius: 5px; color
   .graph-stage { inset: 68px 0 0; }
   .brand > span:last-child { display: none; }
   .search-box { height: 40px; }
-  .graph-actions .icon-control { display: none; }
+  .graph-actions { gap: 6px; }
+  .graph-actions .icon-control { width: 36px; height: 36px; }
   .chat-launcher { width: 38px; padding: 0; justify-content: center; }
   .chat-launcher span { display: none; }
   .graph-header { grid-template-columns: 36px 1fr auto; }
@@ -323,3 +324,12 @@ a.ask-node { text-decoration: none; }
 /* Narrow chat panel: keep the close button on screen (the badge keeps its dot; its words show on wider screens) */
 .chat-header-actions { flex-wrap: nowrap; min-width: 0; }
 @media (max-width: 1520px) { .grounded-badge b { display: none; } }
+
+/* Phones and short frames: a compact node card with its buttons side by side, so the graph stays in view. */
+@media (max-width: 590px), (max-height: 560px) {
+  .node-card { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 14px 16px; }
+  .node-card > .node-kind, .node-card > h2, .node-card > .node-summary { flex-basis: 100%; margin: 0; }
+  .node-card h2, .embedded .node-card h2 { font-size: 1.05rem; }
+  .node-summary, .embedded .node-summary { font-size: .82rem; max-height: none; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .ask-node, .embedded .ask-node { flex: 1 1 auto; width: auto; gap: 6px; margin-top: 2px; padding: 8px 10px; font-size: .78rem; }
+}

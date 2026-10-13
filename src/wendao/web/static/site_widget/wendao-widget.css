@@ -246,6 +246,6 @@
 .wdw-graph-frame { flex: 1; min-height: 0; width: 100%; border: 0; background: var(--wdw-bg); }
 
 @media (max-width: 520px) {
-  .wdw-panel { right: 8px; left: 8px; bottom: 84px; width: auto !important; height: calc(100vh - 100px) !important; }
+  .wdw-panel { right: 8px; left: 8px; bottom: 84px; width: auto !important; max-width: none; height: calc(100vh - 100px) !important; height: calc(100dvh - 100px) !important; }
   .wdw-resize, .wdw-maximize { display: none !important; }
 }
