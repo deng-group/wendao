@@ -10,6 +10,7 @@ from urllib.parse import quote
 
 from flask import Flask, Response, jsonify, request, send_from_directory, stream_with_context
 
+from wendao import __version__
 from wendao import workspace as workspace_module
 from wendao.rag.answer import AnswerGenerator
 from wendao.rag.pipeline import QueryPipeline
@@ -57,6 +58,8 @@ def render_index(workspace) -> str:
         "{{COURSE_LABEL}}": workspace.course_code or workspace.course_name,
         "{{COURSE_DISPLAY_NAME}}": workspace.display_name,
         "{{STYLE}}": workspace.style,
+        # A new release gets new file addresses, so browsers don't keep using the old app.js and style.css.
+        "{{VERSION}}": __version__,
     }
     for placeholder, value in replacements.items():
         page = page.replace(placeholder, html.escape(value))

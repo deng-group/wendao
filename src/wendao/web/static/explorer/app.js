@@ -1330,6 +1330,13 @@ elements.explainNode.addEventListener("click", () => {
   if (node && EMBEDDED) tellWidget("explain", node);
   else if (node) explainSelectedNode(node);
 });
+// Explain on the node card: in the widget's chat, the online version (exported file), or this page's chat panel.
+document.querySelector("#explain-in-widget").addEventListener("click", () => {
+  const node = state.nodesById.get(state.selectedId); if (!node) return;
+  if (EMBEDDED) tellWidget("explain", node);
+  else if (EXPORTED) openOnline(node);
+  else { setChatOpen(true); explainSelectedNode(node); }
+});
 document.querySelector("#close-node-card").addEventListener("click", () => { elements.nodeCard.hidden = true; });
 document.querySelector("#ask-node").addEventListener("click", () => {
   const node = state.nodesById.get(state.selectedId); if (!node) return;
@@ -1389,12 +1396,6 @@ initialize();
 loadCourseAi();
 
 if (EMBEDDED) {
-  const explainInWidget = document.querySelector("#explain-in-widget");
-  explainInWidget.hidden = false;
-  explainInWidget.addEventListener("click", () => {
-    const node = state.nodesById.get(state.selectedId);
-    if (node) tellWidget("explain", node);
-  });
   window.addEventListener("message", (event) => {
     const message = event.data || {};
     if (event.source !== window.parent || message.source !== "wendao-widget") return;

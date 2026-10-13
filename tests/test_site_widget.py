@@ -124,6 +124,10 @@ class WidgetApiTest(unittest.TestCase):
         self.assertEqual(self.client.get("/graph/secret.txt").status_code, 404)
         graph = self.client.get("/api/graph").get_json()
         self.assertGreater(len(graph["nodes"]), 100)
+        from wendao import __version__
+
+        self.assertIn(f"app.js?v={__version__}".encode(), page.data)  # a new release: browsers fetch the new code
+        self.assertNotIn(b'id="explain-in-widget" class="ask-node" type="button" hidden', page.data)
 
     def test_graph_is_sent_small_and_only_when_changed(self):
         import gzip

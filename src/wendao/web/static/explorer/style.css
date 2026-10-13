@@ -292,6 +292,7 @@ kbd { padding: 3px 6px; border: 1px solid var(--line); border-radius: 5px; color
 /* A file made by `wendao export`: no AI without a server (or "Ask AI" opens the online version) */
 .exported-offline #open-chat, .exported-offline #ask-node, .exported .chat-panel, .exported-offline .chat-panel { display: none !important; }
 a.ask-node { text-decoration: none; }
+.ask-node + .ask-node { margin-top: 8px; }
 
 /* Appearance menu: style and light / dark / auto */
 .appearance { position: relative; }
@@ -331,5 +332,5 @@ a.ask-node { text-decoration: none; }
   .node-card > .node-kind, .node-card > h2, .node-card > .node-summary { flex-basis: 100%; margin: 0; }
   .node-card h2, .embedded .node-card h2 { font-size: 1.05rem; }
   .node-summary, .embedded .node-summary { font-size: .82rem; max-height: none; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-  .ask-node, .embedded .ask-node { flex: 1 1 auto; width: auto; gap: 6px; margin-top: 2px; padding: 8px 10px; font-size: .78rem; }
+  .ask-node, .embedded .ask-node, .ask-node + .ask-node { flex: 1 1 auto; width: auto; gap: 6px; margin-top: 2px; padding: 8px 10px; font-size: .78rem; }
 }

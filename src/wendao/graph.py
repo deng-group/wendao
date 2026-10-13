@@ -16,6 +16,9 @@ from pathlib import Path
 
 from wendao.workspace import folder_title
 
+# The graph.json format. 1.1 (Wendao 0.3.1): introductions for concepts and chapters, and course links.
+GRAPH_SCHEMA = "1.1"
+
 
 def load_jsonl(path: Path) -> list[dict]:
     with path.open(encoding="utf-8") as handle:
@@ -509,7 +512,7 @@ def build_graph(
     )
 
     return {
-        "schema_version": "1.0",
+        "schema_version": GRAPH_SCHEMA,
         "course": course or {},
         "source": {
             "chunks": "build/chunks.jsonl",

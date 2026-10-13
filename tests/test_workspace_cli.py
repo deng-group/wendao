@@ -152,6 +152,15 @@ class WorkspaceCliTest(unittest.TestCase):
             main(["doctor", "-w", str(self.root), "--no-model"])
         self.assertIn("your notes changed after the last build (week02/energy.md)", output.getvalue())
 
+        run_cli("build", "-w", str(self.root))
+        graph_path = self.root / "build" / "graph.json"
+        graph = json.loads(graph_path.read_text(encoding="utf-8"))
+        graph_path.write_text(json.dumps({**graph, "schema_version": "1.0"}), encoding="utf-8")  # built by 0.3.0
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output), self.assertRaises(SystemExit):
+            main(["doctor", "-w", str(self.root), "--no-model"])
+        self.assertIn("Build:     made by an older Wendao", output.getvalue())
+
     def test_doctor_on_a_new_empty_workspace(self):
         run_cli("init", str(self.root))
         output = io.StringIO()

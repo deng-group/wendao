@@ -282,6 +282,14 @@ def cmd_ask(args: argparse.Namespace) -> None:
 # check ----------------------------------------------------------------------------------------
 
 
+def graph_schema(workspace: Workspace) -> str:
+    """The format version written in build/graph.json ("" if unreadable)."""
+    try:
+        return str(json.loads(workspace.graph_path.read_text(encoding="utf-8")).get("schema_version", ""))
+    except (OSError, ValueError):
+        return ""
+
+
 KEY_NAMES = {"anthropic": "ANTHROPIC_AUTH_TOKEN", "openai": "OPENAI_API_KEY", "gemini": "GEMINI_API_KEY"}
 
 
@@ -311,6 +319,7 @@ def model_fix(provider: str, error: str) -> str:
 
 def cmd_doctor(args: argparse.Namespace) -> None:
     from wendao import evaluate, suggest
+    from wendao.graph import GRAPH_SCHEMA
     from wendao.ingest import SUPPORTED_SUFFIXES, changed_notes, discover_content_files
     from wendao.rag.providers import check_connection, default_model_name, default_provider_name
 
@@ -344,6 +353,10 @@ def cmd_doctor(args: argparse.Namespace) -> None:
     if not built:
         line("Build", "not built yet")
         problems.append(("Build: no graph or search index yet.", "Run `wendao build`."))
+    elif graph_schema(workspace) != GRAPH_SCHEMA:
+        line("Build", "made by an older Wendao")
+        problems.append(("Build: made by an older version of Wendao, so concept introductions and course links are missing.",
+                         "Run `wendao build`, then restart `wendao serve` if it is running."))
     elif notes and (changed := changed_notes(workspace)):
         line("Build", f"older than your notes ({len(changed)} file{'s' if len(changed) > 1 else ''} changed)")
         shown = ", ".join(changed[:3]) + (", ..." if len(changed) > 3 else "")
