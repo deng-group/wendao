@@ -178,6 +178,16 @@ class FeedbackTest(unittest.TestCase):
             self.assertEqual(codes, [200, 200, 400])
             self.assertEqual(self.rate(self.down, address="10.0.0.8").status_code, 200)  # someone else still can
 
+    def test_a_rebuilt_graph_is_served_without_a_restart(self):
+        graph_path = self.root / "build" / "graph.json"
+        node = {"id": "chapter:a", "type": "chapter", "label": "A"}
+        graph_path.write_text(json.dumps({"nodes": [node], "edges": []}), encoding="utf-8")
+        self.assertEqual(len(self.client.get("/api/graph").get_json()["nodes"]), 1)
+        graph_path.write_text(json.dumps({"nodes": [node, {**node, "id": "chapter:b", "label": "B"}], "edges": []}), encoding="utf-8")
+        later = graph_path.stat().st_mtime + 5
+        os.utime(graph_path, (later, later))  # as `wendao build` would, a moment later
+        self.assertEqual(len(self.client.get("/api/graph").get_json()["nodes"]), 2)
+
     def test_command_without_feedback(self):
         output = io.StringIO()
         with contextlib.redirect_stdout(output):

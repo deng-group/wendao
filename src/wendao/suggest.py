@@ -1,9 +1,9 @@
-"""Draft concepts and test questions with the course's language model, for the teacher to check.
+"""Find concepts and write test questions with the course's language model.
 
-`wendao suggest` reads the extracted notes (build/chunks.jsonl), asks the model chapter by chapter,
-and writes drafts to suggestions/concepts.json and suggestions/questions.json. It never changes
-concepts.json or questions.json: the teacher checks the drafts, deletes what they don't want, and
-runs `wendao suggest --add` to copy the rest in.
+`wendao build --concepts` and `wendao eval --add-questions` read the extracted notes
+(build/chunks.jsonl), ask the model chapter by chapter, and add what it finds to concepts.json and
+questions.json. They only add: what the teacher already has is never changed, and concepts.json is
+backed up first.
 
 Everything the model proposes is checked against the notes: a concept is kept only if one of its
 names appears in them, and a question only if its key terms appear on the page it is about.
@@ -24,7 +24,7 @@ PAGES_PER_CHAPTER = 3
 QUESTIONS_PER_PAGE = 2
 CHAPTER_BUDGET = 20000  # characters of notes shown to the model per chapter
 PAGE_BUDGET = 5000
-REVIEW_FIELDS = {"mentions", "chapter", "search_finds_it"}  # help the teacher review; not copied by --add
+WORKING_FIELDS = {"mentions", "chapter", "search_finds_it"}  # used while finding; not written to the files
 
 FILLER = {"the", "and", "for", "with", "this", "that", "data", "example", "examples", "introduction", "method", "methods"}
 
@@ -51,10 +51,6 @@ def as_list(value) -> list[str]:
     return []
 
 
-def suggestions_dir(workspace) -> Path:
-    return workspace.root / "suggestions"
-
-
 def course_model():
     """The teacher's language model, as set up in .env / wendao.toml. Returns (provider, "name (model)")."""
     from wendao.rag.providers import default_model_name, default_provider_name, provider_from_name
@@ -62,7 +58,7 @@ def course_model():
     name = default_provider_name()
     if name == "dry_run":
         raise SuggestError(
-            "`wendao suggest` uses your language model, and none is set up. Add an API key to .env "
+            "Finding concepts and writing questions uses your language model, and none is set up. Add an API key to .env "
             "or set [model] in wendao.toml, then check it with `wendao check`."
         )
     model = default_model_name(name)
@@ -241,7 +237,7 @@ def suggest_questions(workspace, provider, chapters, existing: list[dict], say=p
                 "expected_files": [page],
                 "expected_terms": terms,
                 "category": "concept",
-                "notes": f"Drafted by wendao suggest from {name}.",
+                "notes": f"Written by Wendao from {name}; check it.",
                 "chapter": name,
             })
     return questions, skipped
@@ -274,8 +270,7 @@ def read_json(path: Path, default):
     try:
         return json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
-        raise SuggestError(f"{path} isn't valid JSON (line {exc.lineno}, column {exc.colno}: {exc.msg}). "
-                           "Fix it, or run `wendao suggest` again for fresh drafts.") from None
+        raise SuggestError(f"{path} isn't valid JSON (line {exc.lineno}, column {exc.colno}: {exc.msg}). Fix it, then try again.") from None
 
 
 def read_concepts(path: Path) -> list[dict]:
@@ -289,67 +284,34 @@ def read_questions(path: Path) -> list[dict]:
     return [item for item in data if isinstance(item, dict)] if isinstance(data, list) else []
 
 
-def checked_concept(item: dict) -> dict | None:
-    """A drafted concept as concepts.json needs it, after the teacher's edits; None if it can't be used."""
-    label = str(item.get("label", "")).strip()
-    aliases = [normalized_text(alias) for alias in as_list(item.get("aliases")) if normalized_text(alias)]
-    if not label or not aliases:
-        return None
-    concept = {key: value for key, value in item.items() if key not in REVIEW_FIELDS}
-    concept.update({"id": str(item.get("id") or slug(label)), "label": label, "aliases": aliases,
-                    "category": str(item.get("category") or "general")})
-    return concept
-
-
-def checked_question(item: dict) -> dict | None:
-    query = " ".join(str(item.get("query", "")).split())
-    if not query:
-        return None
-    question = {key: value for key, value in item.items() if key not in REVIEW_FIELDS}
-    question.update({"id": str(item.get("id") or slug(query)[:50]), "query": query,
-                     "expected_status": str(item.get("expected_status") or "answerable")})
-    for key in ("expected_files", "expected_terms"):
-        if key in question:
-            question[key] = as_list(question[key])
-    return question
-
-
 def write_json(path: Path, data) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
-def add_to_workspace(workspace) -> dict:
-    """Copy the (checked) drafts into concepts.json and questions.json, skipping what is already there."""
-    folder = suggestions_dir(workspace)
-    drafts_concepts = read_concepts(folder / "concepts.json")
-    drafts_questions = read_questions(folder / "questions.json")
-    if not drafts_concepts and not drafts_questions:
-        raise SuggestError(f"No drafts in {folder}. Run `wendao suggest` first.")
+def add_concepts(workspace, concepts: list[dict]) -> Path | None:
+    """Add found concepts to concepts.json. The previous file is kept as concepts.json.bak (returned)."""
+    path = workspace.concepts_path
+    backup = None
+    if path.exists():
+        backup = path.with_name(path.name + ".bak")
+        backup.write_bytes(path.read_bytes())
+    current = [item for item in read_concepts(path) if item.get("id") != "example-concept"]
+    ids = {item.get("id") for item in current}
+    for item in concepts:
+        if item["id"] not in ids:
+            current.append({key: value for key, value in item.items() if key not in WORKING_FIELDS})
+            ids.add(item["id"])
+    write_json(path, {"version": 1, "concepts": current})
+    return backup
 
-    added = {"concepts": 0, "questions": 0, "unusable": 0}
-    if drafts_concepts:
-        concepts = [item for item in read_concepts(workspace.concepts_path) if item.get("id") != "example-concept"]
-        ids = {item.get("id") for item in concepts}
-        for item in drafts_concepts:
-            concept = checked_concept(item)
-            if concept is None:
-                added["unusable"] += 1  # e.g. the teacher removed its label or all its aliases
-            elif concept["id"] not in ids:
-                concepts.append(concept)
-                ids.add(concept["id"])
-                added["concepts"] += 1
-        write_json(workspace.concepts_path, {"version": 1, "concepts": concepts})
-    if drafts_questions:
-        questions = read_questions(workspace.questions_path)
-        ids = {item.get("id") for item in questions}
-        for item in drafts_questions:
-            question = checked_question(item)
-            if question is None:
-                added["unusable"] += 1
-            elif question["id"] not in ids:
-                questions.append(question)
-                ids.add(question["id"])
-                added["questions"] += 1
-        write_json(workspace.questions_path, questions)
-    return added
+
+def add_questions(workspace, questions: list[dict]) -> None:
+    """Add written test questions to questions.json, after the teacher's own."""
+    current = read_questions(workspace.questions_path)
+    ids = {item.get("id") for item in current}
+    for item in questions:
+        if item["id"] not in ids:
+            current.append({key: value for key, value in item.items() if key not in WORKING_FIELDS})
+            ids.add(item["id"])
+    write_json(workspace.questions_path, current)

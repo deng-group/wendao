@@ -16,6 +16,7 @@ from wendao.rag.prompts import PromptBuilder
 from wendao.web import STATIC_DIR
 from wendao.web.accounts import SignInError
 from wendao.web.ai import AiPolicy, AiUnavailable, bearer_token, forward_login, forward_stream, student_id
+from wendao.web.graph_api import GraphFile
 
 EXPLORER_DIR = STATIC_DIR / "explorer"
 
@@ -63,9 +64,7 @@ def render_index(workspace) -> str:
 def create_app(workspace=None) -> Flask:
     workspace = workspace or workspace_module.load()
     workspace.apply_model_settings()
-    graph_path = workspace.require(workspace.graph_path, "Run `wendao build` first.")
-    graph = json.loads(graph_path.read_text(encoding="utf-8"))
-    nodes_by_id = {node["id"]: node for node in graph["nodes"]}
+    graph_file = GraphFile(workspace.require(workspace.graph_path, "Run `wendao build` first."))
     pipeline = QueryPipeline.for_workspace(workspace, top_k=5)
     prompt_builder = PromptBuilder(
         evidence_score_threshold=0.60,
@@ -90,7 +89,7 @@ def create_app(workspace=None) -> Flask:
     def selected_context(payload: dict) -> list[str]:
         context = []
         for node_id in payload.get("context_node_ids", [])[:4]:
-            node = nodes_by_id.get(str(node_id))
+            node = graph_file.view.nodes.get(str(node_id)) if graph_file.view else None
             if node:
                 context.append(f"{node['type']}: {node['label']}")
         return context
@@ -118,14 +117,14 @@ def create_app(workspace=None) -> Flask:
                 "ai": ai,
                 "provider": ai["provider"],
                 "model": ai["model"],
-                "graph_nodes": len(graph["nodes"]),
-                "graph_edges": len(graph["edges"]),
+                "graph_nodes": len((graph_file.graph or {}).get("nodes", [])),
+                "graph_edges": len((graph_file.graph or {}).get("edges", [])),
             }
         )
 
     @app.get("/api/graph")
     def course_graph():
-        return jsonify(graph)
+        return jsonify(graph_file.graph or {"nodes": [], "edges": []})
 
     @app.post("/api/login")
     def login():

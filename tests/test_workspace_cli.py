@@ -127,13 +127,37 @@ class WorkspaceCliTest(unittest.TestCase):
         output = run_cli("eval", "-w", str(self.root), "--answers")
         self.assertIn("2/2 passed", output)
 
-    def test_build_says_what_to_do_without_concepts(self):
-        self.init_course()
+    def use_starter_concepts(self):
         starter = Path(__file__).resolve().parents[1] / "src" / "wendao" / "starter" / "concepts.json"
         (self.root / "concepts.json").write_text(starter.read_text(encoding="utf-8"), encoding="utf-8")
-        output = run_cli("build", "-w", str(self.root))
+
+    def test_build_says_what_to_do_without_concepts(self):
+        self.init_course()
+        self.use_starter_concepts()
+        keep = {key: value for key, value in os.environ.items()
+                if not key.startswith(("ANTHROPIC_", "OPENAI_", "GEMINI_", "GOOGLE_API", "LLM_"))}
+        with mock.patch.dict(os.environ, keep, clear=True):  # no model: nothing is sent anywhere
+            output = run_cli("build", "-w", str(self.root))
         self.assertIn("0 concepts", output)
-        self.assertIn("wendao suggest concepts", output)
+        self.assertIn("No concepts yet", output)
+
+    def test_first_build_finds_concepts_when_a_model_is_set_up(self):
+        from wendao import suggest
+
+        class FakeModel:
+            def generate(self, package):
+                return {"answer": json.dumps([{"label": "Kinetic Energy", "aliases": ["kinetic energy"]}])}
+
+        self.init_course()
+        self.use_starter_concepts()
+        with mock.patch.dict(os.environ, {"LLM_PROVIDER": "openai"}), \
+                mock.patch.object(suggest, "course_model", return_value=(FakeModel(), "fake model")):
+            output = run_cli("build", "-w", str(self.root))
+            self.assertIn("Finding concepts", output)
+            self.assertIn("Kinetic Energy", output)
+            self.assertNotIn("No concepts yet", output)
+            again = run_cli("build", "-w", str(self.root))  # it has concepts now: not asked again
+        self.assertNotIn("Finding concepts", again)
 
     def test_chapter_names_from_folders(self):
         from wendao.workspace import folder_title

@@ -9,8 +9,10 @@ The widget shows the part of the graph around the page a student is reading. Two
 
 from __future__ import annotations
 
+import json
 import re
 from collections import Counter
+from pathlib import Path
 from urllib.parse import unquote
 
 
@@ -129,3 +131,34 @@ class GraphView:
             "links": links,
             "counts": dict(counts),
         }
+
+
+class GraphFile:
+    """build/graph.json for a running server, read again when `wendao build` rewrites it (no restart needed)."""
+
+    def __init__(self, path: Path):
+        self.path = Path(path)
+        self._stamp = None
+        self._graph: dict | None = None
+        self._view: GraphView | None = None
+
+    def _refresh(self) -> None:
+        try:
+            stat = self.path.stat()
+        except OSError:
+            self._stamp, self._graph, self._view = None, None, None
+            return
+        stamp = (stat.st_mtime_ns, stat.st_size)
+        if stamp != self._stamp:
+            graph = json.loads(self.path.read_text(encoding="utf-8"))
+            self._graph, self._view, self._stamp = graph, GraphView(graph), stamp
+
+    @property
+    def graph(self) -> dict | None:
+        self._refresh()
+        return self._graph
+
+    @property
+    def view(self) -> GraphView | None:
+        self._refresh()
+        return self._view

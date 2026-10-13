@@ -4,6 +4,7 @@ import contextlib
 import io
 import json
 import os
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -146,70 +147,57 @@ class SuggestTest(unittest.TestCase):
         self.assertIn("Part 0 ", text)
         self.assertIn("Part 199 ", text)  # later parts are not dropped
 
-    def test_edited_drafts_are_checked(self):
-        folder = suggest.suggestions_dir(self.workspace)
-        folder.mkdir()
-        (folder / "concepts.json").write_text('{"version": 1, "concepts": [\n  {"label": "Hull",}\n]}', encoding="utf-8")
+    def test_a_typo_in_concepts_json_is_explained(self):
+        (self.root / "concepts.json").write_text('{"version": 1, "concepts": [\n  {"label": "Hull",}\n]}', encoding="utf-8")
         with self.assertRaisesRegex(suggest.SuggestError, "isn't valid JSON \\(line 2"):
-            suggest.add_to_workspace(self.workspace)
-        suggest.write_json(folder / "concepts.json", {"version": 1, "concepts": [
-            {"label": "Convex Hull", "aliases": "Convex Hull"},   # id left out, aliases as one string
-            {"id": "nolabel", "aliases": ["x"]},                  # label deleted: can't be used
-        ]})
-        added = suggest.add_to_workspace(self.workspace)
-        self.assertEqual((added["concepts"], added["unusable"]), (1, 1))
-        concept = suggest.read_concepts(self.workspace.concepts_path)[-1]
-        self.assertEqual((concept["id"], concept["aliases"], concept["category"]), ("convex-hull", ["convex hull"], "general"))
+            suggest.read_concepts(self.workspace.concepts_path)
 
-    def test_a_reply_that_is_not_json_is_skipped(self):
-        model = FakeModel(["Sorry, I can't help with that."])
-        concepts, _ = suggest.suggest_concepts(self.workspace, model, suggest.load_chapters(self.workspace), [], say=lambda *_: None)
-        self.assertEqual(concepts, [])
-
-    def test_add_copies_the_checked_drafts_once(self):
-        folder = suggest.suggestions_dir(self.workspace)
-        suggest.write_json(folder / "concepts.json", {"version": 1, "concepts": [
-            {"id": "convex-hull", "label": "Convex Hull", "category": "thermo", "aliases": ["convex hull"], "mentions": 3, "chapter": "Thermodynamics"}]})
-        suggest.write_json(folder / "questions.json", [
-            {"id": "why-decompose", "query": "Why do phases above the hull decompose?", "expected_status": "answerable",
-             "expected_files": ["thermo/hull.md"], "expected_terms": ["stable phases"], "chapter": "Thermodynamics", "search_finds_it": False}])
-        self.assertEqual(suggest.add_to_workspace(self.workspace), {"concepts": 1, "questions": 1, "unusable": 0})
-        self.assertEqual(suggest.add_to_workspace(self.workspace), {"concepts": 0, "questions": 0, "unusable": 0})
+    def test_found_items_are_added_once_and_old_concepts_kept(self):
+        found = [{"id": "convex-hull", "label": "Convex Hull", "category": "thermo", "aliases": ["convex hull"],
+                  "mentions": 3, "chapter": "Thermodynamics"}]
+        backup = suggest.add_concepts(self.workspace, found)
+        self.assertIn("example-concept", backup.read_text(encoding="utf-8"))  # the list from before
+        suggest.add_concepts(self.workspace, found)
         concepts = suggest.read_concepts(self.workspace.concepts_path)
         self.assertEqual([item["id"] for item in concepts], ["entropy", "convex-hull"])  # the starter example is gone
         self.assertNotIn("mentions", concepts[1])
+        question = {"id": "why-decompose", "query": "Why do phases above the hull decompose?", "expected_status": "answerable",
+                    "expected_files": ["thermo/hull.md"], "expected_terms": ["stable phases"], "chapter": "Thermodynamics"}
+        suggest.add_questions(self.workspace, [question])
+        suggest.add_questions(self.workspace, [question])
         questions = suggest.read_questions(self.workspace.questions_path)
-        self.assertEqual(len(questions), 2)
-        self.assertNotIn("search_finds_it", questions[1])
+        self.assertEqual([item["id"] for item in questions], ["hull", "why-decompose"])
+        self.assertNotIn("chapter", questions[1])
 
-    def test_command_explains_what_is_missing(self):
+    def test_build_without_a_model_explains_what_is_missing(self):
         keep = {key: value for key, value in os.environ.items()
                 if not key.startswith(("ANTHROPIC_", "OPENAI_", "GEMINI_", "GOOGLE_API", "LLM_"))}
         errors = io.StringIO()
         with mock.patch.dict(os.environ, keep, clear=True), contextlib.redirect_stderr(errors), self.assertRaises(SystemExit):
-            main(["suggest", "-w", str(self.root)])
+            from wendao.cli import step_concepts
+            try:
+                step_concepts(self.workspace)
+            except suggest.SuggestError as exc:
+                print(f"Error: {exc}", file=sys.stderr)
+                raise SystemExit(1) from None
         self.assertIn("none is set up", errors.getvalue())
-        with contextlib.redirect_stderr(errors), self.assertRaises(SystemExit):
-            main(["suggest", "--add", "-w", str(self.root)])
-        self.assertIn("Run `wendao suggest` first", errors.getvalue())
 
-    def test_command_writes_drafts_and_leaves_your_files_alone(self):
-        before = (self.root / "concepts.json").read_text(encoding="utf-8")
+    def test_build_concepts_and_eval_add_questions(self):
         model = FakeModel([json.dumps([{"label": "Convex Hull", "aliases": ["convex hull"]}]),
                            json.dumps([{"question": "Why do phases above the hull decompose?", "page": "thermo/hull.md",
                                         "key_terms": ["stable phases"]}])])
-        output = io.StringIO()
-        with mock.patch.object(suggest, "course_model", return_value=(model, "fake model")), \
-                contextlib.redirect_stdout(output):
-            main(["suggest", "-w", str(self.root)])
-        text = output.getvalue()
-        self.assertIn("1 new concepts", text)
-        self.assertIn("1 new test questions", text)
-        self.assertIn("wendao suggest --add", text)
-        self.assertEqual((self.root / "concepts.json").read_text(encoding="utf-8"), before)
-        drafts = suggest.read_questions(self.root / "suggestions" / "questions.json")
-        self.assertIn("search_finds_it", drafts[0])
+        from wendao.cli import step_concepts, step_questions
 
+        output = io.StringIO()
+        with mock.patch.object(suggest, "course_model", return_value=(model, "fake model")), contextlib.redirect_stdout(output):
+            step_concepts(self.workspace)
+            step_questions(self.workspace)
+        text = output.getvalue()
+        self.assertIn("Added 1 concepts to concepts.json", text)
+        self.assertIn("Convex Hull", text)
+        self.assertIn("concepts.json.bak", text)
+        self.assertIn("Added 1 questions to questions.json", text)
+        self.assertIn("convex-hull", (self.root / "concepts.json").read_text(encoding="utf-8"))
 
 if __name__ == "__main__":
     unittest.main()

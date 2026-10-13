@@ -83,7 +83,7 @@ def cmd_init(args: argparse.Namespace) -> None:
         step += 1
     say(f"  {step}. Edit wendao.toml (course name, website) and concepts.json (concepts for the graph)")
     say(f"  {step + 1}. Add your API key to .env, then run: wendao build")
-    say(f"  {step + 2}. Optional: wendao suggest drafts concepts and test questions from your notes for you to check")
+    say(f"  {step + 2}. No concept list yet? wendao build --concepts lets your AI model find them in your notes")
 
 
 def _relpath(path: Path, start: Path) -> str:
@@ -144,9 +144,39 @@ def step_graph(workspace: Workspace) -> None:
         f"{graph['stats']['edges']} links → {relative(workspace, workspace.graph_path)}"
     )
     if not types.get("keyword"):
-        say("  No concepts yet, so the graph shows only chapters and pages. Let your model draft them:")
-        say("    wendao suggest concepts   then check suggestions/concepts.json, run `wendao suggest --add`,")
-        say("                              and `wendao graph`. Or list them yourself in concepts.json.")
+        say("  No concepts yet, so the graph shows only chapters and pages. Set up an AI model (see `wendao check`)")
+        say("  and run `wendao build` again to find them, or list them yourself in concepts.json.")
+
+
+def needs_concepts(workspace: Workspace) -> bool:
+    """A first build with a model set up but no concepts yet: find them without being asked."""
+    from wendao import suggest
+    from wendao.rag.providers import default_provider_name
+
+    have = [item for item in suggest.read_concepts(workspace.concepts_path) if item.get("id") != "example-concept"]
+    return not have and default_provider_name() != "dry_run"
+
+
+def step_concepts(workspace: Workspace) -> None:
+    """Let the course's model find concepts in each chapter and add them to concepts.json."""
+    from wendao import suggest
+
+    provider, label = suggest.course_model()
+    chapters = suggest.load_chapters(workspace)
+    if not chapters:
+        say("No chapters to read, so no concepts to find.")
+        return
+    say(f"Finding concepts in {len(chapters)} chapters with {label} (one request per chapter) ...")
+    existing = suggest.read_concepts(workspace.concepts_path)
+    concepts, already = suggest.suggest_concepts(workspace, provider, chapters, existing, say=lambda *_: None)
+    backup = suggest.add_concepts(workspace, concepts)
+    say(f"  Added {len(concepts)} concepts to concepts.json" + (f"; {already} more were already there." if already else "."))
+    if concepts:
+        names = ", ".join(item["label"] for item in concepts[:10])
+        say(f"  {names}{', ...' if len(concepts) > 10 else ''}")
+        say("  Each is used in your notes. Delete any you don't want from concepts.json, then run `wendao graph`.")
+    if backup:
+        say(f"  The list from before is in {relative(workspace, backup)}.")
 
 
 def step_index(workspace: Workspace, rebuild: bool = True) -> None:
@@ -162,6 +192,8 @@ def cmd_build(args: argparse.Namespace) -> None:
     workspace = load_workspace(args)
     started = time.monotonic()
     step_extract(workspace)
+    if args.concepts or (not args.no_concepts and needs_concepts(workspace)):
+        step_concepts(workspace)
     step_graph(workspace)
     step_index(workspace, rebuild=False)
     say(f"Done in {time.monotonic() - started:.0f}s. Try: wendao ask \"<a question about your course>\"")
@@ -379,50 +411,6 @@ def cmd_feedback(args: argparse.Namespace) -> None:
         say("\n(Only answers marked not helpful are listed. Add --all to see every rating.)")
 
 
-# suggest --------------------------------------------------------------------------------------
-
-
-def cmd_suggest(args: argparse.Namespace) -> None:
-    from wendao import suggest
-
-    workspace = load_workspace(args)
-    folder = relative(workspace, suggest.suggestions_dir(workspace))
-    if args.add:
-        added = suggest.add_to_workspace(workspace)
-        say(f"Added {added['concepts']} concepts to concepts.json and {added['questions']} questions to questions.json.")
-        if added["unusable"]:
-            say(f"  Left out {added['unusable']} drafts with no label, aliases, or question text.")
-        say("Next: `wendao graph` to redraw the knowledge graph, then `wendao eval` to test the questions.")
-        return
-
-    provider, label = suggest.course_model()
-    chapters = suggest.load_chapters(workspace)
-    if not chapters:
-        raise suggest.SuggestError("No chapters to read. Check [source] in wendao.toml and run `wendao build`.")
-    say(f"Reading {len(chapters)} chapters with {label}. This makes about "
-        f"{len(chapters) * (2 if args.what == 'all' else 1)} model calls ...")
-
-    if args.what in ("all", "concepts"):
-        existing = suggest.read_concepts(workspace.concepts_path)
-        concepts, already = suggest.suggest_concepts(workspace, provider, chapters, existing, say=say)
-        suggest.write_json(suggest.suggestions_dir(workspace) / "concepts.json", {"version": 1, "concepts": concepts})
-        say(f"{len(concepts)} new concepts → {folder}/concepts.json"
-            + (f" ({already} more you already have)." if already else "."))
-    if args.what in ("all", "questions"):
-        existing = suggest.read_questions(workspace.questions_path)
-        questions, had = suggest.suggest_questions(workspace, provider, chapters, existing, say=say)
-        found = suggest.check_with_search(workspace, questions)
-        suggest.write_json(suggest.suggestions_dir(workspace) / "questions.json", questions)
-        say(f"{len(questions)} new test questions → {folder}/questions.json"
-            + (f" ({had} more you already have)." if had else "."))
-        if found is not None and questions:
-            say(f"  Wendao's search already finds the right page for {found} of them; "
-                "the others (\"search_finds_it\": false) show where it needs help.")
-    say()
-    say(f"Check the drafts in {folder}/: delete what you don't want and fix what is off.")
-    say("Then add the rest with:  wendao suggest --add")
-
-
 # students -------------------------------------------------------------------------------------
 
 
@@ -510,11 +498,28 @@ def cmd_open(args: argparse.Namespace) -> None:
 # eval -----------------------------------------------------------------------------------------
 
 
+def step_questions(workspace: Workspace) -> None:
+    """Let the course's model write test questions from the notes and add them to questions.json."""
+    from wendao import suggest
+
+    provider, label = suggest.course_model()
+    chapters = suggest.load_chapters(workspace)
+    say(f"Writing test questions for {len(chapters)} chapters with {label} (one request per chapter) ...")
+    existing = suggest.read_questions(workspace.questions_path)
+    questions, had = suggest.suggest_questions(workspace, provider, chapters, existing, say=lambda *_: None)
+    suggest.add_questions(workspace, questions)
+    say(f"  Added {len(questions)} questions to questions.json" + (f"; {had} were already there." if had else "."))
+    say("  Each asks about a real page. Read them and delete or fix any that are off.")
+    say()
+
+
 def cmd_eval(args: argparse.Namespace) -> None:
     from wendao import evaluate
     from wendao.rag.pipeline import QueryPipeline
 
     workspace = load_workspace(args)
+    if args.add_questions:
+        step_questions(workspace)
     questions = evaluate.load_questions(workspace)
     if args.only:
         questions = [case for case in questions if case["id"] in set(args.only)]
@@ -569,6 +574,11 @@ def build_parser() -> argparse.ArgumentParser:
     init.set_defaults(func=cmd_init)
 
     build = commands.add_parser("build", parents=[common], help="extract notes, build the graph and the search index")
+    found = build.add_mutually_exclusive_group()
+    found.add_argument("--concepts", action="store_true",
+                       help="let your AI model look for new concepts in your notes and add them to concepts.json "
+                            "(done on its own the first time, when there are none yet)")
+    found.add_argument("--no-concepts", action="store_true", help="don't look for concepts, even if there are none yet")
     build.set_defaults(func=cmd_build)
     commands.add_parser("extract", parents=[common], help="only extract notes into chunks").set_defaults(func=cmd_extract)
     commands.add_parser("graph", parents=[common], help="only rebuild the knowledge graph").set_defaults(func=cmd_graph)
@@ -597,13 +607,6 @@ def build_parser() -> argparse.ArgumentParser:
     feedback.add_argument("--all", action="store_true", help="list helpful answers too, not only the unhelpful ones")
     feedback.add_argument("--limit", type=int, default=20, help="how many to list (default: 20)")
     feedback.set_defaults(func=cmd_feedback)
-
-    suggest = commands.add_parser("suggest", parents=[common],
-                                  help="draft concepts and test questions with your model, for you to check")
-    suggest.add_argument("what", nargs="?", choices=["all", "concepts", "questions"], default="all",
-                         help="what to draft (default: both)")
-    suggest.add_argument("--add", action="store_true", help="copy the checked drafts into concepts.json and questions.json")
-    suggest.set_defaults(func=cmd_suggest)
 
     students = commands.add_parser("students", parents=[common], help="see the class list and questions asked per student")
     students.add_argument("--all", action="store_true", help="total questions over all days instead of today")
@@ -635,6 +638,8 @@ def build_parser() -> argparse.ArgumentParser:
     level.add_argument("--answers", action="store_true", help="check prompts and citations (dry run, no model)")
     level.add_argument("--real", action="store_true", help="ask the real model every question (uses API credits)")
     evaluation.add_argument("--only", nargs="+", metavar="ID", help="only run these question ids")
+    evaluation.add_argument("--add-questions", action="store_true",
+                            help="first let your AI model write test questions from your notes and add them to questions.json")
     evaluation.set_defaults(func=cmd_eval)
     return parser
 
