@@ -109,6 +109,7 @@ class WorkspaceCliTest(unittest.TestCase):
         output = run_cli("build", "-w", str(self.root))
         self.assertIn("3 files (markdown) → 3 chunks", output)
         self.assertIn("Term: AY2026/2027 Semester 1", output)
+        self.assertNotIn("No concepts yet", output)
         for path in ["build/chunks.jsonl", "build/graph.json"]:
             self.assertTrue((self.root / path).is_file(), path)
 
@@ -125,6 +126,21 @@ class WorkspaceCliTest(unittest.TestCase):
         self.assertTrue((self.root / "build/reports/search.md").is_file())
         output = run_cli("eval", "-w", str(self.root), "--answers")
         self.assertIn("2/2 passed", output)
+
+    def test_build_says_what_to_do_without_concepts(self):
+        self.init_course()
+        starter = Path(__file__).resolve().parents[1] / "src" / "wendao" / "starter" / "concepts.json"
+        (self.root / "concepts.json").write_text(starter.read_text(encoding="utf-8"), encoding="utf-8")
+        output = run_cli("build", "-w", str(self.root))
+        self.assertIn("0 concepts", output)
+        self.assertIn("wendao suggest concepts", output)
+
+    def test_chapter_names_from_folders(self):
+        from wendao.workspace import folder_title
+
+        self.assertEqual(folder_title("models_and_theories_II"), "Models and Theories II")
+        self.assertEqual(folder_title("intro-to-DFT"), "Intro to DFT")
+        self.assertEqual(folder_title("week02"), "Week02")
 
     def test_commands_find_the_workspace_from_a_subfolder(self):
         self.init_course()

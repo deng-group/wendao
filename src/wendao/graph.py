@@ -14,6 +14,8 @@ import re
 from collections import Counter, defaultdict
 from pathlib import Path
 
+from wendao.workspace import folder_title
+
 
 def load_jsonl(path: Path) -> list[dict]:
     with path.open(encoding="utf-8") as handle:
@@ -136,7 +138,7 @@ def build_graph(
 
     for module_index, module in enumerate(ordered_modules):
         module_chunks = chunks_by_module[module]
-        default_label = "Course Information" if module == "root" else module.replace("_", " ").title()
+        default_label = "Course Information" if module == "root" else folder_title(module)
         setting = chapter_settings.get(module)
         label = setting.name if setting else default_label
         description = (setting.description if setting else "") or f"Course material for {module.replace('_', ' ')}."

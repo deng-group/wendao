@@ -143,6 +143,10 @@ def step_graph(workspace: Workspace) -> None:
         f"  {types.get('chapter', 0)} chapters, {types.get('topic', 0)} topics, {types.get('keyword', 0)} concepts, "
         f"{graph['stats']['edges']} links → {relative(workspace, workspace.graph_path)}"
     )
+    if not types.get("keyword"):
+        say("  No concepts yet, so the graph shows only chapters and pages. Let your model draft them:")
+        say("    wendao suggest concepts   then check suggestions/concepts.json, run `wendao suggest --add`,")
+        say("                              and `wendao graph`. Or list them yourself in concepts.json.")
 
 
 def step_index(workspace: Workspace, rebuild: bool = True) -> None:

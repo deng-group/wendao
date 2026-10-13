@@ -17,6 +17,7 @@ from collections import defaultdict
 from pathlib import Path
 
 from wendao.graph import alias_pattern, normalized_text
+from wendao.workspace import folder_title
 
 CONCEPTS_PER_CHAPTER = 12
 PAGES_PER_CHAPTER = 3
@@ -88,7 +89,7 @@ def load_chapters(workspace) -> list[tuple[str, str, list[dict]]]:
         chapter = settings.get(module)
         if module == "root" or (chapter and chapter.show == "hidden"):
             continue  # course information (syllabus, calendar) or chapters the teacher hid
-        chapters.append((module, chapter.name if chapter else module.replace("_", " ").title(), by_module[module]))
+        chapters.append((module, chapter.name if chapter else folder_title(module), by_module[module]))
     return chapters
 
 

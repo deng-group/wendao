@@ -15,6 +15,7 @@ Every path in `wendao.toml` is relative to the workspace folder.
 from __future__ import annotations
 
 import os
+import re
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -39,6 +40,24 @@ DEFAULT_OUT_OF_SCOPE_TERMS = [
 ]
 
 CHAPTER_VISIBILITY = {"primary", "secondary", "hidden"}
+
+SMALL_WORDS = {"a", "an", "and", "as", "at", "by", "for", "in", "of", "on", "or", "the", "to", "vs", "with"}
+
+
+def folder_title(folder: str) -> str:
+    """A readable name for a chapter folder: "models_and_theories_II" → "Models and Theories II"."""
+    words = folder.replace("_", " ").replace("-", " ").split()
+    out = []
+    for index, word in enumerate(words):
+        if re.fullmatch(r"[ivxIVX]+", word) and index:
+            out.append(word.upper())  # roman numerals: "II", not "Ii"
+        elif word.lower() in SMALL_WORDS and index:
+            out.append(word.lower())
+        elif word.isupper() or any(ch.isupper() for ch in word[1:]):
+            out.append(word)  # keep "ML", "DFT", "GitHub"
+        else:
+            out.append(word[:1].upper() + word[1:])
+    return " ".join(out)
 
 # Search engines for the widget's Search button, which looks up highlighted text ({q} = the text).
 WEB_SEARCH_ENGINES = {
@@ -260,7 +279,7 @@ def load(start: Path | None = None) -> Workspace:
         chapters.append(
             Chapter(
                 folder=item["folder"],
-                name=item.get("name", item["folder"].replace("_", " ").title()),
+                name=item.get("name", folder_title(item["folder"])),
                 description=item.get("description", ""),
                 show=show,
             )
