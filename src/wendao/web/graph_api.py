@@ -164,7 +164,7 @@ class GraphFile:
         return self._view
 
 
-NODE_FIELDS = ("id", "type", "label", "visibility", "order", "chapter_id", "chapter_ids", "aliases", "mention_count")
+NODE_FIELDS = ("id", "type", "label", "visibility", "order", "chapter_id", "chapter_ids", "aliases", "mention_count", "summary")
 EDGE_FIELDS = ("source", "target", "type", "weight")
 
 
@@ -176,8 +176,10 @@ def browser_graph(graph: dict, link_for=None) -> dict:
     nodes = []
     for node in graph.get("nodes", []):
         item = {key: node[key] for key in NODE_FIELDS if key in node}
-        if link_for and node.get("type") == "topic" and node.get("source_files"):
-            url = link_for(node["source_files"][0])
+        # The page to open: a page itself; for a concept, where its introduction comes from; a chapter's index page.
+        page = node["source_files"][0] if node.get("type") == "topic" and node.get("source_files") else node.get("summary_file")
+        if link_for and page:
+            url = link_for(page)
             if url:
                 item["url"] = url
         nodes.append(item)

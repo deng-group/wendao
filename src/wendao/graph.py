@@ -57,6 +57,78 @@ def detect_concepts(text: str, taxonomy: list[dict]) -> dict[str, int]:
     return found
 
 
+# ---------- short introductions, taken from the course text itself ----------
+
+DEFINES = r"(?:is|are|was|refers to|describes|means|denotes|represents|is defined as|is called|stands for)"
+
+
+def plain_sentences(text: str) -> list[str]:
+    """Readable sentences from a Markdown page: no code, directives, math, tables, headings, or link syntax."""
+    text = re.sub(r"```.*?```", " ", text, flags=re.S)
+    text = re.sub(r"\$\$.*?\$\$", " ", text, flags=re.S)
+    lines = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith(("#", "|", ":", "<", "!", "%", "+++", "---", "Temporal context:")):
+            lines.append("")  # paragraph break
+            continue
+        lines.append(re.sub(r"^\s*(?:[-*]|\d+[.)])\s+", "", stripped))
+    text = "\n".join(lines)
+    text = re.sub(r"!?\[([^\]]*)\]\([^)]*\)", r"\1", text)  # links and images -> their text
+    text = re.sub(r"\{[a-z-]+\}`([^`]*)`", r"\1", text)    # MyST roles
+    text = re.sub(r"[*_`]{1,3}", "", text)
+    sentences = []
+    for paragraph in re.split(r"\n\s*\n", text):
+        paragraph = " ".join(paragraph.split())
+        sentences.extend(part.strip() for part in re.split(r"(?<=[.!?])\s+(?=[A-Z(])", paragraph) if part.strip())
+    return sentences
+
+
+def concept_summary(aliases: list[str], label: str, chunks: list[dict]) -> tuple[str, str]:
+    """The sentence in the notes that best introduces a concept, and the page it is on ("" if none).
+
+    A definition ("X is ...", "X refers to ...") counts most, then a sentence that starts with the concept, then a
+    readable length. Sentences with leftover math or markup are passed over.
+    """
+    names = sorted({label.lower(), *(alias.lower() for alias in aliases)}, key=len, reverse=True)
+    name_pattern = "|".join(re.escape(name).replace(r"\ ", r"[\s\-/]+") for name in names)
+    mentions = re.compile(rf"(?<![a-z0-9])(?:{name_pattern})(?![a-z0-9])", re.IGNORECASE)
+    defines = re.compile(rf"(?<![a-z0-9])(?:{name_pattern})(?![a-z0-9])[^.]{{0,40}}?\b{DEFINES}\b", re.IGNORECASE)
+    starts = re.compile(rf"^(?:(?:a|an|the)\s+)?(?:{name_pattern})(?![a-z0-9])", re.IGNORECASE)
+    best, best_score, best_file = "", 0.0, ""
+    for order, chunk in enumerate(chunks):
+        about_it = bool(mentions.search(str(chunk.get("title", ""))))
+        for sentence in plain_sentences(str(chunk.get("content", ""))):
+            if not mentions.search(sentence) or not 40 <= len(sentence) <= 320:
+                continue
+            score = 1.0
+            definition = defines.search(sentence)
+            # A definition counts most when the concept is the subject, near the start of the sentence.
+            score += (4 if definition.start() < 45 else 1) if definition else 0
+            score += 2 if starts.search(sentence) else 0
+            score -= 2 if re.match(r"(?:it|this|these|they|that|such|here|in this)\b", sentence, re.IGNORECASE) else 0
+            score += 1 if about_it else 0
+            score += 0.5 if 60 <= len(sentence) <= 240 else 0
+            score -= 3 if re.search(r"[$\\{}<>|=]", sentence) else 0
+            score -= order * 1e-4  # earlier in the course wins a tie
+            if score > best_score:
+                best, best_score, best_file = sentence, score, chunk.get("file_path", "")
+    return best, best_file
+
+
+def chapter_intro(module_chunks: list[dict]) -> tuple[str, str]:
+    """A chapter's name and opening paragraph, from its index page (README) if it has one."""
+    index = [chunk for chunk in module_chunks if Path(chunk.get("file_path", "")).stem.lower() in {"index", "readme"}]
+    if not index:
+        return "", ""
+    title = str(index[0].get("title", "")).strip()
+    for sentence_list in (plain_sentences(str(chunk.get("content", ""))) for chunk in index):
+        intro = " ".join(sentence_list[:2]).strip()
+        if len(intro) >= 30 and not re.search(r"[$\\{}<>|]", intro):
+            return title, intro[:320]
+    return title, ""
+
+
 def edge_key(source: str, target: str, edge_type: str) -> tuple[str, str, str]:
     if edge_type == "related" and source > target:
         source, target = target, source
@@ -129,7 +201,7 @@ def build_graph(
     edge_keys = set()
 
     ordered_modules = [module for module in chapter_order if module in chunks_by_module]
-    ordered_modules.extend(sorted(module for module in chunks_by_module if module not in ordered_modules))
+    ordered_modules.extend(module for module in chunks_by_module if module not in ordered_modules)  # notes order
 
     topic_concepts: dict[str, set[str]] = {}
     topic_evidence: dict[str, dict[str, list[str]]] = {}
@@ -138,10 +210,11 @@ def build_graph(
 
     for module_index, module in enumerate(ordered_modules):
         module_chunks = chunks_by_module[module]
-        default_label = "Course Information" if module == "root" else folder_title(module)
+        index_title, index_intro = chapter_intro(module_chunks)
+        default_label = "Course Information" if module == "root" else (index_title or folder_title(module))
         setting = chapter_settings.get(module)
         label = setting.name if setting else default_label
-        description = (setting.description if setting else "") or f"Course material for {module.replace('_', ' ')}."
+        description = (setting.description if setting else "") or index_intro or f"Course material for {module.replace('_', ' ')}."
         section_keys = sorted(
             {(chunk.get("section", "unknown"), chunk.get("title") or chunk.get("section", "unknown")) for chunk in module_chunks},
             key=lambda item: (item[0] == "index", item[0]),
@@ -164,6 +237,9 @@ def build_graph(
                 "chunk_ids": [chunk["chunk_id"] for chunk in module_chunks],
                 "source_files": sorted({chunk["file_path"] for chunk in module_chunks}),
                 "keyword_ids": [keyword_id(value) for value in chapter_keywords],
+                "summary": (setting.description if setting else "") or index_intro,
+                "summary_file": next((path for path in sorted({chunk["file_path"] for chunk in module_chunks})
+                                      if Path(path).stem.lower() in {"index", "readme"}), ""),
             }
         )
 
@@ -256,12 +332,18 @@ def build_graph(
         linked_chapters = sorted(
             chapter_id(module) for module, concepts in module_concepts.items() if concept in concepts
         )
+        concept_chunk_ids = set(concept_chunks[concept])
+        summary, summary_file = concept_summary(
+            item["aliases"], item["label"], [chunk for chunk in chunks if chunk["chunk_id"] in concept_chunk_ids]
+        )
         nodes.append(
             {
                 "id": keyword_id(concept),
                 "type": "keyword",
                 "label": item["label"],
                 "description": f"A course concept in the {item['category'].replace('-', ' ')} group.",
+                "summary": summary,
+                "summary_file": summary_file,
                 "category": item["category"],
                 "aliases": item["aliases"],
                 "visibility": "primary",

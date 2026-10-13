@@ -200,8 +200,8 @@ def cmd_build(args: argparse.Namespace) -> None:
     say(RESTART_NOTE)
 
 
-# The web apps read the graph and search index when they start.
-RESTART_NOTE = "If `wendao serve` is already running, stop it (Ctrl+C) and start it again to see the changes."
+# A running server shows a new graph by itself, but answers use the notes it loaded when it started.
+RESTART_NOTE = "If `wendao serve` is running, restart it (Ctrl+C, then start it again) so answers use the new notes."
 
 
 def cmd_extract(args: argparse.Namespace) -> None:
@@ -210,8 +210,7 @@ def cmd_extract(args: argparse.Namespace) -> None:
 
 
 def cmd_graph(args: argparse.Namespace) -> None:
-    step_graph(load_workspace(args))
-    say(RESTART_NOTE)
+    step_graph(load_workspace(args))  # a running `wendao serve` picks up the new graph by itself
 
 
 def cmd_index(args: argparse.Namespace) -> None:

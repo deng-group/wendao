@@ -221,9 +221,9 @@ const LINK_STRENGTH = { contains: 0.8, covers: 0.5, sequence: 0.04 };
 const CHAPTERS_PER_CONCEPT = 2;
 const SHOWN_LINK_TYPES = new Set(["contains", "covers", "mentions", "sequence"]); // what hover shows
 const CHARGE = { chapter: -1400, topic: -90, keyword: -110 };
-const VELOCITY_DECAY = 0.28; // a little momentum: nodes swing past and settle, instead of gliding to a stop
+const VELOCITY_DECAY = 0.4; // calm: nodes glide to a stop
 // Once the graph has settled, each node remembers its spot and is pulled back to it like a rubber band.
-const HOME_PULL = 0.12;
+const HOME_PULL = 0.05; // gentle: it drifts back rather than snapping
 const ALPHA_MIN = 0.001;
 const ALPHA_DECAY = 1 - Math.pow(ALPHA_MIN, 1 / 300);
 
@@ -818,7 +818,7 @@ elements.canvas.addEventListener("pointerdown", (event) => {
   elements.canvas.setPointerCapture(event.pointerId);
   if (item) {
     item.fx = item.x; item.fy = item.y;
-    state.alphaTarget = 0.5; startPhysics(0.5);
+    state.alphaTarget = 0.2; startPhysics(0.2); // dragging stirs the graph a little, not a lot
     state.pointer = { kind: "node", item, startX: event.clientX, startY: event.clientY, moved: false };
   } else {
     state.pointer = { kind: "pan", startX: event.clientX, startY: event.clientY, originX: state.transform.x, originY: state.transform.y, moved: false };
@@ -851,7 +851,7 @@ function endPointer(event) {
   if (pointer.kind === "node") {
     pointer.item.fx = null; pointer.item.fy = null; // let go: it springs back into place
     state.alphaTarget = 0;
-    startPhysics(0.7); // warm enough for the spring-back to be seen
+    startPhysics(0.3); // enough to drift back into place
     if (!pointer.moved && event.type === "pointerup") selectNode(pointer.item.id);
   } else if (!pointer.moved && event.type === "pointerup") {
     clearSelection();
@@ -879,9 +879,16 @@ function showNodeCard(node) {
   elements.nodeKind.textContent = node.type === "topic" ? "page" : kind;
   elements.nodeKind.style.color = node.type === "chapter" ? "var(--chapter)" : node.type === "topic" ? "var(--page)" : "var(--concept)";
   elements.nodeTitle.textContent = node.label;
+  // A short introduction, from the course text itself, and where to read more.
+  const summary = document.querySelector("#node-summary");
+  summary.textContent = node.summary || "";
+  summary.hidden = !node.summary;
   const openPage = document.querySelector("#open-page");
   openPage.hidden = !node.url;
-  if (node.url) openPage.href = node.url;
+  if (node.url) {
+    openPage.href = node.url;
+    openPage.firstChild.textContent = node.type === "topic" ? "Open page " : "Read more in the course ";
+  }
   elements.nodeCard.hidden = false;
 }
 
@@ -1216,7 +1223,20 @@ document.addEventListener("click", (event) => {
   if (!event.target.closest(".search-box") && !event.target.closest(".search-results")) elements.searchResults.hidden = true;
 });
 document.querySelector("#reset-view").addEventListener("click", setInitialView);
-document.querySelector("#fit-view").addEventListener("click", fitGraph);
+// Full screen: the whole graph page fills the screen (Escape or the button again leaves).
+const fullScreenButton = document.querySelector("#fit-view");
+if (!document.fullscreenEnabled) fullScreenButton.hidden = true; // e.g. a frame that doesn't allow it
+fullScreenButton.addEventListener("click", () => {
+  if (document.fullscreenElement) document.exitFullscreen();
+  else document.documentElement.requestFullscreen().catch(() => { fullScreenButton.hidden = true; });
+});
+document.addEventListener("fullscreenchange", () => {
+  const on = Boolean(document.fullscreenElement);
+  fullScreenButton.title = on ? "Leave full screen" : "Full screen";
+  fullScreenButton.setAttribute("aria-label", fullScreenButton.title);
+  fullScreenButton.classList.toggle("active", on);
+  requestAnimationFrame(() => { resizeCanvas(); });
+});
 elements.legendChapter.addEventListener("click", () => toggleKind("chapter"));
 elements.legendPage.addEventListener("click", () => toggleKind("topic"));
 elements.legendConcept.addEventListener("click", () => toggleKind("keyword"));

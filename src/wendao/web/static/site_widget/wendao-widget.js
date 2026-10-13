@@ -330,7 +330,7 @@
         </div>
 
         <div class="wdw-view" data-view="graph" hidden>
-          <iframe class="wdw-graph-frame" data-ref="graphFrame" title="Course knowledge graph"></iframe>
+          <iframe class="wdw-graph-frame" data-ref="graphFrame" title="Course knowledge graph" allow="fullscreen" allowfullscreen></iframe>
         </div>
       </section>
       <div class="wdw-pick" data-ref="pick" role="toolbar" aria-label="Ask Wendao about the highlighted text" hidden>

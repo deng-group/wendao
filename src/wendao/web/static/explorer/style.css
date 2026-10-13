@@ -13,6 +13,7 @@
   --accent-soft: rgba(227, 18, 11, 0.07);
   --accent-line: rgba(227, 18, 11, 0.3);
   --navy: #1f2e7a;
+  --on-accent: #ffffff; /* text on accent-filled buttons */
   --chapter: #e3120b;
   --concept: #006ba2;
   --page: #a6a6a6;
@@ -305,3 +306,16 @@ a.ask-node { text-decoration: none; }
 .segmented button:hover { color: var(--text); }
 .segmented button[aria-pressed="true"] { color: var(--text); background: var(--panel); box-shadow: 0 1px 3px rgba(18, 18, 18, 0.12); }
 .embedded .appearance { display: none; }
+
+/* Filled buttons: accent background, readable text in every style and mode */
+.context-bar .explain-node, .dark .context-bar .explain-node, .composer-footer button, .ai-settings-actions .primary {
+  color: var(--on-accent); background: var(--accent); border-color: var(--accent); }
+.context-bar .explain-node:hover, .composer-footer button:hover { background: var(--accent-strong); }
+.context-bar .explain-node:disabled { opacity: 0.6; cursor: wait; }
+.dark { --on-accent: #120404; }
+.style-modern.dark { --on-accent: #0b0b14; }
+.dark .context-bar .explain-node:hover, .dark .composer-footer button:hover { background: var(--accent-strong); }
+.icon-control.active { border-color: var(--accent-line); background: var(--accent-soft); }
+.icon-control.active svg { stroke: var(--accent); }
+.node-summary { margin: 10px 0 0; color: var(--muted); font-size: 0.9rem; line-height: 1.5; }
+.embedded .node-summary { font-size: 0.82rem; max-height: 7.5em; overflow: auto; }
