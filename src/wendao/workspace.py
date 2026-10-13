@@ -196,6 +196,8 @@ class Workspace:
             os.environ.setdefault("LLM_PROVIDER", str(provider))
         if "temperature" in self.model:
             os.environ.setdefault("LLM_TEMPERATURE", str(self.model["temperature"]))
+        if "max_tokens" in self.model:
+            os.environ.setdefault("LLM_MAX_TOKENS", str(self.model["max_tokens"]))
         for key, env_name in MODEL_ENV.get(str(provider or ""), {}).items():
             if self.model.get(key):
                 os.environ.setdefault(env_name, str(self.model[key]))

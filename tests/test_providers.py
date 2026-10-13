@@ -245,3 +245,84 @@ class ErrorsNameTheModelTest(unittest.TestCase):
             openai = providers.provider_from_name("openai", model="gpt-4.1-mini")
             with self.assertRaisesRegex(RuntimeError, "API error 503 for model gpt-4.1-mini: .*No available accounts"):
                 openai.generate(self.package())
+
+
+class ThinkingServer(BaseHTTPRequestHandler):
+    """Answers like DeepSeek through an Anthropic-style relay: thinking first, then (maybe) the answer."""
+
+    answer = ""  # empty: the thinking used up the token limit
+    seen_max_tokens = []
+
+    def do_POST(self):  # noqa: N802 - http.server naming
+        request_body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))))
+        type(self).seen_max_tokens.append(request_body.get("max_tokens"))
+        stop = "end_turn" if self.answer else "max_tokens"
+        self.send_response(200)
+        if not request_body.get("stream"):
+            content = [{"type": "thinking", "thinking": "SECRET THOUGHTS", "signature": "x"}]
+            if self.answer:
+                content.append({"type": "text", "text": self.answer})
+            body = json.dumps({"model": "deepseek-v4-flash", "content": content, "stop_reason": stop}).encode()
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        self.send_header("Content-Type", "text/event-stream")
+        self.end_headers()
+        events = [{"type": "message_start", "message": {}},
+                  {"type": "content_block_delta", "index": 0, "delta": {"type": "thinking_delta", "thinking": "SECRET THOUGHTS"}}]
+        if self.answer:
+            events.append({"type": "content_block_delta", "index": 1, "delta": {"type": "text_delta", "text": self.answer}})
+        events += [{"type": "message_delta", "delta": {"stop_reason": stop}}, {"type": "message_stop"}]
+        for event in events:
+            self.wfile.write(f"event: {event['type']}\ndata: {json.dumps(event)}\n\n".encode())
+
+    def log_message(self, *args):
+        pass
+
+
+class ThinkingModelTest(unittest.TestCase):
+    """Models that think before answering: show only the answer, never the raw reply or the thinking."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.server = HTTPServer(("127.0.0.1", 0), ThinkingServer)
+        threading.Thread(target=cls.server.serve_forever, daemon=True).start()
+        cls.env = {"ANTHROPIC_BASE_URL": f"http://127.0.0.1:{cls.server.server_address[1]}", "ANTHROPIC_AUTH_TOKEN": "sk-test"}
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.server.shutdown()
+        cls.server.server_close()
+
+    def setUp(self):
+        ThinkingServer.answer = ""
+        ThinkingServer.seen_max_tokens = []
+
+    def provider(self):
+        return providers.provider_from_name("anthropic", model="deepseek-v4-flash")
+
+    def package(self):
+        return {"messages": [{"role": "system", "content": "s"}, {"role": "user", "content": "u"}], "evidence": []}
+
+    def test_only_the_answer_is_shown(self):
+        ThinkingServer.answer = "A convex hull is the lowest-energy envelope."
+        with mock.patch.dict(os.environ, self.env):
+            self.assertEqual(self.provider().generate(self.package())["answer"], ThinkingServer.answer)
+            self.assertEqual("".join(self.provider().stream(self.package())), ThinkingServer.answer)
+        self.assertEqual(ThinkingServer.seen_max_tokens, [8192, 8192])  # room for thinking and the answer
+
+    def test_thinking_that_uses_up_the_limit_gives_a_clear_error(self):
+        with mock.patch.dict(os.environ, {**self.env, "LLM_MAX_TOKENS": "3000"}):
+            for call in (lambda: self.provider().generate(self.package()), lambda: list(self.provider().stream(self.package()))):
+                with self.assertRaises(RuntimeError) as caught:
+                    call()
+                message = str(caught.exception)
+                self.assertIn("thinking used up the 3000-token limit", message)
+                self.assertIn("max_tokens", message)
+                self.assertNotIn("SECRET THOUGHTS", message)  # never the raw reply
+        self.assertEqual(ThinkingServer.seen_max_tokens, [3000, 3000])
+
+    def test_max_tokens_setting(self):
+        with mock.patch.dict(os.environ, {"LLM_MAX_TOKENS": "lots"}), self.assertRaisesRegex(RuntimeError, "whole number"):
+            providers.max_tokens_setting()

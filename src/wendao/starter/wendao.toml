@@ -52,3 +52,4 @@ ai = "teacher"                # "teacher" (your key, kept on your server), "stud
 # model = "gpt-4.1-mini"
 # base_url = "https://api.openai.com/v1"   # for anthropic/openai; e.g. http://localhost:11434/v1 for Ollama
 # temperature = 0.2           # use "none" for models that don't accept one
+# max_tokens = 8192           # longest reply; models that think first (e.g. DeepSeek) need room for that too
