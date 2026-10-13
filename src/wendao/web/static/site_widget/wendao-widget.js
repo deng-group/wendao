@@ -106,7 +106,9 @@
     });
     html = html.split(/(<[^>]+>)/g).map((part) => (part.startsWith("<") ? part
       : part.replace(/\b[a-zA-Z0-9_.-]+(?:\/[a-zA-Z0-9_.-]+)+\.(?:md|ipynb)\b/g, (path) => `<a href="${escapeHtml(coursePathToHref(path))}">${path}</a>`))).join("");
-    return html.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>").replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\n/g, "<br>");
+    return html.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+      .replace(/(^|[^*\w])\*(\S(?:[^*\n]*\S)?)\*(?![*\w])/g, "$1<em>$2</em>")
+      .replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\n/g, "<br>");
   }
 
   function renderBlocks(text) {

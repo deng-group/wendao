@@ -138,6 +138,10 @@
 .wdw-meta { color: var(--wdw-muted); font-size: 11px; }
 .wdw-bubble p { margin: 0 0 8px; } .wdw-bubble p:last-child { margin-bottom: 0; }
 .wdw-bubble ul, .wdw-bubble ol { margin: 4px 0 8px; padding-left: 20px; }
+.wdw-bubble ul { list-style: disc outside; }
+.wdw-bubble ol { list-style: decimal outside; }
+.wdw-bubble ul ul { list-style-type: circle; }
+.wdw-bubble li { display: list-item; margin: 2px 0; }
 .wdw-bubble h2, .wdw-bubble h3, .wdw-bubble h4 { margin: 10px 0 6px; font-size: 14px; }
 .wdw-bubble code { padding: 1px 5px; border-radius: 5px; background: var(--wdw-accent-soft); font-size: 12.5px; }
 .wdw-bubble pre { margin: 8px 0; padding: 10px; overflow-x: auto; border-radius: 9px; background: var(--wdw-raised); border: 1px solid var(--wdw-line); font-size: 12.5px; }
