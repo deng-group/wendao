@@ -8,6 +8,7 @@ const SIGN_IN_KEY = "wendao_sign_in_v1";
 // widget's chat, the widget says which page the student is on (focus) and whether the site is dark.
 const PARAMS = new URLSearchParams(window.location.search);
 const EMBEDDED = PARAMS.has("embed") && window.parent !== window;
+if (PARAMS.get("style") === "modern") document.documentElement.classList.add("style-modern");
 if (EMBEDDED) {
   document.documentElement.classList.add("embedded");
   document.documentElement.classList.toggle("dark", PARAMS.get("theme") === "dark");
@@ -513,13 +514,26 @@ function rememberHomes() {
 
 // ---------- drawing ----------
 function readColours() {
+  updateTabIcon();
   const style = getComputedStyle(document.documentElement);
   const value = (name, fallback) => style.getPropertyValue(name).trim() || fallback;
   state.colours = {
     chapter: value("--chapter", "#2563eb"), topic: value("--page", "#64748b"), keyword: value("--concept", "#d97706"),
     text: value("--text", "#17233a"), link: value("--link", "rgba(70, 94, 128, 0.22)"),
-    linkActive: value("--link-active", "rgba(37, 99, 235, 0.65)"), halo: value("--bg", "#f7f9fc"),
+    linkActive: value("--link-active", "rgba(37, 99, 235, 0.65)"), halo: value("--bg", "#f7f9fc"), glow: value("--glow", ""),
   };
+}
+
+// The browser-tab icon in the same colours as the logo on the page.
+function updateTabIcon() {
+  const style = getComputedStyle(document.documentElement);
+  const colour = (name) => style.getPropertyValue(name).trim();
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 128 128'><defs><linearGradient id='t' x1='0' y1='0' x2='1' y2='1'>`
+    + `<stop offset='0' stop-color='${colour("--logo-from")}'/><stop offset='1' stop-color='${colour("--logo-to")}'/></linearGradient></defs>`
+    + `<rect x='4' y='4' width='120' height='120' rx='28' fill='url(#t)'/><path d='M44 50 C44 35 53 27 64 27 C77 27 86 36 86 47 C86 58 78 63 71 67 C66 70 64 73 64 81' `
+    + `fill='none' stroke='${colour("--logo-mark")}' stroke-width='10' stroke-linejoin='round'/><circle cx='64' cy='98' r='7' fill='${colour("--logo-dot")}'/></svg>`;
+  const icon = document.querySelector('link[rel="icon"]');
+  if (icon) icon.href = `data:image/svg+xml,${svg.replace(/#/g, "%23")}`;
 }
 
 function resizeCanvas() {
@@ -603,6 +617,12 @@ function render() {
     context.beginPath();
     for (const item of items) { context.moveTo(item.x + item.r, item.y); context.arc(item.x, item.y, item.r, 0, Math.PI * 2); }
     context.fill();
+  }
+  const glowing = colours.glow && focus && state.sim.byId.get(focus);
+  if (glowing && isShownNode(glowing)) { // a soft glow around the node in focus (modern style)
+    context.save(); context.globalAlpha = 1; context.shadowColor = colours.glow; context.shadowBlur = 18 * (state.ratio || 1);
+    context.fillStyle = colours[glowing.node.type] || colours.keyword;
+    context.beginPath(); context.arc(glowing.x, glowing.y, glowing.r, 0, Math.PI * 2); context.fill(); context.restore();
   }
   const selected = state.selectedId && state.sim.byId.get(state.selectedId);
   if (selected && isShownNode(selected)) {
