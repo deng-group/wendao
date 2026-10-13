@@ -9,6 +9,9 @@
   --muted: #66758c;
   --chapter: #2563eb;
   --concept: #d97706;
+  --page: #7c8aa0;
+  --link: rgba(70, 94, 128, 0.2);
+  --link-active: rgba(37, 99, 235, 0.7);
   --danger: #b42318;
   --chat-width: clamp(340px, 31vw, 470px);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -51,22 +54,6 @@ kbd { padding: 3px 6px; border: 1px solid var(--line); border-radius: 5px; color
 
 .graph-stage { position: absolute; inset: 78px 0 0; overflow: hidden; }
 .graph-load-error { position: absolute; inset: 0; display: grid; place-items: center; padding: 32px; color: var(--danger); text-align: center; }
-#graph-svg { width: 100%; height: 100%; cursor: grab; touch-action: none; }
-#graph-svg:active { cursor: grabbing; }
-.edge { stroke: rgba(70, 94, 128, 0.23); stroke-width: 1; }
-.edge.active { stroke: rgba(37, 99, 235, 0.62); stroke-width: 1.7; }
-.node { cursor: pointer; outline: none; }
-.node .hit-area { fill: transparent; stroke: transparent; pointer-events: all; }
-.node .halo { opacity: 0; transition: opacity .18s ease; }
-.node:hover .halo, .node.selected .halo { opacity: .27; }
-.node .core { stroke-width: 1.5; transition: transform .18s ease, filter .18s ease; transform-box: fill-box; transform-origin: center; }
-.node:hover .core, .node.selected .core { transform: scale(1.12); filter: url(#node-glow); }
-.node.chapter .core { fill: #eaf1ff; stroke: var(--chapter); }
-.node.concept .core { fill: #fff3df; stroke: var(--concept); }
-.node text { fill: #23314a; font-size: 12px; font-weight: 600; text-anchor: middle; paint-order: stroke; stroke: rgba(255,255,255,.96); stroke-width: 4px; stroke-linejoin: round; pointer-events: auto; cursor: pointer; }
-.node.chapter text { font-size: 13px; font-weight: 700; }
-.dense-concepts .node.concept text { opacity: 0; transition: opacity .15s ease; }
-.dense-concepts .node.concept:hover text, .dense-concepts .node.concept.selected text { opacity: 1; }
 
 .graph-hint { position: absolute; top: 20px; left: 24px; display: flex; align-items: center; gap: 8px; color: #66758c; font-size: 0.78rem; pointer-events: none; }
 .graph-hint span { width: 7px; height: 7px; border-radius: 50%; background: var(--chapter); box-shadow: 0 0 0 4px rgba(37,99,235,.1); }
@@ -75,7 +62,7 @@ kbd { padding: 3px 6px; border: 1px solid var(--line); border-radius: 5px; color
 .legend button:hover { color: #23314a; background: #f1f5f9; }
 .legend button[aria-pressed="true"] { color: #17233a; background: #edf2f8; box-shadow: inset 0 0 0 1px var(--line); font-weight: 700; }
 .legend i { width: 7px; height: 7px; border-radius: 50%; }
-.chapter-dot { background: var(--chapter); }.concept-dot { background: var(--concept); }
+.chapter-dot { background: var(--chapter); }.page-dot { background: var(--page); }.concept-dot { background: var(--concept); }
 
 .node-card { position: absolute; z-index: 6; left: 24px; bottom: 64px; width: min(380px, calc(100% - 48px)); padding: 20px; border: 1px solid var(--line-strong); border-radius: 14px; background: rgba(255, 255, 255, 0.96); box-shadow: 0 20px 50px rgba(38,57,84,.16); backdrop-filter: blur(18px); }
 .card-close { position: absolute; top: 10px; right: 10px; width: 30px; height: 30px; border: 0; color: var(--muted); background: transparent; cursor: pointer; font-size: 1.35rem; }
@@ -227,20 +214,37 @@ kbd { padding: 3px 6px; border: 1px solid var(--line); border-radius: 5px; color
 .embedded .ask-node { margin-top: 10px; }
 .embedded #explain-in-widget { margin-top: 14px; }
 
-/* Dark, when the course website is dark */
-.embedded.dark { color-scheme: dark; --bg: #0f1420; --panel: #151b29; --panel-2: #1a2132; --line: rgba(148, 163, 184, 0.16);
-  --line-strong: rgba(148, 163, 184, 0.3); --text: #e7eaf3; --muted: #9aa3b5; --chapter: #60a5fa; --concept: #fbbf24; }
-.embedded.dark .graph-workspace { background: var(--bg); }
-.embedded.dark .graph-header { background: rgba(15, 20, 32, 0.9); }
-.embedded.dark .search-box, .embedded.dark .icon-control { background: var(--panel); }
-.embedded.dark .icon-control svg { stroke: var(--muted); }
-.embedded.dark .edge { stroke: rgba(148, 163, 184, 0.22); }
-.embedded.dark .edge.active { stroke: rgba(96, 165, 250, 0.75); }
-.embedded.dark .node.chapter .core { fill: #172554; }
-.embedded.dark .node.concept .core { fill: #3b2a0a; }
-.embedded.dark .node text { fill: #e7eaf3; stroke: rgba(15, 20, 32, 0.92); }
-.embedded.dark .legend, .embedded.dark .node-card, .embedded.dark .search-results { background: rgba(21, 27, 41, 0.96); color: var(--muted); }
-.embedded.dark .legend button { color: var(--muted); }
-.embedded.dark .legend button:hover, .embedded.dark .legend button[aria-pressed="true"] { color: var(--text); background: var(--panel-2); }
-.embedded.dark .search-result:hover, .embedded.dark .search-result:focus { background: var(--panel-2); }
-.embedded.dark .ask-node { color: #93c5fd; border-color: rgba(96, 165, 250, 0.35); background: rgba(96, 165, 250, 0.1); }
+/* Dark: follows the computer's setting, or the course website's theme inside the widget */
+.dark { color-scheme: dark; --bg: #0f1420; --panel: #151b29; --panel-2: #1a2132; --line: rgba(148, 163, 184, 0.16);
+  --line-strong: rgba(148, 163, 184, 0.3); --text: #e7eaf3; --muted: #9aa3b5; --chapter: #60a5fa; --concept: #fbbf24;
+  --page: #94a3b8; --link: rgba(148, 163, 184, 0.18); --link-active: rgba(96, 165, 250, 0.8); }
+.dark .graph-workspace { background: var(--bg); }
+.dark .graph-header { background: rgba(15, 20, 32, 0.9); }
+.dark .search-box, .dark .icon-control { background: var(--panel); }
+.dark .icon-control svg { stroke: var(--muted); }
+.dark .legend, .dark .node-card, .dark .search-results { background: rgba(21, 27, 41, 0.96); color: var(--muted); }
+.dark .legend button { color: var(--muted); }
+.dark .legend button:hover, .dark .legend button[aria-pressed="true"] { color: var(--text); background: var(--panel-2); }
+.dark .search-result:hover, .dark .search-result:focus { background: var(--panel-2); }
+.dark .ask-node { color: #93c5fd; border-color: rgba(96, 165, 250, 0.35); background: rgba(96, 165, 250, 0.1); }
+
+#graph-canvas { display: block; width: 100%; height: 100%; cursor: grab; touch-action: none; }
+#graph-canvas:active { cursor: grabbing; }
+.dark .search-box, .dark .icon-control, .dark .chat-launcher, .dark .chat-clear, .dark .chat-close, .dark .composer,
+.dark .ai-settings, .dark .ai-settings input, .dark .ai-settings select, .dark .ai-settings-actions button { background: var(--panel); color: var(--text); }
+.dark .chat-launcher, .dark .context-bar button, .dark .message-body a { color: #93c5fd; }
+.dark .chat-launcher { border-color: rgba(96, 165, 250, 0.35); }
+.dark .icon-control:hover, .dark .chat-clear:hover, .dark .chat-close:hover, .dark .chat-launcher:hover,
+.dark .suggestions button:hover, .dark .source-item:hover { background: var(--panel-2); color: var(--text); }
+.dark .chat-panel { background: var(--bg); }
+.dark .chat-clear, .dark .chat-close, .dark .grounded-badge, .dark .context-bar { color: var(--muted); }
+.dark .message p, .dark .message-body { color: #cdd5e3; }
+.dark .message-body h2, .dark .message-body h3, .dark .message-body h4, .dark .message-body h5, .dark .message-heading { color: var(--text); }
+.dark .message-body code { color: #dbe4f3; background: #1f2937; }
+.dark .message-body pre { background: #111827; }
+.dark .message-body blockquote { color: var(--muted); }
+.dark .message.user p { color: #ffffff; }
+.dark .suggestions button, .dark .source-drawer > button { color: var(--muted); background: var(--panel); }
+.dark .source-drawer b { color: var(--text); background: var(--panel-2); }
+.dark .source-item strong { color: #cbd5e1; }
+.dark .composer textarea::placeholder, .dark .search-box input::placeholder { color: #6b7a90; }

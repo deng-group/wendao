@@ -18,10 +18,7 @@ function tellWidget(type, node) {
 
 const elements = {
   shell: document.querySelector(".app-shell"),
-  svg: document.querySelector("#graph-svg"),
-  viewport: document.querySelector("#graph-viewport"),
-  edgeLayer: document.querySelector("#edge-layer"),
-  nodeLayer: document.querySelector("#node-layer"),
+  canvas: document.querySelector("#graph-canvas"),
   stage: document.querySelector("#graph-stage"),
   search: document.querySelector("#graph-search"),
   searchResults: document.querySelector("#search-results"),
@@ -46,6 +43,7 @@ const elements = {
   sourceCount: document.querySelector("#source-count"),
   graphHint: document.querySelector("#graph-hint"),
   legendChapter: document.querySelector("#legend-chapter"),
+  legendPage: document.querySelector("#legend-page"),
   legendConcept: document.querySelector("#legend-concept"),
   aiBadge: document.querySelector("#ai-badge"),
   aiButton: document.querySelector("#open-ai-settings"),
@@ -139,17 +137,21 @@ const state = {
   graph: null,
   nodesById: new Map(),
   edgesByNode: new Map(),
-  visibleIds: new Set(),
-  visibleEdges: [],
-  positions: new Map(),
-  nodeElements: new Map(),
-  edgeElements: [],
+  sim: null,
+  alpha: 1,
+  alphaTarget: 0,
+  frame: null,
+  viewFrame: null,
+  fitPending: true,
+  hiddenKinds: new Set(), // node kinds switched off in the legend
+  hoverId: null,
   selectedId: null,
   transform: { x: 0, y: 0, k: 1 },
-  simulationFrame: null,
-  simulationEnergy: 0,
+  ratio: 1,
+  size: null,
+  viewTouched: false, // the student panned or zoomed: don't move the view for them
+  colours: null,
   pointer: null,
-  mode: "overview",
   activeExplanationController: null,
   activeQuestionController: null,
   chatAutoFollow: true,
@@ -164,7 +166,7 @@ function setChatOpen(open, options = {}) {
   elements.openChat.hidden = open;
   elements.openChat.setAttribute("aria-expanded", String(open));
   requestAnimationFrame(() => {
-    if (state.graph) fitGraph();
+    if (state.graph) { resizeCanvas(); fitGraph(); }
     if (open && options.focusQuestion !== false) elements.question.focus();
     if (!open && options.restoreFocus !== false) elements.openChat.focus();
   });
@@ -189,67 +191,26 @@ function svgElement(name, attributes = {}) {
   return element;
 }
 
-function radiusFor(node) {
-  if (node.type === "chapter") return 18;
-  return 11;
-}
+// ---------- the knowledge graph: every chapter, page and concept, drawn on a canvas with live physics ----------
+// Like Obsidian's graph view: nodes push each other apart and links pull like springs, so the layout settles by
+// itself. Dragging a node pulls its neighbours along and it springs back when let go. Hover a node to see what it
+// connects to; zoom in for labels.
+const KINDS = { chapter: "Chapter", topic: "Page", keyword: "Concept" };
+// Links drawn and simulated: a chapter holds its pages, a page mentions concepts, chapters follow each other.
+const LINK_TYPES = { contains: 70, mentions: 48, sequence: 140 };
+const CHARGE = { chapter: -420, topic: -70, keyword: -95 };
+const VELOCITY_DECAY = 0.4;
+const ALPHA_MIN = 0.001;
+const ALPHA_DECAY = 1 - Math.pow(ALPHA_MIN, 1 / 300);
 
 function visualType(node) {
   return node.type === "chapter" ? "chapter" : "concept";
 }
-
 function primaryChapters() {
   return state.graph.nodes
     .filter((node) => node.type === "chapter" && node.visibility === "primary")
     .sort((a, b) => a.order - b.order);
 }
-
-function studentConcepts() {
-  const primaryChapterIds = new Set(primaryChapters().map((chapter) => chapter.id));
-  return state.graph.nodes.filter((node) => {
-    if (node.visibility === "hidden" || node.type === "chapter") return false;
-    if (node.type === "topic") return primaryChapterIds.has(node.chapter_id);
-    return (node.chapter_ids || []).some((chapterId) => primaryChapterIds.has(chapterId));
-  });
-}
-
-// The overview shows the concepts that tie the course together: those used in the most chapters.
-const FEATURED_CONCEPTS = 14;
-function featuredConceptIds() {
-  return studentConcepts()
-    .filter((node) => node.type === "keyword")
-    .sort((a, b) => (b.chapter_ids?.length || 0) - (a.chapter_ids?.length || 0) || (b.mention_count || 0) - (a.mention_count || 0))
-    .slice(0, FEATURED_CONCEPTS)
-    .map((node) => node.id);
-}
-
-function representativeTopics(chapterId, limit = 2) {
-  const genericSections = new Set(["index", "introduction", "intro", "overview", "summary"]);
-  return state.graph.nodes
-    .filter((node) => node.type === "topic" && node.chapter_id === chapterId && node.visibility !== "hidden")
-    .sort((a, b) => {
-      const genericDifference = Number(genericSections.has(a.section)) - Number(genericSections.has(b.section));
-      return genericDifference || (b.keyword_ids?.length || 0) - (a.keyword_ids?.length || 0) || a.label.localeCompare(b.label);
-    })
-    .slice(0, limit);
-}
-
-function initialVisibleIds() {
-  const ids = new Set();
-  for (const chapter of primaryChapters()) {
-    ids.add(chapter.id);
-    representativeTopics(chapter.id).forEach((topic) => ids.add(topic.id));
-  }
-  featuredConceptIds().forEach((id) => ids.add(id));
-  return ids;
-}
-
-function modeVisibleIds(mode) {
-  if (mode === "chapter") return new Set(primaryChapters().map((chapter) => chapter.id));
-  if (mode === "concept") return new Set(studentConcepts().map((concept) => concept.id));
-  return initialVisibleIds();
-}
-
 function indexGraph(graph) {
   state.graph = graph;
   state.nodesById = new Map(graph.nodes.map((node) => [node.id, node]));
@@ -258,12 +219,11 @@ function indexGraph(graph) {
     state.edgesByNode.get(edge.source)?.push(edge);
     state.edgesByNode.get(edge.target)?.push(edge);
   }
+  buildSimulation();
 }
-
 function edgeOther(edge, nodeId) {
   return edge.source === nodeId ? edge.target : edge.source;
 }
-
 function abortAutomaticExplanation() {
   if (state.activeExplanationController) {
     state.activeExplanationController.abort();
@@ -271,403 +231,385 @@ function abortAutomaticExplanation() {
   }
   setExplainButtonBusy(false);
 }
-
 function setExplainButtonBusy(busy) {
   elements.explainNode.disabled = busy;
   elements.explainNode.textContent = busy ? "Explaining…" : "Explain";
 }
-
 function clearNodeExplanation() {
   abortAutomaticExplanation();
   elements.messages.querySelectorAll(".auto-explanation").forEach((message) => message.remove());
 }
 
-function updateModeControls() {
-  elements.legendChapter.setAttribute("aria-pressed", String(state.mode === "chapter"));
-  elements.legendConcept.setAttribute("aria-pressed", String(state.mode === "concept"));
-  const hint = state.mode === "chapter"
-    ? "Chapter view — choose one to reveal its concepts"
-    : state.mode === "concept"
-      ? "Concept view — choose one to reveal its chapters"
-      : "Overview — use the legend to filter by level";
-  elements.graphHint.lastChild.textContent = ` ${hint}`;
+// Which nodes students see: no hidden chapters, and nothing that belongs only to hidden chapters.
+function isShown(node) {
+  if (!node || node.visibility === "hidden") return false;
+  if (node.type === "topic") return state.nodesById.get(node.chapter_id)?.visibility !== "hidden";
+  return true;
 }
 
-function setViewMode(mode, options = {}) {
-  const nextMode = options.toggle && state.mode === mode ? "overview" : mode;
+function buildSimulation() {
+  const sim = { nodes: [], byId: new Map(), links: [], neighbours: new Map() };
+  for (const node of state.graph.nodes) {
+    if (!isShown(node)) continue;
+    const item = { id: node.id, node, x: 0, y: 0, vx: 0, vy: 0, fx: null, fy: null, degree: 0, r: 4 };
+    sim.nodes.push(item); sim.byId.set(node.id, item); sim.neighbours.set(node.id, new Set());
+  }
+  for (const edge of state.graph.edges) {
+    if (!(edge.type in LINK_TYPES)) continue;
+    const source = sim.byId.get(edge.source); const target = sim.byId.get(edge.target);
+    if (!source || !target || source === target) continue;
+    sim.links.push({ source, target, distance: LINK_TYPES[edge.type] });
+    source.degree += 1; target.degree += 1;
+    sim.neighbours.get(source.id).add(target.id); sim.neighbours.get(target.id).add(source.id);
+  }
+  for (const link of sim.links) {
+    link.strength = 1 / Math.min(link.source.degree, link.target.degree);
+    link.bias = link.source.degree / (link.source.degree + link.target.degree);
+  }
+  for (const item of sim.nodes) {
+    // Size grows with the number of links, like Obsidian: hubs stand out.
+    const base = item.node.type === "chapter" ? 7 : item.node.type === "keyword" ? 3.2 : 2.8;
+    item.r = Math.min(base + Math.sqrt(item.degree) * (item.node.type === "chapter" ? 1.4 : 1.05), 22);
+  }
+  state.sim = sim;
+  seedPositions();
+  state.alpha = 1;
+}
+
+// A sensible start so the physics settles quickly: chapters on a ring, pages next to their chapter,
+// concepts between the chapters whose pages mention them.
+function seedPositions() {
+  const sim = state.sim;
+  const chapters = sim.nodes.filter((item) => item.node.type === "chapter").sort((a, b) => (a.node.order ?? 0) - (b.node.order ?? 0));
+  const ring = 120 + chapters.length * 22;
+  chapters.forEach((item, index) => {
+    const angle = -Math.PI / 2 + (index / Math.max(chapters.length, 1)) * Math.PI * 2;
+    item.x = Math.cos(angle) * ring; item.y = Math.sin(angle) * ring;
+  });
+  const jitter = () => (Math.random() - 0.5) * 40;
+  for (const item of sim.nodes) {
+    if (item.node.type === "topic") {
+      const chapter = sim.byId.get(item.node.chapter_id);
+      item.x = (chapter ? chapter.x * 1.25 : 0) + jitter(); item.y = (chapter ? chapter.y * 1.25 : 0) + jitter();
+    }
+  }
+  for (const item of sim.nodes) {
+    if (item.node.type !== "keyword") continue;
+    const pages = [...sim.neighbours.get(item.id)].map((id) => sim.byId.get(id)).filter((other) => other?.node.type === "topic");
+    const mean = (key) => (pages.length ? pages.reduce((sum, page) => sum + page[key], 0) / pages.length : 0);
+    item.x = mean("x") * 0.8 + jitter(); item.y = mean("y") * 0.8 + jitter();
+  }
+}
+
+function shownNodes() {
+  return state.sim.nodes.filter((item) => !state.hiddenKinds.has(item.node.type));
+}
+function shownLinks() {
+  return state.sim.links.filter((link) => !state.hiddenKinds.has(link.source.node.type) && !state.hiddenKinds.has(link.target.node.type));
+}
+
+// One step of the physics (the same forces as d3-force: charge, links, a gentle pull to the middle).
+function tick() {
+  const alpha = state.alpha;
+  const nodes = shownNodes();
+  for (let i = 0; i < nodes.length; i += 1) {
+    const a = nodes[i];
+    for (let j = i + 1; j < nodes.length; j += 1) {
+      const b = nodes[j];
+      let dx = b.x - a.x; let dy = b.y - a.y;
+      let l = dx * dx + dy * dy;
+      if (l > 640000) continue; // far apart: no push
+      if (l < 1) { dx = Math.random() - 0.5; dy = Math.random() - 0.5; l = 1; }
+      const pushA = (CHARGE[b.node.type] * alpha) / l; const pushB = (CHARGE[a.node.type] * alpha) / l;
+      a.vx += dx * pushA; a.vy += dy * pushA;
+      b.vx -= dx * pushB; b.vy -= dy * pushB;
+    }
+  }
+  for (const link of shownLinks()) {
+    const { source, target } = link;
+    let dx = target.x + target.vx - source.x - source.vx; let dy = target.y + target.vy - source.y - source.vy;
+    let l = Math.sqrt(dx * dx + dy * dy) || 1e-6;
+    l = ((l - link.distance) / l) * alpha * link.strength;
+    dx *= l; dy *= l;
+    target.vx -= dx * link.bias; target.vy -= dy * link.bias;
+    source.vx += dx * (1 - link.bias); source.vy += dy * (1 - link.bias);
+  }
+  for (const item of nodes) {
+    item.vx -= item.x * 0.015 * alpha; item.vy -= item.y * 0.015 * alpha; // gentle pull to the middle
+    if (item.fx !== null) { item.x = item.fx; item.y = item.fy; item.vx = 0; item.vy = 0; continue; }
+    item.vx *= 1 - VELOCITY_DECAY; item.vy *= 1 - VELOCITY_DECAY;
+    item.x += item.vx; item.y += item.vy;
+  }
+  state.alpha += (state.alphaTarget - state.alpha) * ALPHA_DECAY;
+}
+
+function startPhysics(alpha) {
+  if (alpha !== undefined) state.alpha = Math.max(state.alpha, alpha);
+  if (state.frame) return;
+  const loop = () => {
+    tick();
+    if (state.fitPending && state.alpha < 0.08) { state.fitPending = false; fitGraph(); }
+    draw();
+    if (state.alpha > ALPHA_MIN || state.alphaTarget > 0) state.frame = requestAnimationFrame(loop);
+    else state.frame = null;
+  };
+  state.frame = requestAnimationFrame(loop);
+}
+
+// ---------- drawing ----------
+function readColours() {
+  const style = getComputedStyle(document.documentElement);
+  const value = (name, fallback) => style.getPropertyValue(name).trim() || fallback;
+  state.colours = {
+    chapter: value("--chapter", "#2563eb"), topic: value("--page", "#64748b"), keyword: value("--concept", "#d97706"),
+    text: value("--text", "#17233a"), link: value("--link", "rgba(70, 94, 128, 0.22)"),
+    linkActive: value("--link-active", "rgba(37, 99, 235, 0.65)"), halo: value("--bg", "#f7f9fc"),
+  };
+}
+
+function resizeCanvas() {
+  const canvas = elements.canvas; const ratio = window.devicePixelRatio || 1;
+  const width = elements.stage.clientWidth; const height = elements.stage.clientHeight;
+  // Keep the same part of the graph in the middle when the area grows or shrinks (e.g. the widget is enlarged).
+  if (state.size) { state.transform.x += (width - state.size.width) / 2; state.transform.y += (height - state.size.height) / 2; }
+  state.size = { width, height };
+  canvas.width = Math.round(width * ratio); canvas.height = Math.round(height * ratio);
+  canvas.style.width = `${width}px`; canvas.style.height = `${height}px`;
+  state.ratio = ratio;
+  draw();
+  // Bigger or smaller area (e.g. the widget was enlarged): frame the same thing again, unless the view was moved by hand.
+  if (state.sim && !state.viewTouched && !state.fitPending) {
+    clearTimeout(state.refitTimer);
+    state.refitTimer = setTimeout(() => (state.selectedId ? focusOn(state.selectedId) : fitGraph()), 120);
+  }
+}
+
+// The node the graph is about right now: the one under the pointer, else the selected one.
+function focusId() {
+  return state.hoverId || state.selectedId;
+}
+
+function draw() {
+  if (!state.sim) return;
+  const canvas = elements.canvas; const context = canvas.getContext("2d");
+  const { x, y, k } = state.transform; const ratio = state.ratio || 1;
+  context.setTransform(1, 0, 0, 1, 0, 0);
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  context.setTransform(ratio * k, 0, 0, ratio * k, ratio * x, ratio * y);
+  const colours = state.colours;
+  const focus = focusId();
+  const near = focus ? new Set([focus, ...state.sim.neighbours.get(focus) || []]) : null;
+
+  context.lineWidth = 1 / k;
+  context.strokeStyle = colours.link;
+  context.globalAlpha = near ? 0.35 : 1;
+  context.beginPath();
+  for (const { source, target } of shownLinks()) {
+    if (near && (source.id === focus || target.id === focus)) continue;
+    context.moveTo(source.x, source.y); context.lineTo(target.x, target.y);
+  }
+  context.stroke();
+  if (near) {
+    context.globalAlpha = 1; context.strokeStyle = colours.linkActive; context.lineWidth = 1.6 / k;
+    context.beginPath();
+    for (const { source, target } of shownLinks()) {
+      if (source.id !== focus && target.id !== focus) continue;
+      context.moveTo(source.x, source.y); context.lineTo(target.x, target.y);
+    }
+    context.stroke();
+  }
+
+  const nodes = shownNodes();
+  for (const item of nodes) {
+    context.globalAlpha = near && !near.has(item.id) ? 0.18 : 1;
+    context.fillStyle = colours[item.node.type] || colours.keyword;
+    context.beginPath(); context.arc(item.x, item.y, item.r, 0, Math.PI * 2); context.fill();
+    if (item.id === state.selectedId) {
+      context.lineWidth = 2.5 / k; context.strokeStyle = colours.text;
+      context.beginPath(); context.arc(item.x, item.y, item.r + 3 / k, 0, Math.PI * 2); context.stroke();
+    }
+  }
+
+  // Labels: chapters always; everything once zoomed in; the focus and its neighbours always.
+  const zoomed = Math.max(0, Math.min(1, (k - 0.85) / 0.5));
+  context.textAlign = "center"; context.textBaseline = "top";
+  context.lineJoin = "round";
+  for (const item of nodes) {
+    const isNear = near?.has(item.id);
+    let alpha = item.node.type === "chapter" ? 1 : zoomed;
+    if (near) alpha = isNear ? 1 : Math.min(alpha, 0.15);
+    if (alpha < 0.05) continue;
+    const size = (item.node.type === "chapter" ? 13 : 11) / Math.max(k, 0.6);
+    context.font = `${item.node.type === "chapter" ? 700 : 500} ${size}px Inter, ui-sans-serif, system-ui, sans-serif`;
+    const label = item.node.label.length > 32 ? `${item.node.label.slice(0, 30)}…` : item.node.label;
+    context.globalAlpha = alpha;
+    context.lineWidth = 3 / k; context.strokeStyle = colours.halo; context.strokeText(label, item.x, item.y + item.r + 3 / k);
+    context.fillStyle = colours.text; context.fillText(label, item.x, item.y + item.r + 3 / k);
+  }
+  context.globalAlpha = 1;
+}
+
+// ---------- views ----------
+function updateModeControls() {
+  elements.legendChapter.setAttribute("aria-pressed", String(!state.hiddenKinds.has("chapter")));
+  elements.legendPage.setAttribute("aria-pressed", String(!state.hiddenKinds.has("topic")));
+  elements.legendConcept.setAttribute("aria-pressed", String(!state.hiddenKinds.has("keyword")));
+  elements.graphHint.lastChild.textContent = " Drag to move · scroll to zoom · hover to see connections";
+}
+
+function toggleKind(kind) {
+  if (state.hiddenKinds.has(kind)) state.hiddenKinds.delete(kind); else state.hiddenKinds.add(kind);
+  if (state.hiddenKinds.size === 3) state.hiddenKinds.delete(kind); // never hide everything
+  if (state.selectedId && state.hiddenKinds.has(state.sim.byId.get(state.selectedId)?.node.type)) clearSelection();
+  updateModeControls();
+  startPhysics(0.5);
+}
+
+function clearSelection() {
   clearNodeExplanation();
-  state.mode = nextMode;
   state.selectedId = null;
-  state.visibleIds = modeVisibleIds(nextMode);
   elements.nodeCard.hidden = true;
   updateContext();
-  updateModeControls();
-  seedPositions(true);
-  rebuildGraph();
-  runSimulation(nextMode === "concept" ? 170 : 120, true);
+  draw();
 }
 
 function setInitialView() {
-  setViewMode("overview");
-}
-
-function chaptersForConcept(node) {
-  if (node.type === "topic") return node.chapter_id ? [node.chapter_id] : [];
-  return node.chapter_ids || [];
-}
-
-function visibleSetFor(node) {
-  if (node.type === "chapter") {
-    const ids = new Set(primaryChapters().map((chapter) => chapter.id));
-    state.graph.nodes
-      .filter((candidate) => candidate.type === "topic" && candidate.chapter_id === node.id)
-      .forEach((candidate) => ids.add(candidate.id));
-    (node.keyword_ids || []).forEach((id) => ids.add(id));
-    return ids;
-  }
-
-  const ids = new Set(studentConcepts().map((concept) => concept.id));
-  chaptersForConcept(node)
-      .map((id) => state.nodesById.get(id))
-      .filter((chapter) => chapter?.visibility === "primary")
-      .forEach((chapter) => ids.add(chapter.id));
-  return ids;
+  state.hiddenKinds.clear();
+  updateModeControls();
+  clearSelection();
+  state.fitPending = true;
+  startPhysics(0.6);
 }
 
 function selectNode(nodeId, options = {}) {
   const node = state.nodesById.get(nodeId);
   if (!node) return;
   clearNodeExplanation();
-  state.mode = visualType(node);
+  if (state.hiddenKinds.delete(node.type)) updateModeControls();
   state.selectedId = nodeId;
-  state.visibleIds = visibleSetFor(node);
   showNodeCard(node);
   updateContext();
   updateSuggestions(node);
-  updateModeControls();
-  seedPositions(false, node);
-  rebuildGraph();
-  runSimulation(150, Boolean(options.fit));
+  if (options.fit) focusOn(nodeId);
+  draw();
   if (options.focusQuestion) elements.question.focus();
 }
 
-function seedPositions(reset = false, focusNode = null) {
-  const width = Math.max(elements.stage.clientWidth, 520);
-  const height = Math.max(elements.stage.clientHeight, 420);
-  if (reset) state.positions.clear();
-  const chapters = primaryChapters();
-  chapters.forEach((chapter, index) => {
-    if (state.positions.has(chapter.id) && !reset) return;
-    const angle = -Math.PI / 2 + (index / chapters.length) * Math.PI * 2;
-    state.positions.set(chapter.id, {
-      x: width / 2 + Math.cos(angle) * width * 0.31,
-      y: height / 2 + Math.sin(angle) * height * 0.31,
-      vx: 0,
-      vy: 0,
-    });
-  });
-
-  if (state.mode === "concept") {
-    const concepts = [...state.visibleIds]
-      .map((id) => state.nodesById.get(id))
-      .filter((node) => node && visualType(node) === "concept");
-    const goldenAngle = Math.PI * (3 - Math.sqrt(5));
-    concepts.forEach((concept, index) => {
-      if (state.positions.has(concept.id) && !reset) return;
-      const radius = 24 + Math.sqrt(index) * 34;
-      const angle = index * goldenAngle;
-      state.positions.set(concept.id, {
-        x: width / 2 + Math.cos(angle) * radius,
-        y: height / 2 + Math.sin(angle) * radius,
-        vx: 0,
-        vy: 0,
-      });
-    });
-    return;
-  }
-
-  const visibleTopics = [...state.visibleIds]
-    .map((id) => state.nodesById.get(id))
-    .filter((node) => node?.type === "topic" && !state.positions.has(node.id));
-  const topicsByChapter = new Map();
-  for (const topic of visibleTopics) {
-    if (!topicsByChapter.has(topic.chapter_id)) topicsByChapter.set(topic.chapter_id, []);
-    topicsByChapter.get(topic.chapter_id).push(topic);
-  }
-  for (const [chapterId, topics] of topicsByChapter) {
-    const parent = state.positions.get(chapterId) || { x: width / 2, y: height / 2 };
-    const chapter = state.nodesById.get(chapterId);
-    const chapterIndex = Math.max(0, chapters.findIndex((candidate) => candidate.id === chapter?.id));
-    const outwardAngle = -Math.PI / 2 + (chapterIndex / Math.max(chapters.length, 1)) * Math.PI * 2;
-    topics.forEach((topic, index) => {
-      const spread = (index - (topics.length - 1) / 2) * 0.72;
-      const angle = outwardAngle + spread;
-      const ring = 72 + (index % 2) * 12;
-      state.positions.set(topic.id, {
-        x: parent.x + Math.cos(angle) * ring,
-        y: parent.y + Math.sin(angle) * ring,
-        vx: 0,
-        vy: 0,
-      });
-    });
-  }
-
-  const visibleKeywords = [...state.visibleIds]
-    .map((id) => state.nodesById.get(id))
-    .filter((node) => node?.type === "keyword" && !state.positions.has(node.id));
-  visibleKeywords.forEach((keyword, index) => {
-    const angle = -Math.PI / 2 + (index / Math.max(visibleKeywords.length, 1)) * Math.PI * 2;
-    const ringX = width * (0.13 + (index % 2) * 0.035);
-    const ringY = height * (0.14 + (index % 2) * 0.04);
-    state.positions.set(keyword.id, {
-      x: width / 2 + Math.cos(angle) * ringX,
-      y: height / 2 + Math.sin(angle) * ringY,
-      vx: 0,
-      vy: 0,
-    });
-  });
-
-  const center = focusNode && state.positions.get(focusNode.id)
-    ? state.positions.get(focusNode.id)
-    : { x: width / 2, y: height / 2 };
-  const unseeded = [...state.visibleIds].filter((id) => !state.positions.has(id));
-  unseeded.forEach((id, index) => {
-    const angle = (index / Math.max(unseeded.length, 1)) * Math.PI * 2;
-    const ring = 65 + (index % 4) * 15;
-    state.positions.set(id, {
-      x: center.x + Math.cos(angle) * ring,
-      y: center.y + Math.sin(angle) * ring,
-      vx: 0,
-      vy: 0,
-    });
-  });
+// Move the view smoothly to a node and its neighbours.
+function focusOn(nodeId) {
+  const item = state.sim.byId.get(nodeId);
+  if (!item) return;
+  const near = [item, ...[...state.sim.neighbours.get(nodeId)].map((id) => state.sim.byId.get(id))].filter(Boolean);
+  animateTo(viewFor(near, 2.2));
 }
 
-function isChapterConceptEdge(edge) {
-  if (!["contains", "covers", "mentions"].includes(edge.type)) return false;
-  const source = state.nodesById.get(edge.source);
-  const target = state.nodesById.get(edge.target);
-  return source && target && visualType(source) !== visualType(target);
-}
-
-function getVisibleEdges() {
-  const visible = state.visibleIds;
-  return state.graph.edges.filter((edge) => {
-    if (!visible.has(edge.source) || !visible.has(edge.target)) return false;
-    const source = state.nodesById.get(edge.source);
-    const target = state.nodesById.get(edge.target);
-    const sourceType = source && visualType(source);
-    const targetType = target && visualType(target);
-
-    if (state.selectedId) {
-      const selected = state.nodesById.get(state.selectedId);
-      if (selected?.type === "chapter") return isChapterConceptEdge(edge);
-      return isChapterConceptEdge(edge) && (edge.source === state.selectedId || edge.target === state.selectedId);
-    }
-
-    if (state.mode === "concept") return false;
-    if (state.mode === "chapter") {
-      return sourceType === "chapter" && targetType === "chapter"
-        && (edge.type === "sequence" || (edge.type === "related" && edge.weight >= 0.16));
-    }
-    if (isChapterConceptEdge(edge)) return true;
-    return sourceType === "chapter" && targetType === "chapter"
-      && (edge.type === "sequence" || (edge.type === "related" && edge.weight >= 0.16));
-  });
-}
-
-function rebuildGraph() {
-  state.visibleEdges = getVisibleEdges();
-  elements.stage.classList.toggle("dense-concepts", state.mode === "concept" && state.visibleIds.size > 80);
-  state.nodeElements.clear();
-  state.edgeElements = [];
-  elements.edgeLayer.replaceChildren();
-  elements.nodeLayer.replaceChildren();
-
-  for (const edge of state.visibleEdges) {
-    const line = svgElement("line", {
-      class: `edge${edge.source === state.selectedId || edge.target === state.selectedId ? " active" : ""}`,
-      "data-source": edge.source,
-      "data-target": edge.target,
-    });
-    const title = svgElement("title");
-    title.textContent = "Related through course material";
-    line.appendChild(title);
-    elements.edgeLayer.appendChild(line);
-    state.edgeElements.push({ edge, element: line });
-  }
-
-  for (const id of state.visibleIds) {
-    const node = state.nodesById.get(id);
-    if (!node) continue;
-    const kind = visualType(node);
-    const radius = radiusFor(node);
-    const group = svgElement("g", {
-      class: `node ${kind}${id === state.selectedId ? " selected" : ""}`,
-      tabindex: "0",
-      role: "button",
-      "aria-label": `${kind}: ${node.label}`,
-      "data-id": id,
-    });
-    group.appendChild(svgElement("circle", { class: "hit-area", r: radius + 10 }));
-    group.appendChild(svgElement("circle", { class: "halo", r: radius + 14, fill: kind === "chapter" ? "#2563eb" : "#d97706" }));
-    group.appendChild(svgElement("circle", { class: "core", r: radius }));
-    const label = svgElement("text", { y: radius + 19 });
-    label.textContent = node.label.length > 29 ? `${node.label.slice(0, 27)}…` : node.label;
-    const title = svgElement("title"); title.textContent = node.label;
-    group.append(label, title);
-    group.addEventListener("keydown", (event) => {
-      if (event.key === "Enter" || event.key === " ") {
-        event.preventDefault(); selectNode(id);
-      }
-    });
-    group.addEventListener("pointerdown", startNodeDrag);
-    elements.nodeLayer.appendChild(group);
-    state.nodeElements.set(id, group);
-  }
-  updateGraphPositions();
-}
-
-function updateGraphPositions() {
-  for (const [id, element] of state.nodeElements) {
-    const position = state.positions.get(id);
-    if (position) element.setAttribute("transform", `translate(${position.x.toFixed(2)} ${position.y.toFixed(2)})`);
-  }
-  for (const { edge, element } of state.edgeElements) {
-    const source = state.positions.get(edge.source);
-    const target = state.positions.get(edge.target);
-    if (!source || !target) continue;
-    element.setAttribute("x1", source.x.toFixed(2)); element.setAttribute("y1", source.y.toFixed(2));
-    element.setAttribute("x2", target.x.toFixed(2)); element.setAttribute("y2", target.y.toFixed(2));
-  }
-}
-
-function simulationStep() {
-  const nodes = [...state.visibleIds].map((id) => ({ id, node: state.nodesById.get(id), position: state.positions.get(id) })).filter((item) => item.position);
-  const width = Math.max(elements.stage.clientWidth, 520);
-  const height = Math.max(elements.stage.clientHeight, 420);
-  for (let i = 0; i < nodes.length; i += 1) {
-    const a = nodes[i];
-    for (let j = i + 1; j < nodes.length; j += 1) {
-      const b = nodes[j];
-      let dx = b.position.x - a.position.x;
-      let dy = b.position.y - a.position.y;
-      const distance2 = Math.max(dx * dx + dy * dy, 90);
-      const distance = Math.sqrt(distance2);
-      const desired = radiusFor(a.node) + radiusFor(b.node) + 68;
-      const force = Math.min(2.4, (desired * desired) / distance2 * 0.7);
-      dx /= distance; dy /= distance;
-      a.position.vx -= dx * force; a.position.vy -= dy * force;
-      b.position.vx += dx * force; b.position.vy += dy * force;
-    }
-  }
-  for (const edge of state.visibleEdges) {
-    const source = state.positions.get(edge.source); const target = state.positions.get(edge.target);
-    if (!source || !target) continue;
-    const dx = target.x - source.x; const dy = target.y - source.y;
-    const distance = Math.max(Math.sqrt(dx * dx + dy * dy), 1);
-    const sourceNode = state.nodesById.get(edge.source); const targetNode = state.nodesById.get(edge.target);
-    const desired = sourceNode.type === "chapter" && targetNode.type === "chapter" ? 205 : 112;
-    const force = (distance - desired) * 0.008 * Math.max(edge.weight || 0.4, 0.35);
-    source.vx += (dx / distance) * force; source.vy += (dy / distance) * force;
-    target.vx -= (dx / distance) * force; target.vy -= (dy / distance) * force;
-  }
-  for (const item of nodes) {
-    const position = item.position;
-    position.vx += (width / 2 - position.x) * 0.0007;
-    position.vy += (height / 2 - position.y) * 0.0007;
-    position.vx *= 0.86; position.vy *= 0.86;
-    position.x += position.vx; position.y += position.vy;
-  }
-  updateGraphPositions();
-}
-
-function runSimulation(frames = 120, fitWhenDone = false) {
-  if (state.simulationFrame) cancelAnimationFrame(state.simulationFrame);
-  state.simulationEnergy = frames;
-  const animate = () => {
-    simulationStep(); state.simulationEnergy -= 1;
-    if (state.simulationEnergy > 0) state.simulationFrame = requestAnimationFrame(animate);
-    else if (fitWhenDone) fitGraph();
-  };
-  state.simulationFrame = requestAnimationFrame(animate);
-}
-
-function applyTransform() {
-  const { x, y, k } = state.transform;
-  elements.viewport.setAttribute("transform", `translate(${x} ${y}) scale(${k})`);
+function viewFor(items, maxScale = 1.6) {
+  const width = elements.stage.clientWidth; const height = elements.stage.clientHeight;
+  if (!items.length) return { x: width / 2, y: height / 2, k: 1 };
+  const xs = items.map((item) => item.x); const ys = items.map((item) => item.y);
+  const minX = Math.min(...xs) - 40; const maxX = Math.max(...xs) + 40;
+  const minY = Math.min(...ys) - 40; const maxY = Math.max(...ys) + 50;
+  const k = Math.min(maxScale, Math.max(0.12, Math.min(width / (maxX - minX), height / (maxY - minY)) * 0.92));
+  return { k, x: width / 2 - ((minX + maxX) / 2) * k, y: height / 2 - ((minY + maxY) / 2) * k };
 }
 
 function fitGraph() {
-  const positions = [...state.visibleIds].map((id) => state.positions.get(id)).filter(Boolean);
-  if (!positions.length) return;
-  const width = elements.stage.clientWidth; const height = elements.stage.clientHeight;
-  const xs = positions.map((position) => position.x); const ys = positions.map((position) => position.y);
-  const minX = Math.min(...xs) - 55; const maxX = Math.max(...xs) + 55;
-  const minY = Math.min(...ys) - 55; const maxY = Math.max(...ys) + 55;
-  const scale = Math.min(1.35, Math.max(0.25, Math.min(width / Math.max(maxX - minX, 1), height / Math.max(maxY - minY, 1)) * 0.9));
-  state.transform = { k: scale, x: width / 2 - ((minX + maxX) / 2) * scale, y: height / 2 - ((minY + maxY) / 2) * scale };
-  applyTransform();
+  animateTo(viewFor(shownNodes()));
 }
 
-function graphCoordinates(event) {
-  const rect = elements.svg.getBoundingClientRect();
+function animateTo(target) {
+  state.viewTouched = false;
+  const start = { ...state.transform }; const began = performance.now();
+  cancelAnimationFrame(state.viewFrame);
+  const step = (now) => {
+    const t = Math.min(1, (now - began) / 380); const ease = 1 - Math.pow(1 - t, 3);
+    for (const key of ["x", "y", "k"]) state.transform[key] = start[key] + (target[key] - start[key]) * ease;
+    draw();
+    if (t < 1) state.viewFrame = requestAnimationFrame(step);
+  };
+  state.viewFrame = requestAnimationFrame(step);
+}
+
+// ---------- pointer: hover, drag nodes (elastic), pan, zoom ----------
+function graphPoint(event) {
+  const rect = elements.canvas.getBoundingClientRect();
   return { x: (event.clientX - rect.left - state.transform.x) / state.transform.k, y: (event.clientY - rect.top - state.transform.y) / state.transform.k };
 }
 
-function startNodeDrag(event) {
-  event.stopPropagation();
-  if (state.simulationFrame) {
-    cancelAnimationFrame(state.simulationFrame);
-    state.simulationFrame = null;
+function nodeAt(point) {
+  let best = null; let bestDistance = Infinity;
+  const slack = 5 / state.transform.k;
+  for (const item of shownNodes()) {
+    const distance = Math.hypot(item.x - point.x, item.y - point.y);
+    if (distance <= item.r + slack && distance < bestDistance) { best = item; bestDistance = distance; }
   }
-  state.pointer = { kind: "node", id: event.currentTarget.dataset.id, startX: event.clientX, startY: event.clientY, moved: false };
-  elements.svg.setPointerCapture(event.pointerId);
+  return best;
 }
 
-elements.svg.addEventListener("pointerdown", (event) => {
-  if (event.target.closest?.(".node")) return;
-  state.pointer = { kind: "pan", startX: event.clientX, startY: event.clientY, originX: state.transform.x, originY: state.transform.y, moved: false };
-  elements.svg.setPointerCapture(event.pointerId);
-});
-
-elements.svg.addEventListener("pointermove", (event) => {
-  if (!state.pointer) return;
-  const dx = event.clientX - state.pointer.startX; const dy = event.clientY - state.pointer.startY;
-  if (Math.abs(dx) + Math.abs(dy) > 3) state.pointer.moved = true;
-  if (state.pointer.kind === "pan") {
-    state.transform.x = state.pointer.originX + dx; state.transform.y = state.pointer.originY + dy; applyTransform();
+elements.canvas.addEventListener("pointerdown", (event) => {
+  const point = graphPoint(event); const item = nodeAt(point);
+  elements.canvas.setPointerCapture(event.pointerId);
+  if (item) {
+    item.fx = item.x; item.fy = item.y;
+    state.alphaTarget = 0.3; startPhysics(0.3);
+    state.pointer = { kind: "node", item, startX: event.clientX, startY: event.clientY, moved: false };
   } else {
-    const position = state.positions.get(state.pointer.id); const point = graphCoordinates(event);
-    if (position) { position.x = point.x; position.y = point.y; position.vx = 0; position.vy = 0; updateGraphPositions(); }
+    state.pointer = { kind: "pan", startX: event.clientX, startY: event.clientY, originX: state.transform.x, originY: state.transform.y, moved: false };
   }
 });
 
-elements.svg.addEventListener("pointerup", (event) => {
+elements.canvas.addEventListener("pointermove", (event) => {
   const pointer = state.pointer;
-  if (elements.svg.hasPointerCapture(event.pointerId)) elements.svg.releasePointerCapture(event.pointerId);
-  state.pointer = null;
-  if (pointer?.kind === "node" && !pointer.moved) selectNode(pointer.id);
+  if (!pointer) {
+    const item = nodeAt(graphPoint(event));
+    const id = item ? item.id : null;
+    if (id !== state.hoverId) { state.hoverId = id; elements.canvas.style.cursor = id ? "pointer" : "grab"; draw(); }
+    return;
+  }
+  const dx = event.clientX - pointer.startX; const dy = event.clientY - pointer.startY;
+  if (Math.abs(dx) + Math.abs(dy) > 3) pointer.moved = true;
+  if (pointer.kind === "pan") {
+    state.viewTouched = true;
+    state.transform.x = pointer.originX + dx; state.transform.y = pointer.originY + dy; draw();
+  } else {
+    const point = graphPoint(event); pointer.item.fx = point.x; pointer.item.fy = point.y;
+  }
 });
 
-elements.svg.addEventListener("pointercancel", (event) => {
-  if (elements.svg.hasPointerCapture(event.pointerId)) elements.svg.releasePointerCapture(event.pointerId);
+function endPointer(event) {
+  const pointer = state.pointer;
+  if (elements.canvas.hasPointerCapture(event.pointerId)) elements.canvas.releasePointerCapture(event.pointerId);
   state.pointer = null;
-});
+  if (!pointer) return;
+  if (pointer.kind === "node") {
+    pointer.item.fx = null; pointer.item.fy = null; // let go: it springs back into place
+    state.alphaTarget = 0;
+    if (!pointer.moved && event.type === "pointerup") selectNode(pointer.item.id);
+  } else if (!pointer.moved && event.type === "pointerup") {
+    clearSelection();
+  }
+}
+elements.canvas.addEventListener("pointerup", endPointer);
+elements.canvas.addEventListener("pointercancel", endPointer);
+elements.canvas.addEventListener("pointerleave", () => { if (!state.pointer && state.hoverId) { state.hoverId = null; draw(); } });
 
-elements.svg.addEventListener("wheel", (event) => {
+elements.canvas.addEventListener("wheel", (event) => {
   event.preventDefault();
-  const rect = elements.svg.getBoundingClientRect(); const oldScale = state.transform.k;
-  const nextScale = Math.min(2.4, Math.max(0.35, oldScale * Math.exp(-event.deltaY * 0.0012)));
+  cancelAnimationFrame(state.viewFrame);
+  state.viewTouched = true;
+  const rect = elements.canvas.getBoundingClientRect(); const old = state.transform.k;
+  const next = Math.min(4, Math.max(0.1, old * Math.exp(-event.deltaY * (event.ctrlKey ? 0.01 : 0.0015))));
   const px = event.clientX - rect.left; const py = event.clientY - rect.top;
-  const graphX = (px - state.transform.x) / oldScale; const graphY = (py - state.transform.y) / oldScale;
-  state.transform.k = nextScale; state.transform.x = px - graphX * nextScale; state.transform.y = py - graphY * nextScale; applyTransform();
+  state.transform.x = px - ((px - state.transform.x) / old) * next;
+  state.transform.y = py - ((py - state.transform.y) / old) * next;
+  state.transform.k = next;
+  draw();
 }, { passive: false });
 
 function showNodeCard(node) {
   const kind = visualType(node);
   elements.nodeKind.textContent = node.type === "topic" ? "page" : kind;
-  elements.nodeKind.style.color = kind === "chapter" ? "var(--chapter)" : "var(--concept)";
+  elements.nodeKind.style.color = node.type === "chapter" ? "var(--chapter)" : node.type === "topic" ? "var(--page)" : "var(--concept)";
   elements.nodeTitle.textContent = node.label;
   elements.nodeCard.hidden = false;
 }
@@ -975,11 +917,13 @@ async function initialize() {
   try {
     const response = await fetch("/api/graph");
     if (!response.ok) throw new Error("Graph data could not be loaded.");
-    indexGraph(await response.json()); setInitialView();
+    readColours(); resizeCanvas();
+    indexGraph(await response.json());
+    state.transform = { x: elements.stage.clientWidth / 2, y: elements.stage.clientHeight / 2, k: 0.5 };
+    setInitialView();
     const focus = PARAMS.get("focus");
     if (focus && state.nodesById.has(focus)) selectNode(focus, { fit: true });
   } catch (error) {
-    elements.nodeLayer.replaceChildren(); elements.edgeLayer.replaceChildren();
     const message = document.createElement("div"); message.className = "graph-load-error"; message.textContent = error.message; elements.stage.appendChild(message);
   }
 }
@@ -998,8 +942,9 @@ document.addEventListener("click", (event) => {
 });
 document.querySelector("#reset-view").addEventListener("click", setInitialView);
 document.querySelector("#fit-view").addEventListener("click", fitGraph);
-elements.legendChapter.addEventListener("click", () => setViewMode("chapter", { toggle: true }));
-elements.legendConcept.addEventListener("click", () => setViewMode("concept", { toggle: true }));
+elements.legendChapter.addEventListener("click", () => toggleKind("chapter"));
+elements.legendPage.addEventListener("click", () => toggleKind("topic"));
+elements.legendConcept.addEventListener("click", () => toggleKind("keyword"));
 elements.explainNode.addEventListener("click", () => {
   const node = state.nodesById.get(state.selectedId);
   if (node && EMBEDDED) tellWidget("explain", node);
@@ -1017,7 +962,7 @@ document.querySelector("#ask-node").addEventListener("click", () => {
 elements.openChat.addEventListener("click", () => setChatOpen(true));
 elements.clearChat.addEventListener("click", clearConversation);
 elements.closeChat.addEventListener("click", () => setChatOpen(false));
-elements.contextChip.addEventListener("click", () => setViewMode(state.mode));
+elements.contextChip.addEventListener("click", clearSelection);
 elements.sourceToggle.addEventListener("click", () => {
   const open = elements.sourceToggle.getAttribute("aria-expanded") === "true";
   elements.sourceToggle.setAttribute("aria-expanded", String(!open)); elements.sourceList.hidden = open;
@@ -1031,7 +976,7 @@ elements.messages.addEventListener("scroll", () => {
 elements.question.addEventListener("keydown", (event) => {
   if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); elements.form.requestSubmit(); }
 });
-window.addEventListener("resize", () => { if (state.graph) fitGraph(); });
+window.addEventListener("resize", () => { if (state.graph) resizeCanvas(); });
 elements.aiButton.addEventListener("click", () => openAiSettings());
 elements.aiDialog.addEventListener("close", () => {
   if (elements.aiDialog.returnValue === "save") {
@@ -1066,6 +1011,17 @@ if (EMBEDDED) {
     const message = event.data || {};
     if (event.source !== window.parent || message.source !== "wendao-widget") return;
     if (message.type === "focus" && state.nodesById.has(message.id)) selectNode(message.id, { fit: true });
-    if (message.type === "theme") document.documentElement.classList.toggle("dark", Boolean(message.dark));
+    if (message.type === "theme") { document.documentElement.classList.toggle("dark", Boolean(message.dark)); readColours(); draw(); }
   });
+}
+
+// Outside the widget, follow the computer's light or dark setting, also when it changes.
+if (!EMBEDDED && window.matchMedia) {
+  const darkSetting = window.matchMedia("(prefers-color-scheme: dark)");
+  const applyTheme = () => {
+    document.documentElement.classList.toggle("dark", darkSetting.matches);
+    if (state.graph) { readColours(); draw(); }
+  };
+  applyTheme();
+  darkSetting.addEventListener("change", applyTheme);
 }

@@ -49,20 +49,9 @@
         <div id="search-results" class="search-results" hidden></div>
 
         <div id="graph-stage" class="graph-stage">
-          <svg id="graph-svg" role="img" aria-label="Interactive course concept network">
-            <defs>
-              <filter id="node-glow" x="-80%" y="-80%" width="260%" height="260%">
-                <feGaussianBlur stdDeviation="5" result="blur"></feGaussianBlur>
-                <feMerge><feMergeNode in="blur"></feMergeNode><feMergeNode in="SourceGraphic"></feMergeNode></feMerge>
-              </filter>
-            </defs>
-            <g id="graph-viewport">
-              <g id="edge-layer"></g>
-              <g id="node-layer"></g>
-            </g>
-          </svg>
+          <canvas id="graph-canvas" role="img" aria-label="Course knowledge graph: chapters, pages and concepts. Use search to find one."></canvas>
 
-          <div id="graph-hint" class="graph-hint"><span></span> Overview — use the legend to filter by level</div>
+          <div id="graph-hint" class="graph-hint"><span></span> Drag to move · scroll to zoom · hover to see connections</div>
 
           <article id="node-card" class="node-card" hidden>
             <button id="close-node-card" class="card-close" type="button" aria-label="Close concept details">×</button>
@@ -72,9 +61,10 @@
             <button id="ask-node" class="ask-node" type="button">Ask a question <span>→</span></button>
           </article>
 
-          <div class="legend" aria-label="Filter graph by node level">
-            <button id="legend-chapter" type="button" aria-pressed="false" title="Show chapters only"><i class="chapter-dot"></i>Chapter</button>
-            <button id="legend-concept" type="button" aria-pressed="false" title="Show concepts only"><i class="concept-dot"></i>Concept</button>
+          <div class="legend" aria-label="Show or hide kinds of nodes">
+            <button id="legend-chapter" type="button" aria-pressed="true" title="Show or hide chapters"><i class="chapter-dot"></i>Chapter</button>
+            <button id="legend-page" type="button" aria-pressed="true" title="Show or hide pages"><i class="page-dot"></i>Page</button>
+            <button id="legend-concept" type="button" aria-pressed="true" title="Show or hide concepts"><i class="concept-dot"></i>Concept</button>
           </div>
         </div>
       </section>
