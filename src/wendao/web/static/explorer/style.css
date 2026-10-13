@@ -238,8 +238,9 @@ kbd { padding: 3px 6px; border: 1px solid var(--line); border-radius: 5px; color
 .dark .search-result:hover, .dark .search-result:focus { background: var(--panel-2); }
 .dark .ask-node { color: var(--accent); border-color: var(--accent-line); background: var(--accent-soft); }
 
-#graph-canvas { display: block; width: 100%; height: 100%; cursor: grab; touch-action: none; }
-#graph-canvas:active { cursor: grabbing; }
+/* The normal arrow, and a pointing hand over nodes: Windows draws the open-hand "grab" cursors as blurry, oversized
+   bitmaps when the display is scaled. */
+#graph-canvas { display: block; width: 100%; height: 100%; cursor: default; touch-action: none; }
 .dark .search-box, .dark .icon-control, .dark .chat-launcher, .dark .chat-clear, .dark .chat-close, .dark .composer,
 .dark .ai-settings, .dark .ai-settings input, .dark .ai-settings select, .dark .ai-settings-actions button { background: var(--panel); color: var(--text); }
 .dark .chat-launcher, .dark .context-bar button, .dark .message-body a { color: var(--accent); }
