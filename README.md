@@ -8,6 +8,7 @@
 </p>
 
 <p align="center">
+  <a href="https://deng-group.github.io/wendao/"><img src="https://img.shields.io/badge/try%20it-live%20demo-7c3aed" alt="Try the live demo"></a>
   <a href="https://mle4217-5219.matsci.dev/"><img src="https://img.shields.io/badge/example%20course-MLE4217%2F5219-2563eb" alt="Example course: MLE4217/5219"></a>
   <img src="https://img.shields.io/badge/python-3.11%2B-3776ab?logo=python&logoColor=white" alt="Python 3.11+">
   <img src="https://img.shields.io/badge/backend-Flask-000000?logo=flask&logoColor=white" alt="Flask backend">
@@ -23,6 +24,9 @@ for students:
 It was built for the NUS course [MLE4217/5219 Materials Informatics](https://mle4217-5219.matsci.dev/), and this repository uses
 that course as its example. Nothing in the code is tied to that course, so you can run it on any course written as Markdown pages
 and Jupyter notebooks.
+
+**[Try the live demo](https://deng-group.github.io/wendao/)**: the knowledge graph of the example course, in your
+browser (no install; the AI chat needs a Wendao server, so it is off in the demo).
 
 Guides: [teacher guide](https://github.com/deng-group/wendao/blob/main/docs/GUIDE.md) · [server setup](https://github.com/deng-group/wendao/blob/main/deploy/DEPLOYMENT.md) · [developer notes](https://github.com/deng-group/wendao/blob/main/README_DEVELOPERS.md) · [plans and ideas](https://github.com/deng-group/wendao/issues)
 
