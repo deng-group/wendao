@@ -40,8 +40,9 @@ def normalize_address(address: str) -> str:
 
 
 class GraphView:
-    LIMITS = {"keyword": 8, "topic": 6, "chapter": 4}
-    MAX_OTHER_LINKS = 24
+    # Every chapter a concept appears in is shown (courses have few chapters); concepts and pages are capped.
+    LIMITS = {"keyword": 8, "topic": 6, "chapter": 16}
+    MAX_OTHER_LINKS = 30
 
     def __init__(self, graph: dict):
         self.nodes = {node["id"]: node for node in graph.get("nodes", [])}
@@ -116,8 +117,10 @@ class GraphView:
                     link = {"source": pair[0], "target": pair[1], "type": edge.get("type", "related"),
                             "weight": round(float(edge.get("weight", 0.5)), 3)}
                     (center_links if node_id in pair else other_links).append(link)
-        # Every link to the centre, plus the strongest links among the neighbours (a small window can't show all).
-        other_links.sort(key=lambda link: -link["weight"])
+        # Every link to the centre, then links to chapters (where each concept belongs), then the strongest of the rest:
+        # a small window can't show them all.
+        types = {item: self.nodes[item]["type"] for item in included}
+        other_links.sort(key=lambda link: ("chapter" not in (types[link["source"]], types[link["target"]]), -link["weight"]))
         links = center_links + other_links[: self.MAX_OTHER_LINKS]
         counts = Counter(self.nodes[other]["type"] for other in chosen)
         return {

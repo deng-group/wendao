@@ -6,6 +6,7 @@ import json
 import os
 import tempfile
 import threading
+import sys
 import unittest
 import zipfile
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -220,7 +221,16 @@ class CourseAppTest(unittest.TestCase):
             errors = io.StringIO()
             with contextlib.redirect_stderr(errors), self.assertRaises(SystemExit):
                 run_cli("build", "-w", str(self.root))
-        self.assertIn('pip install "wendao[teacher]"', errors.getvalue())
+        self.assertIn('-m pip install "wendao[teacher]"', errors.getvalue())
+        self.assertIn(sys.executable, errors.getvalue())  # says which Python is missing them
+
+    def test_pack_needs_no_teacher_tools(self):
+        make_workspace(self.root, 'ai = "teacher"')
+        run_cli("build", "-w", str(self.root))
+        real_find_spec = __import__("importlib.util").util.find_spec
+        with mock.patch("importlib.util.find_spec", lambda name: None if name == "pypdf" else real_find_spec(name)):
+            output = run_cli("pack", "-w", str(self.root), "--no-model")
+        self.assertIn(".wendao", output)
 
 
 if __name__ == "__main__":

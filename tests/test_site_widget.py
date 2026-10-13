@@ -51,12 +51,22 @@ class GraphViewTest(unittest.TestCase):
     def test_neighbourhood_is_small_and_connected(self):
         view = self.view.neighborhood("keyword:convex-hull")
         self.assertEqual(view["center"]["label"], "Convex Hull")
-        self.assertLessEqual(len(view["nodes"]), 18)
+        self.assertLessEqual(len(view["nodes"]), sum(GraphView.LIMITS.values()))
         self.assertTrue(all(node["type"] in {"keyword", "topic", "chapter"} for node in view["nodes"]))
         included = {view["center"]["id"], *(node["id"] for node in view["nodes"])}
         self.assertTrue(all(link["source"] in included and link["target"] in included for link in view["links"]))
         self.assertTrue(any(view["center"]["id"] in (link["source"], link["target"]) for link in view["links"]))
         self.assertIsNone(self.view.neighborhood("keyword:does-not-exist"))
+
+    def test_a_concept_shows_every_chapter_it_appears_in(self):
+        chapters = {edge["target"] if edge["source"] == "keyword:python" else edge["source"]
+                    for edge in self.view.edges if "keyword:python" in (edge["source"], edge["target"])
+                    and self.view.nodes[edge["target"] if edge["source"] == "keyword:python" else edge["source"]]["type"] == "chapter"
+                    and self.view.nodes[edge["target"] if edge["source"] == "keyword:python" else edge["source"]].get("visibility") != "hidden"}
+        view = self.view.neighborhood("keyword:python")
+        shown = {node["id"] for node in view["nodes"] if node["type"] == "chapter"}
+        self.assertEqual(shown, chapters)
+        self.assertGreater(len(shown), 4)
 
 
 class WidgetApiTest(unittest.TestCase):
@@ -103,6 +113,22 @@ class WidgetApiTest(unittest.TestCase):
         focused = pipeline.ask("Summarize this.", selection=passage)
         self.assertEqual(focused["status"], "answerable")
         self.assertEqual(focused["evidence"][0]["file_path"], "high_throughput/thermodynamics.md")
+
+    def test_serves_the_whole_course_graph_for_the_graph_tab(self):
+        page = self.client.get("/graph/")
+        self.assertEqual(page.status_code, 200)
+        self.assertIn(b"MLE4217/5219", page.data)
+        self.assertEqual(self.client.get("/graph/app.js").status_code, 200)
+        self.assertEqual(self.client.get("/graph/style.css").status_code, 200)
+        self.assertEqual(self.client.get("/graph/secret.txt").status_code, 404)
+        graph = self.client.get("/api/graph").get_json()
+        self.assertGreater(len(graph["nodes"]), 100)
+
+    def test_home_page_shows_the_new_widget(self):
+        page = self.client.get("/").data.decode()
+        self.assertIn("/static/site_widget/wendao-widget.js", page)
+        self.assertIn('data-api="http://localhost"', page)
+        self.assertEqual(self.client.get("/static/site_widget/wendao-widget.js").status_code, 200)
 
     def test_health_names_the_search_engine(self):
         self.assertEqual(self.client.get("/api/health").get_json()["web_search"]["name"], "Google")

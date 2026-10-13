@@ -62,4 +62,4 @@ build-backend = "setuptools.build_meta"
 where = ["src"]
 
 [tool.setuptools.package-data]
-wendao = ["web/static/**/*", "web/templates/*", "starter/*"]
+wendao = ["web/static/**/*", "starter/*"]

@@ -218,7 +218,8 @@
   // ---------- API ----------
   const state = {
     ai: { mode: "teacher", login_required: false, student_keys: false, needs_student_key: false },
-    course: null, graph: false, pageNode: null, history: [], center: null, selected: null, busy: false,
+    course: null, graph: false, pageNode: null, busy: false,
+    askAbout: null, // a graph node the student chose "Ask" on: their next question is about it
     conversation: 0, // bumped by Clear, so an answer still on its way isn't saved into the new conversation
     quote: "", // text the student highlighted on the page, sent with the next question
     quizzing: false, // the last answer asked the student a question: their next message is their answer
@@ -329,21 +330,7 @@
         </div>
 
         <div class="wdw-view" data-view="graph" hidden>
-          <div class="wdw-graph-bar">
-            <button class="wdw-icon-button" data-ref="back" type="button" title="Back" aria-label="Back" disabled>←</button>
-            <strong data-ref="graphTitle">Knowledge graph</strong>
-            <button class="wdw-icon-button" data-ref="here" type="button" title="Back to this page">This page</button>
-          </div>
-          <div class="wdw-legend"><span class="chapter"><i></i>Chapter</span><span class="topic"><i></i>Page</span><span class="keyword"><i></i>Concept</span></div>
-          <div class="wdw-graph" data-ref="graph"><div class="wdw-graph-empty" data-ref="graphEmpty">Loading the knowledge graph…</div></div>
-          <div class="wdw-node-card" data-ref="nodeCard" hidden>
-            <small data-ref="nodeKind"></small><strong data-ref="nodeLabel"></strong>
-            <div class="wdw-row">
-              <button class="wdw-button primary" type="button" data-ref="explain">Explain</button>
-              <button class="wdw-button" type="button" data-ref="recenter">Explore around it</button>
-              <a class="wdw-button" data-ref="openPage" hidden>Open page</a>
-            </div>
-          </div>
+          <iframe class="wdw-graph-frame" data-ref="graphFrame" title="Course knowledge graph"></iframe>
         </div>
       </section>
       <div class="wdw-pick" data-ref="pick" role="toolbar" aria-label="Ask Wendao about the highlighted text" hidden>
@@ -657,119 +644,38 @@
     ui.signIn.hidden = true;
   }
 
-  // ---------- graph ----------
-  const SVG = "http://www.w3.org/2000/svg";
-  const svgEl = (tag, attrs) => { const node = document.createElementNS(SVG, tag); for (const [k, v] of Object.entries(attrs || {})) node.setAttribute(k, v); return node; };
-  const KIND = { chapter: "Chapter", topic: "Page", keyword: "Concept" };
+  // ---------- graph: the whole course graph (the page `wendao serve` shows), inside the Graph tab ----------
+  const API_ORIGIN = new URL(API, window.location.href).origin;
 
-  function clearGraph(message) {
-    state.view = null;
-    state.center = null;
-    state.selected = null;
-    ui.graph.querySelectorAll("svg").forEach((node) => node.remove());
-    ui.nodeCard.hidden = true;
-    ui.graphTitle.textContent = "Knowledge graph";
-    ui.back.disabled = !state.history.length;
-    ui.graphEmpty.textContent = message;
-    ui.graphEmpty.hidden = false;
-  }
-
-  async function showGraph(nodeId, remember) {
-    if (!nodeId) {
-      clearGraph(state.graph ? "This page isn't in the course knowledge graph." : "This course has no knowledge graph yet.");
-      return;
-    }
-    try {
-      const view = await getJson(`/api/neighborhood?node=${encodeURIComponent(nodeId)}`);
-      if (remember && state.center && state.center.id !== nodeId) state.history.push(state.center.id);
-      state.center = view.center;
-      state.selected = null;
-      ui.nodeCard.hidden = true;
-      ui.back.disabled = !state.history.length;
-      ui.graphTitle.textContent = view.center.label;
-      state.view = view;
-      drawGraph(view);
-    } catch (error) {
-      clearGraph(`Couldn't load the graph: ${error.message}`);
+  function graphMessage(message) {
+    if (ui.graphFrame.getAttribute("src") && ui.graphFrame.contentWindow) {
+      ui.graphFrame.contentWindow.postMessage({ source: "wendao-widget", ...message }, API_ORIGIN);
     }
   }
 
-  function drawGraph(view) {
-    ui.graph.querySelectorAll("svg").forEach((node) => node.remove());
-    ui.graphEmpty.hidden = true;
-    const box = ui.graph.getBoundingClientRect();
-    const width = Math.max(box.width, 280);
-    const height = Math.max(box.height, 220);
-    const cx = width / 2;
-    const cy = height / 2;
-    // Neighbours on an oval (wider than tall), grouped by kind. Labels point outward, left or right,
-    // and are spaced per side so they never overlap.
-    const rx = Math.max(Math.min(width / 2 - 125, 260), 50);
-    const ry = Math.max(height / 2 - 26, 60);
-    const order = { chapter: 0, topic: 1, keyword: 2 };
-    const ring = [...view.nodes].sort((a, b) => order[a.type] - order[b.type]);
-    const positions = { [view.center.id]: { x: cx, y: cy } };
-    ring.forEach((node, index) => {
-      const angle = -Math.PI / 2 + (2 * Math.PI * (index + 0.5)) / Math.max(ring.length, 1);
-      const x = cx + rx * Math.cos(angle);
-      positions[node.id] = { x, y: cy + ry * Math.sin(angle), right: x >= cx, labelY: 0 };
-    });
-    for (const right of [true, false]) {
-      const side = ring.map((node) => positions[node.id]).filter((pos) => pos.right === right).sort((a, b) => a.y - b.y);
-      let previous = -Infinity;
-      for (const pos of side) { pos.labelY = Math.max(pos.y + 4, previous + 15); previous = pos.labelY; }
-      let limit = height - 6;
-      for (const pos of [...side].reverse()) { pos.labelY = Math.min(pos.labelY, limit); limit = pos.labelY - 15; }
+  function showGraph() {
+    if (!ui.graphFrame.getAttribute("src")) {
+      const params = new URLSearchParams({ embed: "1", theme: root.dataset.theme });
+      if (state.pageNode) params.set("focus", state.pageNode.id);
+      ui.graphFrame.src = `${API}/graph/?${params}`;
+    } else if (state.pageNode) {
+      graphMessage({ type: "focus", id: state.pageNode.id });
     }
-    const svg = svgEl("svg", { viewBox: `0 0 ${width} ${height}`, width, height, role: "img", "aria-label": `Knowledge graph around ${view.center.label}` });
-    const links = svgEl("g");
-    for (const link of view.links) {
-      const a = positions[link.source]; const b = positions[link.target];
-      if (!a || !b) continue;
-      const center = link.source === view.center.id || link.target === view.center.id;
-      const line = svgEl("line", { x1: a.x, y1: a.y, x2: b.x, y2: b.y, class: `wdw-link ${center ? "center" : "dim"}` });
-      line.dataset.ends = `${link.source} ${link.target}`;
-      links.appendChild(line);
-    }
-    svg.appendChild(links);
-    const nodes = svgEl("g");
-    for (const node of [view.center, ...ring]) {
-      const position = positions[node.id];
-      const isCenter = node.id === view.center.id;
-      const group = svgEl("g", { class: `wdw-node ${node.type}${isCenter ? " center" : ""}`, tabindex: "0", role: "button", "aria-label": `${KIND[node.type] || ""}: ${node.label}` });
-      const size = isCenter ? 11 : node.type === "chapter" ? 8 : node.type === "topic" ? 6.5 : 5.5;
-      group.appendChild(svgEl("circle", { cx: position.x, cy: position.y, r: size }));
-      const label = svgEl("text", {});
-      const short = node.label.length > 22 ? `${node.label.slice(0, 20)}…` : node.label;
-      label.textContent = short;
-      if (isCenter) { label.setAttribute("x", position.x); label.setAttribute("y", position.y + 26); label.setAttribute("text-anchor", "middle"); }
-      else {
-        label.setAttribute("x", position.x + (position.right ? 10 : -10));
-        label.setAttribute("y", position.labelY);
-        label.setAttribute("text-anchor", position.right ? "start" : "end");
-      }
-      group.appendChild(label);
-      const title = svgEl("title"); title.textContent = node.label; group.appendChild(title);
-      const select = () => selectNode(node, isCenter);
-      group.addEventListener("click", select);
-      group.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); select(); } });
-      group.addEventListener("mouseenter", () => links.querySelectorAll("line").forEach((line) => line.classList.toggle("dim", !line.dataset.ends.includes(node.id))));
-      group.addEventListener("mouseleave", () => links.querySelectorAll("line").forEach((line) => line.classList.toggle("dim", !line.classList.contains("center"))));
-      nodes.appendChild(group);
-    }
-    svg.appendChild(nodes);
-    ui.graph.appendChild(svg);
   }
 
-  function selectNode(node, isCenter) {
-    state.selected = node;
-    ui.graph.querySelectorAll(".wdw-node").forEach((group) => group.classList.toggle("selected", group.getAttribute("aria-label") === `${KIND[node.type] || ""}: ${node.label}`));
-    ui.nodeKind.textContent = KIND[node.type] || "Node";
-    ui.nodeLabel.textContent = node.label;
-    ui.recenter.hidden = isCenter;
-    ui.openPage.hidden = !node.url;
-    if (node.url) ui.openPage.href = node.url;
-    ui.nodeCard.hidden = false;
+  // Explain / Ask on a node in the graph: answer in the chat.
+  function onGraphMessage(event) {
+    const message = event.data || {};
+    if (event.origin !== API_ORIGIN || event.source !== ui.graphFrame.contentWindow || message.source !== "wendao-graph") return;
+    setTab("chat");
+    if (message.type === "explain") {
+      const kind = message.kind === "keyword" ? "the concept" : message.kind === "chapter" ? "the chapter" : "the page";
+      ask(`Explain ${kind} "${message.label}".`, [message.id]);
+    } else if (message.type === "ask") {
+      state.askAbout = { id: message.id, label: message.label };
+      ui.question.placeholder = `Ask about ${message.label}…`;
+      ui.question.focus();
+    }
   }
 
   // ---------- window: open, tabs, resize, maximize ----------
@@ -783,7 +689,7 @@
   function setTab(name) {
     root.querySelectorAll(".wdw-tab").forEach((tab) => tab.setAttribute("aria-selected", String(tab.dataset.tab === name)));
     root.querySelectorAll(".wdw-view").forEach((view) => { view.hidden = view.dataset.view !== name; });
-    if (name === "graph") showGraph(state.center ? state.center.id : state.pageNode && state.pageNode.id, false);
+    if (name === "graph") showGraph();
   }
 
   function applySize() {
@@ -848,7 +754,9 @@
       event.preventDefault();
       const q = ui.question.value.trim();
       ui.question.value = "";
-      if (q) ask(q, [], state.quizzing ? `My answer to that question: ${q}` : undefined);
+      const about = state.askAbout;
+      state.askAbout = null;
+      if (q) ask(q, about ? [about.id] : [], state.quizzing ? `My answer to that question: ${q}` : undefined);
     });
     ui.question.addEventListener("keydown", (event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); ui.composer.requestSubmit(); } });
     ui.question.addEventListener("input", () => { ui.question.style.height = "auto"; ui.question.style.height = `${Math.min(ui.question.scrollHeight, 140)}px`; });
@@ -877,34 +785,17 @@
     ui.cancelKey.addEventListener("click", () => { ui.keyForm.hidden = true; });
     ui.forgetKey.addEventListener("click", () => { localStorage.removeItem(KEY("ai")); ui.keyForm.hidden = true; });
 
-    ui.back.addEventListener("click", () => { const previous = state.history.pop(); if (previous) showGraph(previous, false); });
-    ui.here.addEventListener("click", () => { state.history = []; showGraph(state.pageNode && state.pageNode.id, false); });
-    ui.recenter.addEventListener("click", () => { if (state.selected) showGraph(state.selected.id, true); });
-    ui.explain.addEventListener("click", () => {
-      if (!state.selected) return;
-      setTab("chat");
-      const kind = state.selected.type === "keyword" ? "the concept" : state.selected.type === "chapter" ? "the chapter" : "the page";
-      ask(`Explain ${kind} "${state.selected.label}".`, [state.selected.id]);
-    });
+    window.addEventListener("message", onGraphMessage);
 
     // Follow the site's light/dark switch live.
-    const syncTheme = () => { root.dataset.theme = siteIsDark() ? "dark" : "light"; };
+    const syncTheme = () => {
+      root.dataset.theme = siteIsDark() ? "dark" : "light";
+      graphMessage({ type: "theme", dark: root.dataset.theme === "dark" });
+    };
     new MutationObserver(syncTheme).observe(document.documentElement, { attributes: true, attributeFilter: ["class", "data-theme", "data-mode"] });
     if (document.body) new MutationObserver(syncTheme).observe(document.body, { attributes: true, attributeFilter: ["class", "data-theme"] });
     if (window.matchMedia) window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", syncTheme);
     window.addEventListener("resize", () => { if (!ui.panel.hidden) applySize(); });
-    // Redraw the graph whenever its area changes size (window resized, node card shown, maximize).
-    let redraw = null;
-    new ResizeObserver(() => {
-      clearTimeout(redraw);
-      redraw = setTimeout(() => {
-        if (state.view && !ui.graph.closest(".wdw-view").hidden) {
-          const selected = state.selected;
-          drawGraph(state.view);
-          if (selected) selectNode(selected, selected.id === state.view.center.id);
-        }
-      }, 60);
-    }).observe(ui.graph);
   }
 
   // ---------- page context: the site may change pages without reloading (MyST) ----------
@@ -916,9 +807,7 @@
       const reply = await getJson(`/api/page?path=${encodeURIComponent(lastPath)}`);
       state.pageNode = reply.node;
     } catch { state.pageNode = null; }
-    state.history = [];
-    state.center = null;
-    if (!root.querySelector('[data-view="graph"]').hidden) showGraph(state.pageNode && state.pageNode.id, false);
+    if (!root.querySelector('[data-view="graph"]').hidden) showGraph();
     if (!ui.messages.querySelector(".wdw-message.user")) showChips();
   }
 

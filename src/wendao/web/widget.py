@@ -7,20 +7,22 @@ website (`[course] website`), extra origins in `[student] allowed_origins`, and 
 
 from __future__ import annotations
 
+import html
 import json
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from flask import Flask, Response, jsonify, render_template, request, stream_with_context
+from flask import Flask, Response, jsonify, request, send_from_directory, stream_with_context
 
 from wendao import workspace as workspace_module
 from wendao.rag.answer import AnswerGenerator
 from wendao.rag.pipeline import QueryPipeline
 from wendao.rag.prompts import PromptBuilder
-from wendao.web import STATIC_DIR, TEMPLATES_DIR
+from wendao import __version__
+from wendao.web import STATIC_DIR
 from wendao.web.accounts import SignInError, TokenSigner
 from wendao.web.ai import AiPolicy, AiUnavailable, bearer_token, student_id
-from wendao.web.explorer import course_source_url
+from wendao.web.explorer import EXPLORER_DIR, course_source_url, render_index
 from wendao.web.feedback import FeedbackError, FeedbackStore
 from wendao.web.graph_api import GraphView
 
@@ -57,7 +59,7 @@ def create_app(workspace=None) -> Flask:
     """Create the app for a workspace (default: `$WENDAO_WORKSPACE` or the current folder)."""
     workspace = workspace or workspace_module.load()
     workspace.apply_model_settings()
-    app = Flask(__name__, static_folder=str(STATIC_DIR / "widget"), static_url_path="/static", template_folder=str(TEMPLATES_DIR))
+    app = Flask(__name__, static_folder=str(STATIC_DIR), static_url_path="/static")
     pipeline = QueryPipeline.for_workspace(workspace, top_k=5)
     prompt_builder = PromptBuilder(evidence_score_threshold=0.60, course_name=workspace.display_name)
     # The widget runs where the teacher's key is, so it never forwards to another server.
@@ -66,7 +68,8 @@ def create_app(workspace=None) -> Flask:
     )
     origins = {origin_of(workspace.website)} | {origin_of(item) or item for item in workspace.allowed_origins}
     graph_path = Path(workspace.graph_path)
-    graph_view = GraphView(json.loads(graph_path.read_text(encoding="utf-8"))) if graph_path.exists() else None
+    graph = json.loads(graph_path.read_text(encoding="utf-8")) if graph_path.exists() else None
+    graph_view = GraphView(graph) if graph else None
 
     def selected_context(payload: dict) -> list[str]:
         """Graph nodes the student picked (e.g. a concept in the Graph tab), as labels to focus the search."""
@@ -124,7 +127,40 @@ def create_app(workspace=None) -> Flask:
 
     @app.get("/")
     def index():
-        return render_template("widget.html", course_name=workspace.display_name)
+        """A plain page with the widget on it, to try the widget without a course website."""
+        name = html.escape(workspace.display_name)
+        api = html.escape(request.host_url.rstrip("/"), quote=True)
+        page = f"""<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{name} · Wendao</title>
+<link rel="stylesheet" href="/static/site_widget/wendao-widget.css?v={__version__}" data-wendao-widget="style">
+<style>body{{margin:0;font-family:system-ui,sans-serif;color:#0b1220;background:#f5f6fb}}
+main{{max-width:640px;margin:12vh auto;padding:0 24px;line-height:1.6}}h1{{margin:0 0 8px}}p{{color:#5b6577}}</style>
+</head><body><main><h1>{name}</h1>
+<p>This is the Wendao chat widget, the same one <code>wendao widget install</code> adds to your course website.
+Open it with the button at the bottom-right.</p></main>
+<script src="/static/site_widget/wendao-widget.js?v={__version__}" data-version="{__version__}" data-api="{api}" defer></script>
+</body></html>"""
+        return Response(page, content_type="text/html; charset=utf-8")
+
+    # The whole course graph (the same page as `wendao serve`), shown inside the widget's Graph tab.
+    graph_page = render_index(workspace) if graph else None
+
+    @app.get("/graph/")
+    def graph_index():
+        if graph_page is None:
+            return Response("This course has no knowledge graph yet. Run `wendao build`.", status=404)
+        return Response(graph_page, content_type="text/html; charset=utf-8")
+
+    @app.get("/graph/<any('app.js', 'style.css'):filename>")
+    def graph_files(filename: str):
+        return send_from_directory(EXPLORER_DIR, filename)
+
+    @app.get("/api/graph")
+    def course_graph():
+        if graph is None:
+            return jsonify({"ok": False, "message": "No knowledge graph yet."}), 404
+        return jsonify(graph)
 
     @app.get("/api/health")
     def health():

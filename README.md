@@ -245,6 +245,8 @@ wendao ask "How is Materials Project data used to train MACE potentials?"
 
 A small, cheap model is usually enough, because Wendao gives it the relevant course text. Answers use a temperature of 0.2. Some
 models, such as OpenAI's reasoning models, don't accept one; set `temperature = "none"` under `[model]` for those.
+Replies can be up to 8192 tokens long. Models that think before answering (such as DeepSeek) use part of that for
+thinking; if answers stop with "its thinking used up the token limit", raise `max_tokens` under `[model]`.
 
 ### 5. Try it yourself
 
@@ -315,8 +317,8 @@ wendao widget install _build/html          # adds the Wendao button to every pag
 ```
 
 Students get a Wendao button at the bottom-right of each page. It opens a chat window that they can resize or enlarge, and
-that follows the site's light or dark theme. A **Graph** tab shows the part of the knowledge graph around the page they are
-reading: click a concept to explore around it, open its page, or ask the AI to explain it. Students can also highlight
+that follows the site's light or dark theme. A **Graph** tab shows the whole course knowledge graph, opened on the page
+they are reading: search it, click a chapter or concept to see how it connects, or ask the AI to explain it. Students can also highlight
 any text on a page and click **Explain** or **Ask about it** to ask about that passage, or **Search** to look it up on
 Google. To use another search engine, set it in `wendao.toml`:
 
@@ -339,7 +341,7 @@ by default it uses the same website address under `/api`, or pass `--api https:/
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/deng-group/wendao/main/docs/assets/demo/widget_chat.png" width="52%" alt="The Wendao widget on a course page: an answer about convex hulls with links to the course pages it used">
-  <img src="https://raw.githubusercontent.com/deng-group/wendao/main/docs/assets/demo/widget_graph_dark.png" width="46%" alt="The widget's Graph tab in dark mode: the concepts and pages around the Thermodynamics page">
+  <img src="https://raw.githubusercontent.com/deng-group/wendao/main/docs/assets/demo/widget_graph_dark.png" width="46%" alt="The widget's Graph tab in dark mode: the whole course knowledge graph, chapters and the concepts that connect them">
 </p>
 
 ## Testing your agent

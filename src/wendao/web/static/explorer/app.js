@@ -4,6 +4,18 @@ const MAX_MEMORY_ITEMS = 6;
 const AI_SETTINGS_KEY = "wendao_ai_settings_v1";
 const SIGN_IN_KEY = "wendao_sign_in_v1";
 
+// Shown inside the course-website widget's Graph tab (?embed): no chat panel here. Explain and Ask go to the
+// widget's chat, the widget says which page the student is on (focus) and whether the site is dark.
+const PARAMS = new URLSearchParams(window.location.search);
+const EMBEDDED = PARAMS.has("embed") && window.parent !== window;
+if (EMBEDDED) {
+  document.documentElement.classList.add("embedded");
+  document.documentElement.classList.toggle("dark", PARAMS.get("theme") === "dark");
+}
+function tellWidget(type, node) {
+  window.parent.postMessage({ source: "wendao-graph", type, id: node.id, label: node.label, kind: node.type }, "*");
+}
+
 const elements = {
   shell: document.querySelector(".app-shell"),
   svg: document.querySelector("#graph-svg"),
@@ -201,20 +213,15 @@ function studentConcepts() {
   });
 }
 
-const FEATURED_CONCEPT_IDS = [
-  "keyword:crystal-structure",
-  "keyword:materials-project",
-  "keyword:dft",
-  "keyword:molecular-dynamics",
-  "keyword:optimization",
-  "keyword:convex-hull",
-  "keyword:machine-learning",
-  "keyword:gnn",
-  "keyword:machine-learning-potential",
-  "keyword:mace",
-  "keyword:training-data",
-  "keyword:phase-diagram",
-];
+// The overview shows the concepts that tie the course together: those used in the most chapters.
+const FEATURED_CONCEPTS = 14;
+function featuredConceptIds() {
+  return studentConcepts()
+    .filter((node) => node.type === "keyword")
+    .sort((a, b) => (b.chapter_ids?.length || 0) - (a.chapter_ids?.length || 0) || (b.mention_count || 0) - (a.mention_count || 0))
+    .slice(0, FEATURED_CONCEPTS)
+    .map((node) => node.id);
+}
 
 function representativeTopics(chapterId, limit = 2) {
   const genericSections = new Set(["index", "introduction", "intro", "overview", "summary"]);
@@ -233,7 +240,7 @@ function initialVisibleIds() {
     ids.add(chapter.id);
     representativeTopics(chapter.id).forEach((topic) => ids.add(topic.id));
   }
-  FEATURED_CONCEPT_IDS.filter((id) => state.nodesById.has(id)).forEach((id) => ids.add(id));
+  featuredConceptIds().forEach((id) => ids.add(id));
   return ids;
 }
 
@@ -309,6 +316,7 @@ function chaptersForConcept(node) {
   return node.chapter_ids || [];
 }
 
+const SELECTED_NEIGHBOURS = 24;
 function visibleSetFor(node) {
   if (node.type === "chapter") {
     const ids = new Set(primaryChapters().map((chapter) => chapter.id));
@@ -319,11 +327,20 @@ function visibleSetFor(node) {
     return ids;
   }
 
-  const ids = new Set(studentConcepts().map((concept) => concept.id));
-  chaptersForConcept(node)
-      .map((id) => state.nodesById.get(id))
-      .filter((chapter) => chapter?.visibility === "primary")
-      .forEach((chapter) => ids.add(chapter.id));
+  // A concept or page: all chapters, the node, and the concepts and pages linked to it (strongest first).
+  // Each of those is then drawn with every chapter it appears in, so the picture stays connected.
+  const ids = new Set(primaryChapters().map((chapter) => chapter.id));
+  ids.add(node.id);
+  (state.edgesByNode.get(node.id) || [])
+    .filter((edge) => edge.type !== "sequence")
+    .map((edge) => ({ id: edgeOther(edge, node.id), weight: edge.weight || 0 }))
+    .filter(({ id }) => {
+      const other = state.nodesById.get(id);
+      return other && other.type !== "chapter" && other.visibility !== "hidden";
+    })
+    .sort((a, b) => b.weight - a.weight)
+    .slice(0, SELECTED_NEIGHBOURS)
+    .forEach(({ id }) => ids.add(id));
   return ids;
 }
 
@@ -455,7 +472,8 @@ function getVisibleEdges() {
     if (state.selectedId) {
       const selected = state.nodesById.get(state.selectedId);
       if (selected?.type === "chapter") return isChapterConceptEdge(edge);
-      return isChapterConceptEdge(edge) && (edge.source === state.selectedId || edge.target === state.selectedId);
+      // Every concept with its chapters, and the selected node with everything linked to it.
+      return isChapterConceptEdge(edge) || edge.source === state.selectedId || edge.target === state.selectedId;
     }
 
     if (state.mode === "concept") return false;
@@ -659,7 +677,7 @@ elements.svg.addEventListener("wheel", (event) => {
 
 function showNodeCard(node) {
   const kind = visualType(node);
-  elements.nodeKind.textContent = kind;
+  elements.nodeKind.textContent = node.type === "topic" ? "page" : kind;
   elements.nodeKind.style.color = kind === "chapter" ? "var(--chapter)" : "var(--concept)";
   elements.nodeTitle.textContent = node.label;
   elements.nodeCard.hidden = false;
@@ -969,6 +987,8 @@ async function initialize() {
     const response = await fetch("/api/graph");
     if (!response.ok) throw new Error("Graph data could not be loaded.");
     indexGraph(await response.json()); setInitialView();
+    const focus = PARAMS.get("focus");
+    if (focus && state.nodesById.has(focus)) selectNode(focus, { fit: true });
   } catch (error) {
     elements.nodeLayer.replaceChildren(); elements.edgeLayer.replaceChildren();
     const message = document.createElement("div"); message.className = "graph-load-error"; message.textContent = error.message; elements.stage.appendChild(message);
@@ -993,11 +1013,13 @@ elements.legendChapter.addEventListener("click", () => setViewMode("chapter", { 
 elements.legendConcept.addEventListener("click", () => setViewMode("concept", { toggle: true }));
 elements.explainNode.addEventListener("click", () => {
   const node = state.nodesById.get(state.selectedId);
-  if (node) explainSelectedNode(node);
+  if (node && EMBEDDED) tellWidget("explain", node);
+  else if (node) explainSelectedNode(node);
 });
 document.querySelector("#close-node-card").addEventListener("click", () => { elements.nodeCard.hidden = true; });
 document.querySelector("#ask-node").addEventListener("click", () => {
   const node = state.nodesById.get(state.selectedId); if (!node) return;
+  if (EMBEDDED) { tellWidget("ask", node); return; }
   elements.question.value = "";
   elements.question.placeholder = `Ask about ${node.label}…`;
   resizeQuestion();
@@ -1043,3 +1065,18 @@ document.querySelector("#ai-forget").addEventListener("click", () => {
 
 initialize();
 loadCourseAi();
+
+if (EMBEDDED) {
+  const explainInWidget = document.querySelector("#explain-in-widget");
+  explainInWidget.hidden = false;
+  explainInWidget.addEventListener("click", () => {
+    const node = state.nodesById.get(state.selectedId);
+    if (node) tellWidget("explain", node);
+  });
+  window.addEventListener("message", (event) => {
+    const message = event.data || {};
+    if (event.source !== window.parent || message.source !== "wendao-widget") return;
+    if (message.type === "focus" && state.nodesById.has(message.id)) selectNode(message.id, { fit: true });
+    if (message.type === "theme") document.documentElement.classList.toggle("dark", Boolean(message.dark));
+  });
+}

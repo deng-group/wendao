@@ -213,33 +213,7 @@
 .wdw-form-error { color: var(--wdw-error) !important; }
 
 /* Graph */
-.wdw-graph-bar { display: flex; align-items: center; gap: 6px; padding: 10px 14px 4px; }
-.wdw-graph-bar strong { flex: 1; overflow: hidden; font-size: 13px; white-space: nowrap; text-overflow: ellipsis; }
-.wdw-graph { position: relative; flex: 1; min-height: 0; }
-.wdw-graph svg { display: block; width: 100%; height: 100%; }
-.wdw-graph .wdw-link { stroke: var(--wdw-line-strong); stroke-width: 1; }
-.wdw-graph .wdw-link.center { stroke-width: 1.4; }
-.wdw-graph .wdw-link.dim { opacity: 0.25; }
-.wdw-graph .wdw-node { cursor: pointer; }
-.wdw-graph .wdw-node circle { stroke-width: 2; transition: r 0.15s ease; }
-.wdw-graph .wdw-node.chapter circle { fill: var(--wdw-chapter); stroke: var(--wdw-chapter); }
-.wdw-graph .wdw-node.topic circle { fill: var(--wdw-bg); stroke: var(--wdw-topic); }
-.wdw-graph .wdw-node.keyword circle { fill: var(--wdw-concept); stroke: var(--wdw-concept); }
-.wdw-graph .wdw-node.center circle { stroke-width: 3; }
-.wdw-graph .wdw-node.selected circle { stroke: var(--wdw-text); stroke-width: 3; }
-.wdw-graph .wdw-node text { fill: var(--wdw-text); font-size: 11px; paint-order: stroke; stroke: var(--wdw-bg); stroke-width: 3px; }
-.wdw-graph .wdw-node.center text { font-weight: 650; font-size: 12px; }
-.wdw-graph-empty { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; color: var(--wdw-muted); text-align: center; }
-.wdw-legend { display: flex; gap: 12px; padding: 0 14px 6px; color: var(--wdw-muted); font-size: 11px; }
-.wdw-legend i { display: inline-block; width: 8px; height: 8px; margin-right: 4px; border-radius: 50%; vertical-align: 0; }
-.wdw-legend .chapter i { background: var(--wdw-chapter); }
-.wdw-legend .topic i { border: 2px solid var(--wdw-topic); }
-.wdw-legend .keyword i { background: var(--wdw-concept); }
-.wdw-node-card { margin: 0 14px 14px; padding: 12px 14px; border: 1px solid var(--wdw-line); border-radius: 14px; background: var(--wdw-surface); }
-.wdw-node-card[hidden] { display: none; }
-.wdw-node-card small { color: var(--wdw-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; }
-.wdw-node-card strong { display: block; margin: 2px 0 10px; font-size: 14px; }
-.wdw-node-card .wdw-row { justify-content: flex-start; flex-wrap: wrap; }
+.wdw-graph-frame { flex: 1; min-height: 0; width: 100%; border: 0; background: var(--wdw-bg); }
 
 @media (max-width: 520px) {
   .wdw-panel { right: 8px; left: 8px; bottom: 84px; width: auto !important; height: calc(100vh - 100px) !important; }

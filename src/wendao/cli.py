@@ -107,9 +107,11 @@ def require_teacher_tools() -> None:
 
     missing = [package for module, package in TEACHER_MODULES.items() if importlib.util.find_spec(module) is None]
     if missing:
+        # Name this Python: a common mix-up is installing with one `pip` and running another `wendao`.
         raise RuntimeError(
-            "Building a course needs the teacher tools, which are not installed "
-            f"(missing: {', '.join(missing)}).\nInstall them with:  pip install \"wendao[teacher]\""
+            "Building a course needs the teacher tools, which are not installed for the Python that runs Wendao "
+            f"({sys.executable}; missing: {', '.join(missing)}).\n"
+            f"Install them there with:  \"{sys.executable}\" -m pip install \"wendao[teacher]\""
         )
 
 
@@ -453,8 +455,7 @@ def cmd_students(args: argparse.Namespace) -> None:
 
 
 def cmd_pack(args: argparse.Namespace) -> None:
-    require_teacher_tools()
-    from wendao.pack import pack
+    from wendao.pack import pack  # only packs what `wendao build` made: no teacher tools needed
 
     workspace = load_workspace(args)
     say("Packing the course app ...")

@@ -120,9 +120,12 @@ wendao serve --widget --site ../../../MLE4217_5219_book/_build/html
 ```
 
 The widget source is `src/wendao/web/static/site_widget/` (`wendao-widget.js`, `.css`);
-`wendao widget install` copies it into `_build/html/_wendao/`. The Graph tab uses the
-widget API's `/api/page` (which node is this page) and `/api/neighborhood` (a node's
-closest neighbours, `web/graph_api.py`).
+`wendao widget install` copies it into `_build/html/_wendao/`. The Graph tab shows the
+graph website (`static/explorer/`, the same page as `wendao serve`) in a frame: the widget
+API serves it at `/graph/` with `/api/graph`, and `?embed` hides its chat panel and logo.
+The widget tells it the current page (`/api/page`, then a `focus` message) and the theme;
+Explain and Ask on a node come back as messages and are answered in the Chat tab. The
+"On this page" chips use `/api/neighborhood` (`web/graph_api.py`).
 
 When a student highlights text on a page, the widget sends it as `selection` (up to 1500
 characters) with the question. The pipeline searches with it ahead of the question, so

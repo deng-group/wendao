@@ -212,3 +212,35 @@ kbd { padding: 3px 6px; border: 1px solid var(--line); border-radius: 5px; color
 .ai-settings-actions .primary { background: var(--chapter); border-color: var(--chapter); color: #fff; }
 .sign-in-error { color: #b42318 !important; margin: -4px 0 8px !important; }
 .ai-settings-actions #sign-out { margin-right: auto; border-color: transparent; color: var(--muted); }
+
+/* Inside the course-website widget's Graph tab: no logo bar or chat panel, compact controls */
+.embedded .app-shell { min-height: 0; }
+.embedded .brand, .embedded #open-chat, .embedded .chat-panel, .embedded .graph-hint { display: none !important; }
+.embedded .graph-header { grid-template-columns: minmax(0, 1fr) auto; gap: 8px; height: 52px; padding: 0 10px; }
+.embedded .graph-stage { inset: 52px 0 0; }
+.embedded .search-box { height: 36px; }
+.embedded .icon-control { width: 34px; height: 34px; }
+.embedded .search-results { top: 48px; }
+.embedded .legend { left: 10px; bottom: 10px; }
+.embedded .node-card { left: 10px; bottom: 58px; width: min(330px, calc(100% - 20px)); padding: 14px 16px; }
+.embedded .node-card h2 { font-size: 1.1rem; }
+.embedded .ask-node { margin-top: 10px; }
+.embedded #explain-in-widget { margin-top: 14px; }
+
+/* Dark, when the course website is dark */
+.embedded.dark { color-scheme: dark; --bg: #0f1420; --panel: #151b29; --panel-2: #1a2132; --line: rgba(148, 163, 184, 0.16);
+  --line-strong: rgba(148, 163, 184, 0.3); --text: #e7eaf3; --muted: #9aa3b5; --chapter: #60a5fa; --concept: #fbbf24; }
+.embedded.dark .graph-workspace { background: var(--bg); }
+.embedded.dark .graph-header { background: rgba(15, 20, 32, 0.9); }
+.embedded.dark .search-box, .embedded.dark .icon-control { background: var(--panel); }
+.embedded.dark .icon-control svg { stroke: var(--muted); }
+.embedded.dark .edge { stroke: rgba(148, 163, 184, 0.22); }
+.embedded.dark .edge.active { stroke: rgba(96, 165, 250, 0.75); }
+.embedded.dark .node.chapter .core { fill: #172554; }
+.embedded.dark .node.concept .core { fill: #3b2a0a; }
+.embedded.dark .node text { fill: #e7eaf3; stroke: rgba(15, 20, 32, 0.92); }
+.embedded.dark .legend, .embedded.dark .node-card, .embedded.dark .search-results { background: rgba(21, 27, 41, 0.96); color: var(--muted); }
+.embedded.dark .legend button { color: var(--muted); }
+.embedded.dark .legend button:hover, .embedded.dark .legend button[aria-pressed="true"] { color: var(--text); background: var(--panel-2); }
+.embedded.dark .search-result:hover, .embedded.dark .search-result:focus { background: var(--panel-2); }
+.embedded.dark .ask-node { color: #93c5fd; border-color: rgba(96, 165, 250, 0.35); background: rgba(96, 165, 250, 0.1); }
