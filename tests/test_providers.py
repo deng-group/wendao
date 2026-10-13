@@ -246,6 +246,12 @@ class ErrorsNameTheModelTest(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "API error 503 for model gpt-4.1-mini: .*No available accounts"):
                 openai.generate(self.package())
 
+    def test_unreachable_server_names_the_model(self):
+        with mock.patch.dict(os.environ, {"OPENAI_BASE_URL": "http://127.0.0.1:1/v1", "OPENAI_API_KEY": "sk-test"}):
+            openai = providers.provider_from_name("openai", model="gpt-4.1-mini")
+            with self.assertRaisesRegex(RuntimeError, "API unreachable for model gpt-4.1-mini"):
+                openai.generate(self.package())
+
 
 class ThinkingServer(BaseHTTPRequestHandler):
     """Answers like DeepSeek through an Anthropic-style relay: thinking first, then (maybe) the answer."""

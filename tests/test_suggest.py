@@ -140,6 +140,12 @@ class SuggestTest(unittest.TestCase):
         concepts, _ = suggest.suggest_concepts(self.workspace, model, chapters, [], say=lambda *_: None)
         self.assertEqual(sorted((item["id"], item["label"]) for item in concepts), [("c", "C"), ("c-2", "C++")])
 
+        existing = [{"id": "c", "label": "C", "aliases": ["c"]}]  # "C" is already in concepts.json: C++ is still new
+        model = FakeModel([json.dumps([{"label": "C++", "aliases": ["c++"]}, {"label": "C", "aliases": ["c"]}])])
+        concepts, already = suggest.suggest_concepts(self.workspace, model, chapters, existing, say=lambda *_: None)
+        self.assertEqual([(item["id"], item["label"]) for item in concepts], [("c-2", "C++")])
+        self.assertEqual(already, 1)
+
     def test_excerpt_covers_the_whole_chapter_within_the_budget(self):
         chunks = [{"content": f"Part {number} " + "x" * 500} for number in range(200)]
         text = suggest.excerpt(chunks, 4000)

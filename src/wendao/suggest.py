@@ -143,6 +143,7 @@ def suggest_concepts(workspace, provider, chapters, existing: list[dict], say=pr
     """Concepts for each chapter, kept only if the notes use them. Returns (new concepts, how many you already had)."""
     all_text = normalized_text("\n".join(chunk.get("content", "") for _, _, chunks in chapters for chunk in chunks))
     known_ids = {item["id"] for item in existing}
+    known_labels = {str(item.get("label", "")).strip().lower() for item in existing}
     known_aliases = {normalized_text(alias) for item in existing for alias in item.get("aliases", [])}
     found: dict[str, dict] = {}
     already = set()
@@ -161,7 +162,8 @@ def suggest_concepts(workspace, provider, chapters, existing: list[dict], say=pr
             if not aliases:
                 continue  # the notes never use it: probably made up
             concept_id = slug(label)
-            if concept_id in known_ids or set(aliases) & known_aliases:
+            # Same concept: shared words or the same name. Only the id matching isn't enough ("C" and "C++" both give "c").
+            if set(aliases) & known_aliases or label.lower() in known_labels:
                 already.add(concept_id)
                 continue
             if concept_id in found and found[concept_id]["label"].lower() == label.lower():

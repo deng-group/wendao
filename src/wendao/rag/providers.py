@@ -183,7 +183,7 @@ def _open(req: request.Request, label: str, timeout: int, follow_redirects: bool
         body = exc.read().decode("utf-8", errors="replace")[:500]
         raise RuntimeError(f"{label} API error {exc.code}{_for_model(model)}: {body}") from exc
     except error.URLError as exc:
-        raise RuntimeError(f"{label} API unreachable: {exc.reason}") from exc
+        raise RuntimeError(f"{label} API unreachable{_for_model(model)}: {exc.reason}") from exc
 
 
 def _iter_sse_data(response) -> Iterator[dict]:
