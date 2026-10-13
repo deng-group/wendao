@@ -89,6 +89,7 @@ def pack(workspace, output: Path | None = None, include_model: bool = True) -> t
             "code": workspace.course_code,
             "website": workspace.website,
             "term": workspace.term,
+            "style": getattr(workspace, "style", "modern"),
         },
         "search": {
             "embedding_model": workspace.embedding_model if neural else "tfidf",
@@ -170,6 +171,7 @@ class CourseApp:
     course_code: str = ""
     website: str = ""
     term: str = ""
+    style: str = "modern"
     embedding_model: str = "tfidf"
     model_path: str | None = None
     aliases: dict[str, str] = field(default_factory=dict)
@@ -235,6 +237,7 @@ def open_pack(path: Path) -> CourseApp:
         course_code=course.get("code", ""),
         website=course.get("website", ""),
         term=course.get("term", ""),
+        style=course.get("style", "modern"),
         embedding_model=search.get("embedding_model", "tfidf"),
         model_path=str(root / "model") if has_model else None,
         aliases=search.get("aliases", {}),

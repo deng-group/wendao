@@ -8,7 +8,9 @@ const SIGN_IN_KEY = "wendao_sign_in_v1";
 // widget's chat, the widget says which page the student is on (focus) and whether the site is dark.
 const PARAMS = new URLSearchParams(window.location.search);
 const EMBEDDED = PARAMS.has("embed") && window.parent !== window;
-if (PARAMS.get("style") === "modern") document.documentElement.classList.add("style-modern");
+// The look the teacher chose ([course] style in wendao.toml); `?style=` previews another one.
+const STYLE = PARAMS.get("style") || document.documentElement.dataset.style || "modern";
+document.documentElement.classList.toggle("style-modern", STYLE === "modern");
 if (EMBEDDED) {
   document.documentElement.classList.add("embedded");
   document.documentElement.classList.toggle("dark", PARAMS.get("theme") === "dark");

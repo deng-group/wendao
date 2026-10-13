@@ -171,7 +171,7 @@ To read only some types, set `file_types` under `[source]`, for example `file_ty
 
 ### 2. Describe your course
 
-Open `wendao.toml` and fill in the course name and website. The website lets answers link to the right page. The file explains
+Open `wendao.toml` and fill in the course name and website. To change the look of the graph website and the chat widget, set `style = "modern"` (the default: indigo and violet) or `style = "economist"` (red and navy, like The Economist) under `[course]`. The website lets answers link to the right page. The file explains
 each setting. The most useful ones are:
 
 - `[[chapters]]`: names, order, and visibility for your chapter folders. Folders you don't list still appear, named after the folder.

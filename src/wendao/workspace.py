@@ -41,6 +41,9 @@ DEFAULT_OUT_OF_SCOPE_TERMS = [
 
 CHAPTER_VISIBILITY = {"primary", "secondary", "hidden"}
 
+# Looks for the graph website and the chat widget: "modern" (indigo and violet) or "economist" (red, like The Economist).
+STYLES = ("modern", "economist")
+
 SMALL_WORDS = {"a", "an", "and", "as", "at", "by", "for", "in", "of", "on", "or", "the", "to", "vs", "with"}
 
 
@@ -100,6 +103,7 @@ class Workspace:
     course_code: str = ""
     website: str = ""
     term: str = ""
+    style: str = "modern"
     source: Path | None = None
     use_toc: bool = False
     file_types: list[str] = field(default_factory=list)
@@ -266,6 +270,9 @@ def load(start: Path | None = None) -> Workspace:
     graph = config.get("graph", {})
     student = config.get("student", {})
     widget = config.get("widget", {})
+    style = str(course.get("style", "modern")).strip().lower()
+    if style not in STYLES:
+        raise WorkspaceError(f"[course] style in {CONFIG_NAME} must be \"modern\" or \"economist\", not \"{style}\".")
     if student.get("ai", "teacher") not in {"teacher", "student", "either"}:
         raise WorkspaceError(f"[student] ai in {CONFIG_NAME} must be \"teacher\", \"student\", or \"either\".")
 
@@ -298,6 +305,7 @@ def load(start: Path | None = None) -> Workspace:
         course_code=course.get("code", ""),
         website=course.get("website", ""),
         term=course.get("term", ""),
+        style=style,
         use_toc=bool(source.get("use_toc", False)),
         file_types=[str(kind) for kind in source.get("file_types", [])],
         source=(root / source["path"]).resolve() if source.get("path") else None,

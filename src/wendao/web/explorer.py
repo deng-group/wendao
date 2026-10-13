@@ -55,6 +55,7 @@ def render_index(workspace) -> str:
         "{{COURSE_NAME}}": workspace.course_name,
         "{{COURSE_LABEL}}": workspace.course_code or workspace.course_name,
         "{{COURSE_DISPLAY_NAME}}": workspace.display_name,
+        "{{STYLE}}": getattr(workspace, "style", "modern"),
     }
     for placeholder, value in replacements.items():
         page = page.replace(placeholder, html.escape(value))

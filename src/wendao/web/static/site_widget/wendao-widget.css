@@ -1,24 +1,29 @@
 /* Wendao course-website widget. All classes start with "wdw-" so they don't clash with the site's styles. */
 
 .wdw-root {
+  /* Modern style (default): zinc greys, indigo and violet */
   --wdw-bg: #ffffff;
-  --wdw-surface: #f5f6fb;
+  --wdw-surface: #f4f4f5;
   --wdw-raised: #ffffff;
-  --wdw-text: #0b1220;
-  --wdw-muted: #5b6577;
-  --wdw-line: rgba(30, 27, 75, 0.12);
-  --wdw-line-strong: rgba(30, 27, 75, 0.22);
-  --wdw-indigo: #1e1b4b;
-  --wdw-blue: #1d4ed8;
-  --wdw-primary: #3730a3;
-  --wdw-accent: #0ea5e9;
-  --wdw-accent-soft: rgba(14, 165, 233, 0.12);
-  --wdw-user: linear-gradient(135deg, #312e81, #1d4ed8);
-  --wdw-shadow: 0 24px 64px rgba(15, 23, 42, 0.22), 0 2px 8px rgba(15, 23, 42, 0.08);
-  --wdw-chapter: #3730a3;
-  --wdw-topic: #2563eb;
-  --wdw-concept: #0ea5e9;
+  --wdw-text: #18181b;
+  --wdw-muted: #71717a;
+  --wdw-line: rgba(24, 24, 27, 0.1);
+  --wdw-line-strong: rgba(24, 24, 27, 0.2);
+  --wdw-indigo: #4f46e5;
+  --wdw-blue: #7c3aed;
+  --wdw-primary: #4f46e5;
+  --wdw-accent: #6366f1;
+  --wdw-accent-soft: rgba(99, 102, 241, 0.1);
+  --wdw-user: linear-gradient(135deg, #4f46e5, #7c3aed);
+  --wdw-shadow: 0 24px 64px rgba(24, 24, 27, 0.2), 0 2px 8px rgba(24, 24, 27, 0.08);
+  --wdw-chapter: #6366f1;
+  --wdw-topic: #a1a1aa;
+  --wdw-concept: #a855f7;
   --wdw-error: #b42318;
+  --wdw-logo-from: #4f46e5;
+  --wdw-logo-to: #a855f7;
+  --wdw-logo-dot: #e0e7ff;
+  --wdw-launcher-glow: rgba(99, 102, 241, 0.4);
   font-family: inherit;
   font-size: 14px;
   line-height: 1.5;
@@ -26,22 +31,43 @@
 }
 
 .wdw-root[data-theme="dark"] {
-  --wdw-bg: #0f1420;
-  --wdw-surface: #151b29;
-  --wdw-raised: #1a2132;
-  --wdw-text: #e7eaf3;
-  --wdw-muted: #9aa3b5;
-  --wdw-line: rgba(148, 163, 184, 0.16);
-  --wdw-line-strong: rgba(148, 163, 184, 0.3);
-  --wdw-primary: #818cf8;
-  --wdw-accent: #38bdf8;
-  --wdw-accent-soft: rgba(56, 189, 248, 0.14);
-  --wdw-shadow: 0 24px 64px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.35);
+  --wdw-bg: #09090b;
+  --wdw-surface: #18181b;
+  --wdw-raised: #27272a;
+  --wdw-text: #fafafa;
+  --wdw-muted: #a1a1aa;
+  --wdw-line: rgba(255, 255, 255, 0.08);
+  --wdw-line-strong: rgba(255, 255, 255, 0.16);
+  --wdw-primary: #a5b4fc;
+  --wdw-accent: #818cf8;
+  --wdw-accent-soft: rgba(129, 140, 248, 0.14);
+  --wdw-shadow: 0 24px 64px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.35);
   --wdw-chapter: #818cf8;
-  --wdw-topic: #60a5fa;
-  --wdw-concept: #38bdf8;
+  --wdw-topic: #52525b;
+  --wdw-concept: #c084fc;
   --wdw-error: #f97066;
 }
+
+/* The Economist style: warm paper, ink, signature red, navy for the student's messages */
+.wdw-root[data-style="economist"] {
+  --wdw-surface: #f2efe8; --wdw-text: #121212; --wdw-muted: #5c5c5c;
+  --wdw-line: rgba(18, 18, 18, 0.1); --wdw-line-strong: rgba(18, 18, 18, 0.2);
+  --wdw-indigo: #8f0a05; --wdw-blue: #e3120b; --wdw-primary: #b40d07; --wdw-accent: #e3120b; --wdw-accent-soft: rgba(227, 18, 11, 0.08);
+  --wdw-user: linear-gradient(135deg, #1f2e7a, #2b3f9e);
+  --wdw-chapter: #e3120b; --wdw-topic: #a6a6a6; --wdw-concept: #006ba2;
+  --wdw-logo-from: #8f0a05; --wdw-logo-to: #e3120b; --wdw-logo-dot: #ffffff; --wdw-launcher-glow: rgba(227, 18, 11, 0.35);
+}
+.wdw-root[data-style="economist"][data-theme="dark"] {
+  --wdw-bg: #121212; --wdw-surface: #1b1b1b; --wdw-raised: #242424; --wdw-text: #f2f2f2; --wdw-muted: #a3a3a3;
+  --wdw-line: rgba(255, 255, 255, 0.1); --wdw-line-strong: rgba(255, 255, 255, 0.2);
+  --wdw-primary: #ff6b65; --wdw-accent: #ff4b44; --wdw-accent-soft: rgba(255, 75, 68, 0.12);
+  --wdw-user: linear-gradient(135deg, #2b3f9e, #3a4fb8); --wdw-chapter: #ff4b44; --wdw-topic: #6e6e6e; --wdw-concept: #3ebcd2;
+}
+
+/* The logo takes the style's colours */
+.wdw-root .wdw-logo-from { stop-color: var(--wdw-logo-from); }
+.wdw-root .wdw-logo-to { stop-color: var(--wdw-logo-to); }
+.wdw-root .wdw-logo-dot { fill: var(--wdw-logo-dot); }
 
 .wdw-root *, .wdw-root *::before, .wdw-root *::after { box-sizing: border-box; }
 .wdw-root [hidden] { display: none !important; }
@@ -51,10 +77,10 @@
 .wdw-launcher {
   position: fixed; right: 22px; bottom: 22px; z-index: 2147483000;
   width: 54px; height: 54px; padding: 0; border: 0; border-radius: 15px; cursor: pointer;
-  background: transparent; box-shadow: 0 10px 30px rgba(29, 78, 216, 0.35), 0 2px 6px rgba(15, 23, 42, 0.18);
+  background: transparent; box-shadow: 0 10px 30px var(--wdw-launcher-glow), 0 2px 6px rgba(15, 23, 42, 0.18);
   transition: transform 0.18s ease, box-shadow 0.18s ease;
 }
-.wdw-launcher:hover { transform: translateY(-2px); box-shadow: 0 14px 36px rgba(29, 78, 216, 0.42), 0 2px 6px rgba(15, 23, 42, 0.2); }
+.wdw-launcher:hover { transform: translateY(-2px); box-shadow: 0 14px 36px var(--wdw-launcher-glow), 0 2px 6px rgba(15, 23, 42, 0.2); }
 .wdw-launcher:focus-visible { outline: 3px solid var(--wdw-accent); outline-offset: 3px; }
 .wdw-launcher svg { display: block; width: 100%; height: 100%; }
 .wdw-launcher[aria-expanded="true"] { transform: scale(0.94); }

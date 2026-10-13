@@ -24,10 +24,10 @@
   const MAX_SELECTION = 1500; // characters of highlighted page text sent with a question
 
   const MARK = `<svg viewBox="0 0 128 128" aria-hidden="true"><defs><linearGradient id="wdw-tile" x1="0" y1="0" x2="1" y2="1">
-    <stop offset="0" stop-color="#1e1b4b"/><stop offset="1" stop-color="#1d4ed8"/></linearGradient></defs>
+    <stop class="wdw-logo-from" offset="0" stop-color="#4f46e5"/><stop class="wdw-logo-to" offset="1" stop-color="#a855f7"/></linearGradient></defs>
     <rect x="0" y="0" width="128" height="128" rx="30" fill="url(#wdw-tile)"/>
     <path d="M44 50 C44 35 53 27 64 27 C77 27 86 36 86 47 C86 58 78 63 71 67 C66 70 64 73 64 81" fill="none"
-      stroke="#fff" stroke-width="10" stroke-linecap="butt" stroke-linejoin="round"/><circle cx="64" cy="98" r="7" fill="#38bdf8"/></svg>`;
+      stroke="#fff" stroke-width="10" stroke-linecap="butt" stroke-linejoin="round"/><circle class="wdw-logo-dot" cx="64" cy="98" r="7" fill="#e0e7ff"/></svg>`;
   const ICONS = {
     send: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>',
     close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>',
@@ -822,6 +822,7 @@
       const health = await getJson("/api/health");
       state.ai = { ...state.ai, ...(health.ai || {}) };
       state.course = health.course || null;
+      root.dataset.style = (state.course && state.course.style) || "modern"; // the teacher's choice in wendao.toml
       state.graph = Boolean(health.graph);
       state.feedback = Boolean(health.feedback);
       if ("web_search" in health) state.webSearch = health.web_search && health.web_search.url ? health.web_search : null;

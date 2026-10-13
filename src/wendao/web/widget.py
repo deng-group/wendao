@@ -168,7 +168,8 @@ Open it with the button at the bottom-right.</p></main>
             "ok": True,
             "ai": ai,
             "default_provider": ai["provider"],
-            "course": {"name": workspace.course_name, "code": workspace.course_code, "display": workspace.display_name},
+            "course": {"name": workspace.course_name, "code": workspace.course_code, "display": workspace.display_name,
+                       "style": workspace.style},
             "graph": graph_file.view is not None,
             "web_search": workspace.web_search,
             "feedback": True,  # this server takes thumbs up / down on answers  # where the Search button looks up highlighted text

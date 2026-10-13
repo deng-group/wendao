@@ -81,6 +81,7 @@ class WidgetApiTest(unittest.TestCase):
     def test_health_names_the_course_and_graph(self):
         health = self.client.get("/api/health").get_json()
         self.assertEqual(health["course"]["code"], "MLE4217/5219")
+        self.assertEqual(health["course"]["style"], "modern")
         self.assertTrue(health["graph"])
 
     def test_page_and_neighbourhood_include_links_to_the_course_site(self):
@@ -229,6 +230,31 @@ class WebSearchSettingTest(unittest.TestCase):
             with self.subTest(bad=bad), self.assertRaisesRegex(workspace_module.WorkspaceError, "must be one of google"):
                 self.load(f'[widget]\nweb_search = "{bad}"\n')
 
+
+
+class StyleSettingTest(unittest.TestCase):
+    def workspace(self, course: str):
+        self.tmp = tempfile.TemporaryDirectory()
+        root = Path(self.tmp.name)
+        (root / "wendao.toml").write_text(f'[course]\nname = "Test"\n{course}', encoding="utf-8")
+        return workspace_module.load(root)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_modern_by_default_economist_on_request(self):
+        self.assertEqual(self.workspace("").style, "modern")
+        self.assertEqual(self.workspace('style = "Economist"\n').style, "economist")
+        with self.assertRaisesRegex(workspace_module.WorkspaceError, "must be \"modern\" or \"economist\""):
+            self.workspace('style = "neon"\n')
+
+    def test_the_graph_page_and_widget_get_the_style(self):
+        from wendao.pack import CourseApp
+        from wendao.web.explorer import render_index
+
+        workspace = self.workspace('style = "economist"\n')
+        self.assertIn('data-style="economist"', render_index(workspace))
+        self.assertIn('data-style="modern"', render_index(CourseApp(root=Path(self.tmp.name))))
 
 class SelectionPromptTest(unittest.TestCase):
     def test_highlighted_text_is_quoted_in_the_prompt_and_capped(self):
