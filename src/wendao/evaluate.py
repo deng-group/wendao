@@ -324,7 +324,7 @@ def real_report(items: list[dict], provider: str, model: str | None) -> str:
 def run_real(workspace, pipeline: QueryPipeline, questions: list[dict], retries: int = 1, retry_delay: float = 5.0):
     provider_name = default_provider_name()
     if provider_name == "dry_run":
-        raise RuntimeError("No language model is configured. Run `wendao check` for help.")
+        raise RuntimeError("No language model is configured. Run `wendao doctor` for help.")
     model = default_model_name(provider_name)
     generator = AnswerGenerator(
         pipeline=pipeline,

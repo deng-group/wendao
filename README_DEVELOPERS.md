@@ -1,20 +1,32 @@
-# Developer README
+# Developer notes
 
-This document summarizes the project workflow, testing map, repository boundary, and current TODOs for developers working on the MLE4217/5219 AI Learning Agent.
+How Wendao works inside, and how to work on it. For using Wendao, see the [README](README.md) and the
+[teacher guide](docs/GUIDE.md). Plans and ideas are tracked in [GitHub issues](https://github.com/deng-group/wendao/issues).
 
-## Critical Web Repository Rule
+## Setup
 
-**Persistent user convention:** whenever the user says “create/build a webpage,”
-“make another webpage,” “test the webpage,” “share the webpage,” or otherwise
-refers to the course website, this always means working in the user's existing
-sibling website repository at `../MLE4217_5219_book` and integrating or testing
-the existing AI widget there.
+```bash
+git clone https://github.com/deng-group/wendao.git
+cd wendao
+uv sync --all-extras                          # .venv with the locked versions, `wendao` included
+uv run python -m unittest discover -s tests   # no network: providers use a local fake server
+cd examples/mle4217_5219
+uv run wendao doctor --no-model               # the example's 21 test questions must all pass
+```
 
-Do **not** create a replacement course page, mock course site, standalone widget
-test page, or newly designed website inside this backend repository unless the
-user explicitly and unambiguously asks for a separate new page. Before any web
-task, inspect `../MLE4217_5219_book`, preserve its existing layout and content,
-and make only the changes needed to add, update, configure, or test its widget.
+Dependencies are in `pyproject.toml` and `uv.lock`; commit both together. `pip install wendao` (no extras) is what
+students and website servers get; `wendao[teacher]` adds the readers for building courses. Keep teacher-only imports
+lazy: CI checks that a base install can search the example and export its graph.
+
+| Folder | What's in it |
+| --- | --- |
+| `src/wendao/` | The tool: command line (`cli.py`), workspaces, extraction, knowledge graph, test questions |
+| `src/wendao/rag/` | Search, answer checks, prompts, and model providers |
+| `src/wendao/web/` | The knowledge graph website, the chat widget and its API, sign-in, feedback |
+| `examples/mle4217_5219/` | The example workspace, ready built |
+| `tests/` | Unit tests |
+| `deploy/` | Server setup files |
+| `docs/` | Teacher guide, figures, demo videos, and older design notes (`docs/history/`) |
 
 ## Phase Workflow and Tests
 
@@ -100,7 +112,7 @@ buffered `/api/answer` route remains available for scripts and evaluations.
 The book repo should not store API keys, retrieval code, prompts, provider logic,
 or chunk data. This repo should not edit course source content unless explicitly
 requested. When the book content changes, rerun extraction and evaluation from
-the example workspace (`cd examples/mle4217_5219 && wendao build && wendao eval`),
+the example workspace (`cd examples/mle4217_5219 && wendao build && wendao doctor --no-model`),
 which reads the sibling path `../MLE4217_5219_book`.
 
 Syllabus/calendar answers are time-aware by design. Logistics answers must state
@@ -146,34 +158,6 @@ spam at 100 a day per sender), never the IP or email. `wendao feedback` lists th
 set aside before the Markdown renderer and drawn by KaTeX 0.16.22 from jsDelivr, pinned with
 subresource integrity; without it they stay as text.
 
-This checks the model, starts the API at `http://127.0.0.1:5055`, serves the
+The last command checks the model, starts the API at `http://127.0.0.1:5055`, serves the
 site at `http://127.0.0.1:8000`, and opens it. Use the `?` button at the
 bottom-right. Stop both with `Ctrl+C`.
-
-## TODO
-
-### Phase A: Course Ingestion
-
-1. Document and test the book update workflow: preserve `ai_agent_widget/`, preserve Makefile injection, rerun extraction/evaluation, and verify API connection.
-
-### Phase B: Retrieval and Answerability
-
-2. Improve typo, spacing, and case tolerance for queries such as `convexhull`, `convax hull`, and `materialsproject`.
-3. Handle questions that require multiple chunks or multiple files without forcing all evidence into one source.
-4. Define behavior for no-result or weak-evidence questions, including clarification, nearby concept suggestions, or refusal.
-
-### Phase C: Answer Generation
-
-5. Add optional web fallback only when course evidence is insufficient and the question genuinely needs external/current information.
-6. Add API retry and fallback behavior for transient provider failures.
-7. Define answer length policy for definitions, code/workflow questions, review questions, weak evidence, and out-of-scope cases.
-8. Add recommended follow-up questions after answers.
-9. Add and confirm the expected answer for: `how to combine the static job and MD simulation job in atomate2`.
-
-### Phase D: Book Widget
-
-10. Make source locations clickable so students can jump from an answer to the relevant book chapter or section.
-
-### Phase E: Deployment and Pilot
-
-11. Define deployment and pilot workflow for the static book site, backend API, URL configuration, feedback collection, and evaluation metrics.

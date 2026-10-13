@@ -1,6 +1,6 @@
 """Find concepts and write test questions with the course's language model.
 
-`wendao build --concepts` and `wendao eval --add-questions` read the extracted notes
+`wendao build --concepts` and `wendao doctor --add-questions` read the extracted notes
 (build/chunks.jsonl), ask the model chapter by chapter, and add what it finds to concepts.json and
 questions.json. They only add: what the teacher already has is never changed, and concepts.json is
 backed up first.
@@ -59,7 +59,7 @@ def course_model():
     if name == "dry_run":
         raise SuggestError(
             "Finding concepts and writing questions uses your language model, and none is set up. Add an API key to .env "
-            "or set [model] in wendao.toml, then check it with `wendao check`."
+            "or set [model] in wendao.toml, then check it with `wendao doctor`."
         )
     model = default_model_name(name)
     return provider_from_name(name, model=model), f"{name} ({model})" if model else name

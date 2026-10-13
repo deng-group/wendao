@@ -11,6 +11,7 @@ with the course term so answers about deadlines and schedules state which term t
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from pathlib import Path
@@ -368,6 +369,34 @@ def discover_content_files(
     return sorted(files)
 
 
+def fingerprints_path(workspace) -> Path:
+    return workspace.build_dir / "notes.json"
+
+
+def fingerprints(source: Path, files: list[str]) -> dict[str, str]:
+    """A short content hash of each note file, so `wendao doctor` can tell when the notes changed."""
+    result = {}
+    for name in files:
+        path = source / name
+        if path.is_file():
+            result[name] = hashlib.sha256(path.read_bytes()).hexdigest()[:16]
+    return result
+
+
+def changed_notes(workspace) -> list[str] | None:
+    """Note files added, changed, or removed since the last build; None if the build kept no record."""
+    path = fingerprints_path(workspace)
+    if not path.exists():
+        return None
+    source = workspace.require_source()
+    before = json.loads(path.read_text(encoding="utf-8"))
+    files = set(before)
+    if not workspace.use_toc:
+        files |= set(discover_content_files(source, workspace.exclude, workspace.ignore_dirs, workspace.file_suffixes))
+    now = fingerprints(source, sorted(files))
+    return sorted(name for name in files if before.get(name) != now.get(name))
+
+
 def extract(workspace) -> dict:
     """Extract the workspace's course notes into build/chunks.jsonl. Returns a short summary."""
     source = workspace.require_source()
@@ -380,6 +409,8 @@ def extract(workspace) -> dict:
         extractor.process_files(files)
         file_count = len(files)
     extractor.save_chunks(workspace.chunks_path)
+    used = files if not workspace.use_toc else sorted({chunk["file_path"] for chunk in extractor.chunks})
+    fingerprints_path(workspace).write_text(json.dumps(fingerprints(source, used), indent=0), encoding="utf-8")
     return {
         "files": file_count,
         "chunks": len(extractor.chunks),

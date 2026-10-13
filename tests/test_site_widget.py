@@ -286,12 +286,10 @@ class StyleSettingTest(unittest.TestCase):
             self.workspace('style = "neon"\n')
 
     def test_the_graph_page_and_widget_get_the_style(self):
-        from wendao.pack import CourseApp
         from wendao.web.explorer import render_index
 
         workspace = self.workspace('style = "economist"\n')
         self.assertIn('data-style="economist"', render_index(workspace))
-        self.assertIn('data-style="modern"', render_index(CourseApp(root=Path(self.tmp.name))))
 
 class SelectionPromptTest(unittest.TestCase):
     def test_highlighted_text_is_quoted_in_the_prompt_and_capped(self):

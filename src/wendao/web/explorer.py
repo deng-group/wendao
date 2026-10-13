@@ -16,7 +16,7 @@ from wendao.rag.pipeline import QueryPipeline
 from wendao.rag.prompts import PromptBuilder
 from wendao.web import STATIC_DIR
 from wendao.web.accounts import SignInError
-from wendao.web.ai import AiPolicy, AiUnavailable, bearer_token, forward_login, forward_stream, student_id
+from wendao.web.ai import AiPolicy, AiUnavailable, bearer_token, student_id
 from wendao.web.graph_api import GraphFile, browser_graph
 
 EXPLORER_DIR = STATIC_DIR / "explorer"
@@ -56,7 +56,7 @@ def render_index(workspace) -> str:
         "{{COURSE_NAME}}": workspace.course_name,
         "{{COURSE_LABEL}}": workspace.course_code or workspace.course_name,
         "{{COURSE_DISPLAY_NAME}}": workspace.display_name,
-        "{{STYLE}}": getattr(workspace, "style", "modern"),
+        "{{STYLE}}": workspace.style,
     }
     for placeholder, value in replacements.items():
         page = page.replace(placeholder, html.escape(value))
@@ -92,17 +92,8 @@ def create_app(workspace=None) -> Flask:
         course_name=workspace.display_name,
     )
     index_page = render_index(workspace)
-    # `[student] server` is where course apps on students' laptops send questions. The teacher's own
-    # server (a workspace) answers with its own key, so it must never forward, or it would call itself.
-    in_course_app = not getattr(workspace, "uses_local_key", True)
     policy = AiPolicy.from_settings(
-        workspace.student_ai,
-        workspace.student_server if in_course_app else "",
-        workspace.questions_per_day,
-        use_local_key=not in_course_app,
-        accounts=workspace.accounts(),
-        server_needs_login=getattr(workspace, "server_needs_login", False),
-        limit=workspace.daily_limit() if not in_course_app else None,
+        workspace.student_ai, workspace.questions_per_day, accounts=workspace.accounts(), limit=workspace.daily_limit()
     )
     app = Flask(__name__, static_folder=None)
 
@@ -155,9 +146,6 @@ def create_app(workspace=None) -> Flask:
             except SignInError as exc:
                 return jsonify({"ok": False, "message": str(exc)}), 403
             return jsonify({"ok": True, "token": token, "email": student.email, "name": student.name})
-        if policy.server and policy.server_needs_login:
-            reply = forward_login(policy.server, email)
-            return jsonify(reply), (200 if reply.get("ok") else 403)
         return jsonify({"ok": False, "message": "This course doesn't use sign-in."}), 400
 
     @app.post("/api/answer/stream")
@@ -174,10 +162,7 @@ def create_app(workspace=None) -> Flask:
 
         def events():
             try:
-                how, chosen = policy.choose(payload, student, token)
-                if how == "forward":
-                    yield from forward_stream(chosen, payload, token)
-                    return
+                chosen = policy.choose(payload, student, token)
                 generator = AnswerGenerator(
                     pipeline=pipeline,
                     prompt_builder=prompt_builder,

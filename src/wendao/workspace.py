@@ -5,7 +5,7 @@ A workspace looks like this::
     my-course/
       wendao.toml       course name, where the notes are, chapters, search terms, model
       concepts.json    concepts shown in the knowledge graph
-      questions.json   test questions for `wendao eval`
+      questions.json   test questions for `wendao doctor`
       .env             API keys (never committed)
       build/           generated chunks, graph, search index, and reports
 
@@ -120,7 +120,6 @@ class Workspace:
     search_device: str = "auto"
     model: dict = field(default_factory=dict)
     student_ai: str = "teacher"
-    student_server: str = ""
     questions_per_day: int = 0
     allowed_origins: list[str] = field(default_factory=list)
     roster: str = ""
@@ -322,7 +321,6 @@ def load(start: Path | None = None) -> Workspace:
         search_device=str(search.get("device", "auto")),
         model=dict(config.get("model", {})),
         student_ai=str(student.get("ai", "teacher")),
-        student_server=str(student.get("server", "")),
         questions_per_day=int(student.get("questions_per_day", 0) or 0),
         allowed_origins=[str(item) for item in student.get("allowed_origins", [])],
         roster=str(student.get("roster", "")),

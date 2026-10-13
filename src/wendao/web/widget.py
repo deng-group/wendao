@@ -62,9 +62,8 @@ def create_app(workspace=None) -> Flask:
     app = Flask(__name__, static_folder=str(STATIC_DIR), static_url_path="/static")
     pipeline = QueryPipeline.for_workspace(workspace, top_k=5)
     prompt_builder = PromptBuilder(evidence_score_threshold=0.60, course_name=workspace.display_name)
-    # The widget runs where the teacher's key is, so it never forwards to another server.
     policy = AiPolicy.from_settings(
-        workspace.student_ai, "", workspace.questions_per_day, accounts=workspace.accounts(), limit=workspace.daily_limit()
+        workspace.student_ai, workspace.questions_per_day, accounts=workspace.accounts(), limit=workspace.daily_limit()
     )
     origins = {origin_of(workspace.website)} | {origin_of(item) or item for item in workspace.allowed_origins}
     graph_file = GraphFile(Path(workspace.graph_path))
@@ -99,7 +98,7 @@ def create_app(workspace=None) -> Flask:
         return item
 
     def generator_for(payload: dict) -> AnswerGenerator:
-        _, provider = policy.choose(payload, student_id(request), bearer_token(request))
+        provider = policy.choose(payload, student_id(request), bearer_token(request))
         return AnswerGenerator(
             pipeline=pipeline,
             prompt_builder=prompt_builder,

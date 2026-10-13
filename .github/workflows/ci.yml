@@ -30,8 +30,8 @@ jobs:
         run: uv run python -m unittest discover -s tests -v
 
   student-install:
-    # The base install (what students get) must open a real course file, offline, without the teacher tools,
-    # on every operating system students use.
+    # The base install (what students and website servers get) must search the example course and export
+    # the graph page without the teacher tools, on every operating system.
     name: student-install (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
@@ -47,19 +47,14 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.12"
-      - name: Pack the example course (teacher install)
-        run: |
-          uv sync --frozen --extra teacher
-          uv run wendao pack -w examples/mle4217_5219 -o "$RUNNER_TEMP/course.wendao"
       - name: Install the base package only
         run: |
           uv build --wheel
           uv venv "$RUNNER_TEMP/student"
           uv pip install --python "$RUNNER_TEMP/student" dist/*.whl
-      - name: Open the course file as a student, offline
-        env:
-          HF_HUB_OFFLINE: "1"
+      - name: Search the example course and export its graph
         run: |
-          if [ "$RUNNER_OS" = "Windows" ]; then python="$RUNNER_TEMP/student/Scripts/python.exe"; else python="$RUNNER_TEMP/student/bin/python"; fi
-          export WENDAO_CACHE="$RUNNER_TEMP/wendao-cache"
-          "$python" tests/smoke_student_app.py "$RUNNER_TEMP/course.wendao" "What is a convex hull?"
+          if [ "$RUNNER_OS" = "Windows" ]; then bin="$RUNNER_TEMP/student/Scripts"; else bin="$RUNNER_TEMP/student/bin"; fi
+          "$bin/wendao" ask -w examples/mle4217_5219 --search-only "What is a convex hull?"
+          "$bin/wendao" export -w examples/mle4217_5219 -o "$RUNNER_TEMP/graph.html"
+          test -s "$RUNNER_TEMP/graph.html"

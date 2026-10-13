@@ -121,11 +121,45 @@ class WorkspaceCliTest(unittest.TestCase):
         self.assertIn("needs_time_context", output)
         self.assertIn("syllabus.md", output)
 
-        output = run_cli("eval", "-w", str(self.root))
-        self.assertIn("2/2 passed", output)
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output), contextlib.suppress(SystemExit):  # no model set up here
+            main(["doctor", "-w", str(self.root), "--no-model"])
+        self.assertIn("Questions: 2/2 as expected", output.getvalue())
+        self.assertNotIn("Question q", output.getvalue())
         self.assertTrue((self.root / "build/reports/search.md").is_file())
-        output = run_cli("eval", "-w", str(self.root), "--answers")
-        self.assertIn("2/2 passed", output)
+        self.assertTrue((self.root / "build/reports/answers.md").is_file())
+
+    def test_doctor_says_how_to_fix_problems(self):
+        self.init_course()
+        (self.root / "questions.json").unlink()
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output), self.assertRaises(SystemExit):
+            main(["doctor", "-w", str(self.root), "--no-model"])
+        output = output.getvalue()
+        self.assertIn("Build:     not built yet", output)
+        self.assertIn("Fix: Run `wendao build`.", output)
+
+        run_cli("build", "-w", str(self.root))
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output), self.assertRaises(SystemExit):
+            main(["doctor", "-w", str(self.root), "--no-model"])
+        self.assertIn("wendao doctor --add-questions", output.getvalue())
+        self.assertIn("Build:     ok", output.getvalue())
+
+        (self.root / "notes" / "week02" / "energy.md").write_text("# Energy\n\nChanged.\n", encoding="utf-8")
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output), self.assertRaises(SystemExit):
+            main(["doctor", "-w", str(self.root), "--no-model"])
+        self.assertIn("your notes changed after the last build (week02/energy.md)", output.getvalue())
+
+    def test_model_fix_reads_the_error(self):
+        from wendao.cli import model_fix
+
+        self.assertIn("ANTHROPIC_AUTH_TOKEN", model_fix("anthropic", "API error 401: invalid x-api-key"))
+        self.assertIn("busy", model_fix("anthropic", '{"error":{"message":"No available accounts"}}'))
+        self.assertIn("model name", model_fix("openai", "HTTP 404: model not found"))
+        self.assertIn("base_url", model_fix("openai", "Connection refused"))
+        self.assertIn("[model]", model_fix("dry_run", "No language model is configured."))
 
     def use_starter_concepts(self):
         starter = Path(__file__).resolve().parents[1] / "src" / "wendao" / "starter" / "concepts.json"
