@@ -311,7 +311,7 @@ def model_fix(provider: str, error: str) -> str:
 
 def cmd_doctor(args: argparse.Namespace) -> None:
     from wendao import evaluate, suggest
-    from wendao.ingest import changed_notes, discover_content_files
+    from wendao.ingest import SUPPORTED_SUFFIXES, changed_notes, discover_content_files
     from wendao.rag.providers import check_connection, default_model_name, default_provider_name
 
     workspace = load_workspace(args)
@@ -336,7 +336,7 @@ def cmd_doctor(args: argparse.Namespace) -> None:
         notes = discover_content_files(source, workspace.exclude, workspace.ignore_dirs, workspace.file_suffixes)
         line("Notes", f"{len(notes)} files in {source}")
         if not notes:
-            kinds = ", ".join(sorted(workspace.file_suffixes))
+            kinds = ", ".join(sorted(workspace.file_suffixes or SUPPORTED_SUFFIXES))
             problems.append(("Notes: no files Wendao can read.",
                              f"Put your notes ({kinds}) in {source}, or check [source] file_types and exclude."))
 
@@ -354,7 +354,7 @@ def cmd_doctor(args: argparse.Namespace) -> None:
 
     concepts = [item for item in suggest.read_concepts(workspace.concepts_path) if item.get("id") != "example-concept"]
     line("Concepts", f"{len(concepts)}")
-    if not concepts:
+    if not concepts and built:  # before the first build, building comes first
         problems.append(("Concepts: none yet, so the graph only shows chapters and pages.",
                          "Run `wendao build --concepts` (your AI model finds them in your notes)."))
 

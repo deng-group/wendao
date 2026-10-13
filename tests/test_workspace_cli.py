@@ -152,6 +152,14 @@ class WorkspaceCliTest(unittest.TestCase):
             main(["doctor", "-w", str(self.root), "--no-model"])
         self.assertIn("your notes changed after the last build (week02/energy.md)", output.getvalue())
 
+    def test_doctor_on_a_new_empty_workspace(self):
+        run_cli("init", str(self.root))
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output), self.assertRaises(SystemExit):
+            main(["doctor", "-w", str(self.root), "--no-model"])
+        self.assertIn("Notes: no files Wendao can read.", output.getvalue())
+        self.assertIn(".md", output.getvalue())
+
     def test_model_fix_reads_the_error(self):
         from wendao.cli import model_fix
 
