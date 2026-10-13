@@ -275,6 +275,8 @@ class ExportTest(unittest.TestCase):
         self.assertIn("https://demo.edu/a/intro/", page)  # page nodes link to the course website
         self.assertEqual(page.count("</script>"), 2)  # a label can't close the script early
         self.assertIn('"online":""', page)
+        # Without a server there is no AI: the buttons that ask it are hidden.
+        self.assertIn(".exported-offline #ask-node, .exported-offline #explain-in-widget", page)
 
     def test_command(self):
         output = io.StringIO()
