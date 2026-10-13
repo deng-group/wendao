@@ -319,3 +319,7 @@ a.ask-node { text-decoration: none; }
 .icon-control.active svg { stroke: var(--accent); }
 .node-summary { margin: 10px 0 0; color: var(--muted); font-size: 0.9rem; line-height: 1.5; }
 .embedded .node-summary { font-size: 0.82rem; max-height: 7.5em; overflow: auto; }
+.node-card h2, .dark .node-card h2 { color: var(--text); }
+/* Narrow chat panel: keep the close button on screen (the badge keeps its dot; its words show on wider screens) */
+.chat-header-actions { flex-wrap: nowrap; min-width: 0; }
+@media (max-width: 1520px) { .grounded-badge b { display: none; } }
