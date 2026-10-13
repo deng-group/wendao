@@ -316,7 +316,6 @@ function chaptersForConcept(node) {
   return node.chapter_ids || [];
 }
 
-const SELECTED_NEIGHBOURS = 24;
 function visibleSetFor(node) {
   if (node.type === "chapter") {
     const ids = new Set(primaryChapters().map((chapter) => chapter.id));
@@ -327,20 +326,11 @@ function visibleSetFor(node) {
     return ids;
   }
 
-  // A concept or page: all chapters, the node, and the concepts and pages linked to it (strongest first).
-  // Each of those is then drawn with every chapter it appears in, so the picture stays connected.
-  const ids = new Set(primaryChapters().map((chapter) => chapter.id));
-  ids.add(node.id);
-  (state.edgesByNode.get(node.id) || [])
-    .filter((edge) => edge.type !== "sequence")
-    .map((edge) => ({ id: edgeOther(edge, node.id), weight: edge.weight || 0 }))
-    .filter(({ id }) => {
-      const other = state.nodesById.get(id);
-      return other && other.type !== "chapter" && other.visibility !== "hidden";
-    })
-    .sort((a, b) => b.weight - a.weight)
-    .slice(0, SELECTED_NEIGHBOURS)
-    .forEach(({ id }) => ids.add(id));
+  const ids = new Set(studentConcepts().map((concept) => concept.id));
+  chaptersForConcept(node)
+      .map((id) => state.nodesById.get(id))
+      .filter((chapter) => chapter?.visibility === "primary")
+      .forEach((chapter) => ids.add(chapter.id));
   return ids;
 }
 
@@ -472,8 +462,7 @@ function getVisibleEdges() {
     if (state.selectedId) {
       const selected = state.nodesById.get(state.selectedId);
       if (selected?.type === "chapter") return isChapterConceptEdge(edge);
-      // Every concept with its chapters, and the selected node with everything linked to it.
-      return isChapterConceptEdge(edge) || edge.source === state.selectedId || edge.target === state.selectedId;
+      return isChapterConceptEdge(edge) && (edge.source === state.selectedId || edge.target === state.selectedId);
     }
 
     if (state.mode === "concept") return false;
