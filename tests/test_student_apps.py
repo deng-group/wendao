@@ -6,15 +6,14 @@ import json
 import os
 import tempfile
 import threading
+import sys
 import unittest
-import zipfile
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from unittest import mock
 
 from wendao import workspace as workspace_module
 from wendao.cli import main
-from wendao.pack import PackError, open_pack, unpack
 from wendao.rag.providers import OpenAICompatibleProvider
 from wendao.web.ai import AiPolicy, AiUnavailable
 from wendao.web.explorer import create_app as create_explorer
@@ -86,12 +85,11 @@ class AiPolicyTest(unittest.TestCase):
     def test_teacher_mode_uses_teacher_key_with_daily_limit(self):
         policy = AiPolicy.from_settings("teacher", questions_per_day=2)
         for _ in range(2):
-            how, provider = policy.choose({}, "student-a")
-            self.assertEqual(how, "provider")
+            provider = policy.choose({}, "student-a")
             self.assertTrue(provider.use_env)
         with self.assertRaisesRegex(AiUnavailable, "limit of 2"):
             policy.choose({}, "student-a")
-        self.assertEqual(policy.choose({}, "student-b")[0], "provider")  # limits are per student
+        self.assertTrue(policy.choose({}, "student-b").use_env)  # limits are per student
 
     def test_teacher_mode_refuses_student_keys(self):
         with self.assertRaisesRegex(AiUnavailable, "turned off"):
@@ -99,7 +97,7 @@ class AiPolicyTest(unittest.TestCase):
 
     def test_student_key_never_mixes_with_teacher_settings(self):
         policy = AiPolicy.from_settings("either")
-        _, provider = policy.choose({"ai": {"provider": "openai", "api_key": "sk-student"}}, "s")
+        provider = policy.choose({"ai": {"provider": "openai", "api_key": "sk-student"}}, "s")
         self.assertIsInstance(provider, OpenAICompatibleProvider)
         self.assertFalse(provider.use_env)
         request_obj = provider._request({"messages": [{"content": "s"}, {"content": "q"}]}, stream=False)
@@ -111,21 +109,13 @@ class AiPolicyTest(unittest.TestCase):
             AiPolicy.from_settings("student").choose({}, "s")
         self.assertTrue(AiPolicy.from_settings("student").describe()["needs_student_key"])
 
-    def test_course_app_ignores_keys_on_the_students_computer(self):
-        policy = AiPolicy.from_settings("either", use_local_key=False)
-        self.assertFalse(policy.describe()["teacher_ai"])
-        with self.assertRaisesRegex(AiUnavailable, "not set up"):
-            policy.choose({}, "s")
-        self.assertEqual(AiPolicy.from_settings("teacher", server="https://course.example", use_local_key=False).choose({}, "s"),
-                         ("forward", "https://course.example"))
-
     def test_bad_mode_is_rejected(self):
         with self.assertRaises(ValueError):
             AiPolicy.from_settings("sometimes")
 
 
-class CourseAppTest(unittest.TestCase):
-    """Teacher builds and packs; a student opens the file and asks with their own key."""
+class WebsiteTest(unittest.TestCase):
+    """The teacher's Wendao website: the course AI answers with the teacher's key."""
 
     @classmethod
     def setUpClass(cls):
@@ -141,46 +131,15 @@ class CourseAppTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name) / "physics"
-        self.env = mock.patch.dict(os.environ, {"WENDAO_CACHE": str(Path(self.tmp.name) / "cache")}, clear=True)
+        self.env = mock.patch.dict(os.environ, {}, clear=True)
         self.env.start()
 
     def tearDown(self):
         self.env.stop()
         self.tmp.cleanup()
 
-    def test_pack_and_open_with_student_key(self):
-        make_workspace(self.root, 'ai = "either"')
-        run_cli("build", "-w", str(self.root))
-        output = run_cli("pack", "-w", str(self.root))
-        pack_path = self.root / "build" / "physics.wendao"
-        self.assertTrue(pack_path.is_file())
-        self.assertIn("will need their own AI key", output)
-        self.assertIn("wendao open physics.wendao", output)
-
-        course = open_pack(pack_path)
-        self.assertEqual(course.course_name, "Physics")
-        self.assertFalse(course.uses_local_key)
-        self.assertEqual(open_pack(pack_path).root, course.root, "opening twice reuses the unpacked folder")
-
-        os.environ["OPENAI_API_KEY"] = "sk-on-the-laptop"  # must not be used as the course AI
-        client = create_explorer(course).test_client()
-        health = client.get("/api/health").get_json()
-        self.assertTrue(health["ai"]["needs_student_key"])
-        self.assertEqual(client.get("/api/graph").status_code, 200)
-        self.assertIn("Wendao · Physics", client.get("/").get_data(as_text=True))
-
-        events = stream_events(client, {"query": "What is kinetic energy?"})
-        self.assertEqual(events[-1]["error"], "AiUnavailable")
-
-        StudentKeyServer.keys.clear()
-        events = stream_events(client, {"query": "What is kinetic energy?",
-                                        "ai": {"provider": "openai", "base_url": self.base_url, "api_key": "sk-student"}})
-        self.assertEqual(events[-1]["type"], "done")
-        self.assertEqual(events[-1]["answer"], "Kinetic energy is energy of motion.")
-        self.assertEqual(StudentKeyServer.keys, ["Bearer sk-student"])
-
-    def test_teacher_server_never_forwards_to_itself(self):
-        make_workspace(self.root, 'ai = "teacher"\nserver = "http://127.0.0.1:9"')
+    def test_teacher_key_answers_on_the_website(self):
+        make_workspace(self.root, 'ai = "teacher"')
         run_cli("build", "-w", str(self.root))
         os.environ.update({"LLM_PROVIDER": "openai", "OPENAI_BASE_URL": self.base_url, "OPENAI_API_KEY": "sk-teacher"})
         workspace = workspace_module.load(self.root)
@@ -201,18 +160,6 @@ class CourseAppTest(unittest.TestCase):
             response = client.options("/api/answer/stream", headers={"Origin": origin})
             self.assertEqual(response.headers.get("Access-Control-Allow-Origin") == origin, allowed, origin)
 
-    def test_damaged_or_unsafe_files_are_rejected(self):
-        bad = Path(self.tmp.name) / "bad.wendao"
-        bad.write_text("not a zip", encoding="utf-8")
-        with self.assertRaisesRegex(PackError, "not a Wendao course file"):
-            unpack(bad)
-        evil = Path(self.tmp.name) / "evil.wendao"
-        with zipfile.ZipFile(evil, "w") as archive:
-            archive.writestr("course.json", "{}")
-            archive.writestr("../escape.txt", "x")
-        with self.assertRaisesRegex(PackError, "unsafe"):
-            unpack(evil)
-
     def test_teacher_commands_explain_missing_tools(self):
         make_workspace(self.root, 'ai = "teacher"')
         real_find_spec = __import__("importlib.util").util.find_spec
@@ -220,8 +167,8 @@ class CourseAppTest(unittest.TestCase):
             errors = io.StringIO()
             with contextlib.redirect_stderr(errors), self.assertRaises(SystemExit):
                 run_cli("build", "-w", str(self.root))
-        self.assertIn('pip install "wendao[teacher]"', errors.getvalue())
-
+        self.assertIn('-m pip install --upgrade wendao', errors.getvalue())
+        self.assertIn(sys.executable, errors.getvalue())  # says which Python is missing them
 
 if __name__ == "__main__":
     unittest.main()
@@ -312,25 +259,6 @@ class SignInTest(unittest.TestCase):
         answered = client.post("/api/answer", json={"query": "What is kinetic energy?"}, headers={"Authorization": f"Bearer {token}"})
         self.assertEqual(answered.status_code, 200)
 
-    def test_course_app_signs_in_through_the_teachers_website(self):
-        config = self.root / "wendao.toml"
-        config.write_text(config.read_text(encoding="utf-8").replace('ai = "teacher"', 'ai = "teacher"\nserver = "http://127.0.0.1:9"'),
-                          encoding="utf-8")
-        run_cli("pack", "-w", str(self.root))
-        course = open_pack(self.root / "build" / "physics.wendao")
-        self.assertTrue(course.server_needs_login)
-        app_client = create_explorer(course).test_client()
-        self.assertTrue(app_client.get("/api/health").get_json()["ai"]["login_required"])
-        teacher_site = create_explorer(workspace_module.load(self.root)).test_client()
-
-        def fake_forward_login(server, email):
-            return teacher_site.post("/api/login", json={"email": email}).get_json()
-
-        with mock.patch("wendao.web.explorer.forward_login", fake_forward_login):
-            reply = app_client.post("/api/login", json={"email": "ada@uni.edu"})
-        self.assertEqual(reply.status_code, 200)
-        self.assertTrue(reply.get_json()["token"])
-
     def test_bad_roster_is_reported(self):
         (self.root / "students.csv").write_text("name\nAda\n", encoding="utf-8")
         errors = io.StringIO()
@@ -372,9 +300,7 @@ class ReviewFixesTest(unittest.TestCase):
 
         ollama = {"ai": {"provider": "openai", "base_url": "http://127.0.0.1:11434/v1"}}
         with self.assertRaisesRegex(AiUnavailable, "https://"):
-            AiPolicy.from_settings("either").choose(ollama, "s")  # course website: refused
-        how, _ = AiPolicy.from_settings("either", use_local_key=False).choose(ollama, "s")  # course app: fine
-        self.assertEqual(how, "provider")
+            AiPolicy.from_settings("either").choose(ollama, "s")  # private address on the course website: refused
 
     def test_student_endpoints_do_not_follow_redirects(self):
         server = HTTPServer(("127.0.0.1", 0), RedirectServer)
@@ -457,7 +383,7 @@ class PinnedEndpointTest(unittest.TestCase):
 
     def test_policy_pins_the_checked_address(self):
         with mock.patch("socket.getaddrinfo", return_value=self.PUBLIC):
-            _, provider = AiPolicy.from_settings("either").choose(
+            provider = AiPolicy.from_settings("either").choose(
                 {"ai": {"provider": "openai", "api_key": "sk", "base_url": "https://api.example.com/v1"}}, "s")
         self.assertEqual(provider.pinned_ip, "93.184.216.34")
         with self.assertRaisesRegex(AiUnavailable, "Gemini"):

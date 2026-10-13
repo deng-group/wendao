@@ -126,8 +126,7 @@ Then add an Nginx site for that domain that sends everything to `http://127.0.0.
 lines and `proxy_buffering off;` as the `/api/` block in `nginx-mle-course-helper.conf`).
 
 How students use AI is set under `[student]` in the workspace's `wendao.toml`. With `ai = "teacher"`, set
-`questions_per_day` to cap each student's daily questions on your key. Put the website's address in `[student] server`
-so that course files made with `wendao pack` send their questions to it.
+`questions_per_day` to cap each student's daily questions on your key.
 
 With a class list (`[student] roster = "students.csv"`), students sign in with their email and the daily limit counts per
 student. The server keeps the counts in `usage.db` and its sign-in key in `.wendao-secret`, both next to `wendao.toml`.

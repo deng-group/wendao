@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.0",
+  "schema_version": "1.1",
   "course": {
     "code": "MLE4217/5219",
     "title": "Materials Informatics",
@@ -119,7 +119,9 @@
         "keyword:time-complexity",
         "keyword:version-control",
         "keyword:workflow"
-      ]
+      ],
+      "summary": "Hardware, software, version control, and performance.",
+      "summary_file": "computer/index.md"
     },
     {
       "id": "chapter:database",
@@ -196,7 +198,9 @@
         "keyword:thermodynamics",
         "keyword:time-complexity",
         "keyword:unit-cell"
-      ]
+      ],
+      "summary": "Materials databases, data formats, querying, and analysis.",
+      "summary_file": "database/index.md"
     },
     {
       "id": "chapter:figures",
@@ -261,7 +265,9 @@
         "keyword:python",
         "keyword:reciprocal-space",
         "keyword:regression"
-      ]
+      ],
+      "summary": "Supporting figure-generation material.",
+      "summary_file": ""
     },
     {
       "id": "chapter:final_review",
@@ -339,7 +345,9 @@
         "keyword:unit-cell",
         "keyword:vesta",
         "keyword:workflow"
-      ]
+      ],
+      "summary": "Review material connecting the full course.",
+      "summary_file": "final_review/index.md"
     },
     {
       "id": "chapter:high_throughput",
@@ -432,7 +440,9 @@
         "keyword:unit-cell",
         "keyword:vesta",
         "keyword:workflow"
-      ]
+      ],
+      "summary": "Automated workflows, thermodynamics, and materials discovery.",
+      "summary_file": "high_throughput/index.md"
     },
     {
       "id": "chapter:machine_learning_i",
@@ -530,7 +540,9 @@
         "keyword:training-data",
         "keyword:unsupervised-learning",
         "keyword:workflow"
-      ]
+      ],
+      "summary": "Machine-learning tasks, features, models, and validation.",
+      "summary_file": "machine_learning_I/index.md"
     },
     {
       "id": "chapter:machine_learning_ii",
@@ -609,7 +621,9 @@
         "keyword:training-data",
         "keyword:unit-cell",
         "keyword:unsupervised-learning"
-      ]
+      ],
+      "summary": "Graphs, graph neural networks, and generative models.",
+      "summary_file": "machine_learning_II/index.md"
     },
     {
       "id": "chapter:machine_learning_potentials",
@@ -704,7 +718,9 @@
         "keyword:train-validation-test",
         "keyword:training-data",
         "keyword:universal-mlp"
-      ]
+      ],
+      "summary": "Interatomic machine-learning models and their training.",
+      "summary_file": "machine_learning_potentials/index.md"
     },
     {
       "id": "chapter:midterm_review",
@@ -762,7 +778,9 @@
         "keyword:version-control",
         "keyword:vesta",
         "keyword:workflow"
-      ]
+      ],
+      "summary": "Review material for the first part of the course.",
+      "summary_file": "midterm_review/index.md"
     },
     {
       "id": "chapter:models_and_theories_i",
@@ -832,7 +850,9 @@
         "keyword:reciprocal-space",
         "keyword:symmetry",
         "keyword:unit-cell"
-      ]
+      ],
+      "summary": "Atomistic models, force fields, and electronic structure.",
+      "summary_file": "models_and_theories_I/index.md"
     },
     {
       "id": "chapter:models_and_theories_ii",
@@ -905,7 +925,9 @@
         "keyword:quantum-mechanics",
         "keyword:statistical-mechanics",
         "keyword:thermodynamics"
-      ]
+      ],
+      "summary": "Statistical mechanics, molecular dynamics, and Monte Carlo.",
+      "summary_file": "models_and_theories_II/index.md"
     },
     {
       "id": "chapter:optimization",
@@ -991,7 +1013,9 @@
         "keyword:transition-state",
         "keyword:unit-cell",
         "keyword:workflow"
-      ]
+      ],
+      "summary": "Energy landscapes and local and global optimization methods.",
+      "summary_file": "optimization/index.md"
     },
     {
       "id": "chapter:orientation",
@@ -1070,7 +1094,9 @@
         "keyword:structure-prediction",
         "keyword:version-control",
         "keyword:workflow"
-      ]
+      ],
+      "summary": "Course introduction, setup, and learning environment.",
+      "summary_file": "orientation/index.md"
     },
     {
       "id": "chapter:programming",
@@ -1144,7 +1170,9 @@
         "keyword:python",
         "keyword:version-control",
         "keyword:workflow"
-      ]
+      ],
+      "summary": "Python and scientific programming foundations.",
+      "summary_file": "programming/index.md"
     },
     {
       "id": "chapter:root",
@@ -1214,7 +1242,9 @@
         "keyword:thermodynamics",
         "keyword:time-complexity",
         "keyword:vesta"
-      ]
+      ],
+      "summary": "Syllabus, calendar, and course-level information.",
+      "summary_file": "README.md"
     },
     {
       "id": "chapter:structures",
@@ -1329,13 +1359,17 @@
         "keyword:time-complexity",
         "keyword:unit-cell",
         "keyword:vesta"
-      ]
+      ],
+      "summary": "Crystal structures, symmetry, defects, interfaces, and representations.",
+      "summary_file": "structures/index.md"
     },
     {
       "id": "keyword:ace",
       "type": "keyword",
       "label": "Atomic Cluster Expansion",
       "description": "A course concept in the machine learning group.",
+      "summary": "Atomic Cluster Expansion (ACE) provides a powerful framework for constructing high-order polynomial basis functions to describe atomic environments.",
+      "summary_file": "machine_learning_potentials/mace.md",
       "category": "machine-learning",
       "aliases": [
         "atomic cluster expansion",
@@ -1368,6 +1402,8 @@
       "type": "keyword",
       "label": "AIRSS",
       "description": "A course concept in the optimization group.",
+      "summary": "AIRSS (Ab Initio Random Structure Searching) is a computational method for discovering stable crystal structures by randomly generating candidate structures and relaxing them using ab initio (first-principles) calculations, typically Density Functional Theory (DFT).",
+      "summary_file": "optimization/airss.md",
       "category": "optimization",
       "aliases": [
         "airss",
@@ -1398,6 +1434,8 @@
       "type": "keyword",
       "label": "Application Programming Interface",
       "description": "A course concept in the data group.",
+      "summary": "",
+      "summary_file": "",
       "category": "data",
       "aliases": [
         "application programming interface",
@@ -1421,6 +1459,8 @@
       "type": "keyword",
       "label": "Atomic Simulation Environment",
       "description": "A course concept in the modelling group.",
+      "summary": "Atomic Simulation Environment (ASE) is a set of tools and Python modules for setting up, manipulating, running, visualizing and analyzing atomistic simulations.",
+      "summary_file": "models_and_theories_I/ase.ipynb",
       "category": "modelling",
       "aliases": [
         "atomic simulation environment",
@@ -1509,6 +1549,8 @@
       "type": "keyword",
       "label": "atomate2",
       "description": "A course concept in the high throughput group.",
+      "summary": "In atomate2, there are jobs and workflows.",
+      "summary_file": "high_throughput/high_throughput.ipynb",
       "category": "high-throughput",
       "aliases": [
         "atomate2",
@@ -1543,6 +1585,8 @@
       "type": "keyword",
       "label": "Atomic Site",
       "description": "A course concept in the structures group.",
+      "summary": "Imagine a crystal as a well-organized orchestra where each atomic site contributes its unique \"sound.\" These individual characteristics, influenced by their local environments, determine the overall performance of the material under varying conditions such as temperature and pressure.",
+      "summary_file": "structures/site.md",
       "category": "structures",
       "aliases": [
         "atomic site",
@@ -1566,6 +1610,8 @@
       "type": "keyword",
       "label": "Atomistic Modelling",
       "description": "A course concept in the modelling group.",
+      "summary": "Atomic Simulation Environment (ASE) is a set of tools and Python modules for setting up, manipulating, running, visualizing and analyzing atomistic simulations.",
+      "summary_file": "models_and_theories_I/ase.ipynb",
       "category": "modelling",
       "aliases": [
         "atomistic modelling",
@@ -1607,6 +1653,8 @@
       "type": "keyword",
       "label": "Behler-Parrinello Potential",
       "description": "A course concept in the ml potentials group.",
+      "summary": "The Behler-Parrinello potential is a type of machine learning potential that uses explicit features to represent the local atomic environment.",
+      "summary_file": "machine_learning_potentials/bp_nn.md",
       "category": "ml-potentials",
       "aliases": [
         "behler-parrinello",
@@ -1634,6 +1682,8 @@
       "type": "keyword",
       "label": "Classification",
       "description": "A course concept in the machine learning group.",
+      "summary": "Classification: In classification tasks, the output variable is categorical.",
+      "summary_file": "machine_learning_I/introduction.md",
       "category": "machine-learning",
       "aliases": [
         "classification"
@@ -1686,6 +1736,8 @@
       "type": "keyword",
       "label": "Clustering",
       "description": "A course concept in the machine learning group.",
+      "summary": "K-Means clustering is an unsupervised learning algorithm used for clustering tasks.",
+      "summary_file": "machine_learning_I/task_algorithm.md",
       "category": "machine-learning",
       "aliases": [
         "clustering",
@@ -1724,6 +1776,8 @@
       "type": "keyword",
       "label": "Convex Hull",
       "description": "A course concept in the high throughput group.",
+      "summary": "The convex hull is a geometric construct that represents the lowest-energy phases at different compositions.",
+      "summary_file": "high_throughput/thermodynamics.md",
       "category": "high-throughput",
       "aliases": [
         "convex hull",
@@ -1769,6 +1823,8 @@
       "type": "keyword",
       "label": "CPU",
       "description": "A course concept in the computing group.",
+      "summary": "The CPU, or central processing unit, is often the heart of the system, and its performance can be gauged by its clock speed, measured in gigahertz (GHz), the number of cores and threads it possesses, its instructions per cycle (IPC), and the size and speed of its cache.",
+      "summary_file": "computer/performance.md",
       "category": "computing",
       "aliases": [
         "cpu",
@@ -1831,6 +1887,8 @@
       "type": "keyword",
       "label": "Cross-Validation",
       "description": "A course concept in the machine learning group.",
+      "summary": "Cross-validation is a technique used to assess how the results of a statistical analysis will generalize to an independent dataset.",
+      "summary_file": "machine_learning_I/validation.md",
       "category": "machine-learning",
       "aliases": [
         "cross-validation",
@@ -1854,6 +1912,8 @@
       "type": "keyword",
       "label": "Crystal Structure",
       "description": "A course concept in the structures group.",
+      "summary": "Crystal structure is a fundamental concept in materials science.",
+      "summary_file": "structures/crystal_structure.ipynb",
       "category": "structures",
       "aliases": [
         "crystal structure",
@@ -1971,6 +2031,8 @@
       "type": "keyword",
       "label": "CSV",
       "description": "A course concept in the data group.",
+      "summary": "CSV files store data in plain text, where each line represents a record and fields within the record are separated by delimiters such as commas, tabs, or spaces.",
+      "summary_file": "database/formats.md",
       "category": "data",
       "aliases": [
         "csv"
@@ -2013,6 +2075,8 @@
       "type": "keyword",
       "label": "Data Mining",
       "description": "A course concept in the data group.",
+      "summary": "Matminer: A Python library for data mining in materials science, providing tools for retrieving, processing, and analyzing materials data.",
+      "summary_file": "high_throughput/data_mining.md",
       "category": "data",
       "aliases": [
         "data mining"
@@ -2046,6 +2110,8 @@
       "type": "keyword",
       "label": "Database",
       "description": "A course concept in the data group.",
+      "summary": "The database is continuously updated with new data from experimental studies, making it a valuable resource for materials research and development.",
+      "summary_file": "database/materials_database.md",
       "category": "data",
       "aliases": [
         "database",
@@ -2151,6 +2217,8 @@
       "type": "keyword",
       "label": "DataFrame",
       "description": "A course concept in the data group.",
+      "summary": "We can then load the saved data and construct a DataFrame for easier manipulation.",
+      "summary_file": "database/bulk_modulus.ipynb",
       "category": "data",
       "aliases": [
         "dataframe",
@@ -2188,6 +2256,8 @@
       "type": "keyword",
       "label": "Defect",
       "description": "A course concept in the structures group.",
+      "summary": "A vacancy is simply a missing atom from its regular lattice site.",
+      "summary_file": "structures/defect.md",
       "category": "structures",
       "aliases": [
         "defect",
@@ -2251,6 +2321,8 @@
       "type": "keyword",
       "label": "Materials Descriptor",
       "description": "A course concept in the machine learning group.",
+      "summary": "Descriptors are numerical representations of materials properties that can be used to quantify and compare different materials.",
+      "summary_file": "high_throughput/data_mining.md",
       "category": "machine-learning",
       "aliases": [
         "descriptor",
@@ -2306,6 +2378,8 @@
       "type": "keyword",
       "label": "Density Functional Theory",
       "description": "A course concept in the electronic structure group.",
+      "summary": "The goal of DFT is to find the electron density that minimizes the total energy functional, which gives us the ground-state electron density and the ground-state energy of the system.",
+      "summary_file": "models_and_theories_I/dft.md",
       "category": "electronic-structure",
       "aliases": [
         "density functional theory",
@@ -2394,6 +2468,8 @@
       "type": "keyword",
       "label": "Diffusion Model",
       "description": "A course concept in the machine learning group.",
+      "summary": "Conditioning: A key advantage of diffusion models is their ability to be conditioned.",
+      "summary_file": "machine_learning_II/diffusion_model.md",
       "category": "machine-learning",
       "aliases": [
         "diffusion model",
@@ -2426,6 +2502,8 @@
       "type": "keyword",
       "label": "Energy Landscape",
       "description": "A course concept in the optimization group.",
+      "summary": "Force fields are mathematical models that represent the potential energy surface of a system, which describes the energy of the system as a function of the atomic positions, and can be used to predict the structure, dynamics, and properties of materials.",
+      "summary_file": "models_and_theories_I/force_fields.md",
       "category": "optimization",
       "aliases": [
         "energy landscape",
@@ -2469,6 +2547,8 @@
       "type": "keyword",
       "label": "Statistical Ensemble",
       "description": "A course concept in the simulation group.",
+      "summary": "The microcanonical ensemble describes the system's behavior when it is isolated and not in contact with any external environment.",
+      "summary_file": "models_and_theories_II/statistical_mech.md",
       "category": "simulation",
       "aliases": [
         "statistical ensemble",
@@ -2497,6 +2577,8 @@
       "type": "keyword",
       "label": "Entropy",
       "description": "A course concept in the simulation group.",
+      "summary": "Cross-entropy loss is commonly used for classification tasks.",
+      "summary_file": "machine_learning_I/models.md",
       "category": "simulation",
       "aliases": [
         "entropy"
@@ -2544,6 +2626,8 @@
       "type": "keyword",
       "label": "Exchange-Correlation Functional",
       "description": "A course concept in the electronic structure group.",
+      "summary": "The exchange-correlation energy is not known exactly and must be approximated using different exchange-correlation functionals.",
+      "summary_file": "models_and_theories_I/dft.md",
       "category": "electronic-structure",
       "aliases": [
         "exchange-correlation functional",
@@ -2571,6 +2655,8 @@
       "type": "keyword",
       "label": "Feature",
       "description": "A course concept in the machine learning group.",
+      "summary": "Features are essential components of graphs, providing additional information about nodes and edges.",
+      "summary_file": "machine_learning_II/graph.md",
       "category": "machine-learning",
       "aliases": [
         "feature",
@@ -2721,6 +2807,8 @@
       "type": "keyword",
       "label": "Force Field",
       "description": "A course concept in the modelling group.",
+      "summary": "Force fields are mathematical models that represent the potential energy surface of a system, which describes the energy of the system as a function of the atomic positions, and can be used to predict the structure, dynamics, and properties of materials.",
+      "summary_file": "models_and_theories_I/force_fields.md",
       "category": "modelling",
       "aliases": [
         "force field",
@@ -2805,6 +2893,8 @@
       "type": "keyword",
       "label": "Formation Energy",
       "description": "A course concept in the high throughput group.",
+      "summary": "The formation energy is typically expressed per formula unit (f.u.) of the compound.",
+      "summary_file": "high_throughput/thermodynamics.md",
       "category": "high-throughput",
       "aliases": [
         "formation energy",
@@ -2846,6 +2936,8 @@
       "type": "keyword",
       "label": "Git",
       "description": "A course concept in the computing group.",
+      "summary": "Git is a distributed Version Control System (VCS), which enables easy tracking of code changes, collaboration, and sharing.",
+      "summary_file": "programming/github.md",
       "category": "computing",
       "aliases": [
         "git"
@@ -2904,6 +2996,8 @@
       "type": "keyword",
       "label": "GitHub",
       "description": "A course concept in the computing group.",
+      "summary": "GitHub Copilot is an AI-powered code completion tool that helps you write code faster and with fewer errors.",
+      "summary_file": "orientation/setup.md",
       "category": "computing",
       "aliases": [
         "github"
@@ -2991,6 +3085,8 @@
       "type": "keyword",
       "label": "Global Optimization",
       "description": "A course concept in the optimization group.",
+      "summary": "Global optimization algorithms are designed to explore the search space more broadly, increasing the chances of finding the global optimum.",
+      "summary_file": "optimization/global_optimization.md",
       "category": "optimization",
       "aliases": [
         "global optimization",
@@ -3031,6 +3127,8 @@
       "type": "keyword",
       "label": "Graph Neural Network",
       "description": "A course concept in the machine learning group.",
+      "summary": "Graph Neural Networks (GNNs) are a class of neural networks designed specifically to operate on graph-structured data, such as the atomic graphs we just described.",
+      "summary_file": "machine_learning_II/gnn.md",
       "category": "machine-learning",
       "aliases": [
         "graph neural network",
@@ -3082,6 +3180,8 @@
       "type": "keyword",
       "label": "GPU",
       "description": "A course concept in the computing group.",
+      "summary": "Video memory is dedicated to the GPU (Graphics Processing Unit) and is used to store graphics and image data.",
+      "summary_file": "computer/hardware.md",
       "category": "computing",
       "aliases": [
         "gpu",
@@ -3135,6 +3235,8 @@
       "type": "keyword",
       "label": "Gradient Descent",
       "description": "A course concept in the optimization group.",
+      "summary": "Optimization: Algorithms like gradient descent are used to minimize the loss function, improving the model's predictions over time.",
+      "summary_file": "machine_learning_potentials/training_validation.md",
       "category": "optimization",
       "aliases": [
         "gradient descent"
@@ -3190,6 +3292,8 @@
       "type": "keyword",
       "label": "Graph Representation",
       "description": "A course concept in the machine learning group.",
+      "summary": "The graph representation is exceptionally well-suited for materials.",
+      "summary_file": "machine_learning_II/graph.md",
       "category": "machine-learning",
       "aliases": [
         "graph representation",
@@ -3220,6 +3324,8 @@
       "type": "keyword",
       "label": "HDF5",
       "description": "A course concept in the data group.",
+      "summary": "HDF5 is a versatile, high-performance data format that supports large, complex, and hierarchical datasets.",
+      "summary_file": "database/formats.md",
       "category": "data",
       "aliases": [
         "hdf5"
@@ -3250,6 +3356,8 @@
       "type": "keyword",
       "label": "High-Throughput Simulation",
       "description": "A course concept in the high throughput group.",
+      "summary": "High-throughput simulation involves a systematic and automated workflow, typically comprising the following stages:",
+      "summary_file": "high_throughput/workflow.md",
       "category": "high-throughput",
       "aliases": [
         "high-throughput simulation",
@@ -3295,6 +3403,8 @@
       "type": "keyword",
       "label": "High-Performance Computing",
       "description": "A course concept in the computing group.",
+      "summary": "High-Performance Computing (HPC), also known as supercomputing, is designed to perform computationally intensive tasks at incredibly high speeds.",
+      "summary_file": "computer/hpc.md",
       "category": "computing",
       "aliases": [
         "high-performance computing",
@@ -3364,6 +3474,8 @@
       "type": "keyword",
       "label": "Interatomic Potential",
       "description": "A course concept in the modelling group.",
+      "summary": "Machine learning potentials (MLPs) are a class of interatomic potentials that use machine learning techniques to predict the potential energy surface (PES) of a system.",
+      "summary_file": "machine_learning_potentials/introduction.md",
       "category": "modelling",
       "aliases": [
         "interatomic potential",
@@ -3387,6 +3499,8 @@
       "type": "keyword",
       "label": "Interface",
       "description": "A course concept in the structures group.",
+      "summary": "The interface region represents a transition zone where the properties of the adjacent materials change.",
+      "summary_file": "structures/interface.md",
       "category": "structures",
       "aliases": [
         "interface",
@@ -3467,6 +3581,8 @@
       "type": "keyword",
       "label": "jobflow",
       "description": "A course concept in the high throughput group.",
+      "summary": "Jobflow also support remote running, i.e. running jobs on the HPC remotely.",
+      "summary_file": "high_throughput/high_throughput.ipynb",
       "category": "high-throughput",
       "aliases": [
         "jobflow"
@@ -3495,6 +3611,8 @@
       "type": "keyword",
       "label": "JSON",
       "description": "A course concept in the data group.",
+      "summary": "JSON (JavaScript Object Notation) is a lightweight, standard text-based format for representing structured data.",
+      "summary_file": "database/formats.md",
       "category": "data",
       "aliases": [
         "json"
@@ -3543,6 +3661,8 @@
       "type": "keyword",
       "label": "Jupyter Notebook",
       "description": "A course concept in the programming group.",
+      "summary": "Jupyter Notebooks are interactive documents that combine: Code cells: Executable Python code Markdown cells: Rich text documentation Output cells: Results of code execution",
+      "summary_file": "orientation/jupyter.ipynb",
       "category": "programming",
       "aliases": [
         "jupyter notebook",
@@ -3589,6 +3709,8 @@
       "type": "keyword",
       "label": "Kinetic Monte Carlo",
       "description": "A course concept in the simulation group.",
+      "summary": "Kinetic Monte Carlo (kMC) is an extension of the Monte Carlo method that is used to simulate the time evolution of a system by considering the rates of individual events.",
+      "summary_file": "models_and_theories_II/kmc.md",
       "category": "simulation",
       "aliases": [
         "kinetic monte carlo"
@@ -3615,6 +3737,8 @@
       "type": "keyword",
       "label": "Lattice",
       "description": "A course concept in the structures group.",
+      "summary": "The lattice is defined by three lattice vectors a, b, and c.",
+      "summary_file": "structures/crystal_structure.ipynb",
       "category": "structures",
       "aliases": [
         "lattice",
@@ -3725,6 +3849,8 @@
       "type": "keyword",
       "label": "Local Optimization",
       "description": "A course concept in the optimization group.",
+      "summary": "Local optimization methods can get trapped in local minima.",
+      "summary_file": "optimization/global_optimization.md",
       "category": "optimization",
       "aliases": [
         "local optimization",
@@ -3764,6 +3890,8 @@
       "type": "keyword",
       "label": "Loss Function",
       "description": "A course concept in the machine learning group.",
+      "summary": "A loss function measures how far the model's output is from the target value.",
+      "summary_file": "machine_learning_I/pytorch.ipynb",
       "category": "machine-learning",
       "aliases": [
         "loss function",
@@ -3815,6 +3943,8 @@
       "type": "keyword",
       "label": "MACE Potential",
       "description": "A course concept in the ml potentials group.",
+      "summary": "MACE achieves excellent performance and generalization while being faster to train and evaluate compared to other machine learning potentials.",
+      "summary_file": "machine_learning_potentials/mace.md",
       "category": "ml-potentials",
       "aliases": [
         "mace",
@@ -3875,6 +4005,8 @@
       "type": "keyword",
       "label": "Machine Learning",
       "description": "A course concept in the machine learning group.",
+      "summary": "Machine learning (ML) is playing an increasingly important role in materials science, particularly in the analysis of high-throughput data.",
+      "summary_file": "high_throughput/data_mining.md",
       "category": "machine-learning",
       "aliases": [
         "machine learning"
@@ -3989,6 +4121,8 @@
       "type": "keyword",
       "label": "Machine Learning Potential",
       "description": "A course concept in the ml potentials group.",
+      "summary": "The scaling performance of a MLP is determined by the number of basis functions used to represent the local atomic environment.",
+      "summary_file": "machine_learning_potentials/explicit.md",
       "category": "ml-potentials",
       "aliases": [
         "machine learning potential",
@@ -4041,6 +4175,8 @@
       "type": "keyword",
       "label": "Materials Database",
       "description": "A course concept in the data group.",
+      "summary": "Materials databases and what each is good for.",
+      "summary_file": "midterm_review/database.md",
       "category": "data",
       "aliases": [
         "materials database",
@@ -4094,6 +4230,8 @@
       "type": "keyword",
       "label": "Materials Project",
       "description": "A course concept in the data group.",
+      "summary": "The Materials Project is a database of materials properties that is maintained by the Lawrence Berkeley National Laboratory.",
+      "summary_file": "database/materials_project.ipynb",
       "category": "data",
       "aliases": [
         "materials project",
@@ -4174,6 +4312,8 @@
       "type": "keyword",
       "label": "Matplotlib",
       "description": "A course concept in the programming group.",
+      "summary": "Matplotlib is Python's most popular plotting library for visualization and data analysis.",
+      "summary_file": "programming/matplotlib.ipynb",
       "category": "programming",
       "aliases": [
         "matplotlib"
@@ -4282,6 +4422,8 @@
       "type": "keyword",
       "label": "Molecular Dynamics",
       "description": "A course concept in the simulation group.",
+      "summary": "In molecular dynamics, you are only sampling part of the phase space, not the entire phase space.",
+      "summary_file": "models_and_theories_II/molecular_dynamics.md",
       "category": "simulation",
       "aliases": [
         "molecular dynamics"
@@ -4356,6 +4498,8 @@
       "type": "keyword",
       "label": "Molecule",
       "description": "A course concept in the structures group.",
+      "summary": "Molecules can be represented in various ways, each providing different levels of detail and information.",
+      "summary_file": "structures/molecule.md",
       "category": "structures",
       "aliases": [
         "molecule",
@@ -4450,6 +4594,8 @@
       "type": "keyword",
       "label": "Monte Carlo",
       "description": "A course concept in the simulation group.",
+      "summary": "Monte Carlo methods are a class of computational algorithms that rely on random sampling to obtain numerical results.",
+      "summary_file": "models_and_theories_II/monte_carlo.md",
       "category": "simulation",
       "aliases": [
         "monte carlo"
@@ -4513,6 +4659,8 @@
       "type": "keyword",
       "label": "Multiscale Modelling",
       "description": "A course concept in the modelling group.",
+      "summary": "Multiscale modelling is an approach to modelling complex systems that involves integrating models at different length and time scales.",
+      "summary_file": "models_and_theories_I/modelling.md",
       "category": "modelling",
       "aliases": [
         "multiscale modelling",
@@ -4542,6 +4690,8 @@
       "type": "keyword",
       "label": "Neural Network",
       "description": "A course concept in the machine learning group.",
+      "summary": "Neural networks are a class of supervised learning algorithms inspired by the structure and function of the human brain.",
+      "summary_file": "machine_learning_I/task_algorithm.md",
       "category": "machine-learning",
       "aliases": [
         "neural network",
@@ -4624,6 +4774,8 @@
       "type": "keyword",
       "label": "NumPy",
       "description": "A course concept in the programming group.",
+      "summary": "NumPy (Numerical Python) is a foundational library for scientific computing and data analysis in Python.",
+      "summary_file": "programming/numpy.ipynb",
       "category": "programming",
       "aliases": [
         "numpy"
@@ -4744,6 +4896,8 @@
       "type": "keyword",
       "label": "Open-Source Software",
       "description": "A course concept in the computing group.",
+      "summary": "Open-source software (OSS) is software with source code that anyone can inspect, modify, and enhance.",
+      "summary_file": "programming/github.md",
       "category": "computing",
       "aliases": [
         "open-source software",
@@ -4776,6 +4930,8 @@
       "type": "keyword",
       "label": "Optimization",
       "description": "A course concept in the optimization group.",
+      "summary": "Optimization is a fundamental tool in computational chemistry and materials science, used to find the minimum or maximum of a function.",
+      "summary_file": "optimization/index.md",
       "category": "optimization",
       "aliases": [
         "optimization",
@@ -4883,6 +5039,8 @@
       "type": "keyword",
       "label": "Overfitting",
       "description": "A course concept in the machine learning group.",
+      "summary": "Additionally, we will cover concepts of overfitting and underfitting, as well as importance of model evaluation and validation.",
+      "summary_file": "machine_learning_I/index.md",
       "category": "machine-learning",
       "aliases": [
         "overfitting",
@@ -4917,6 +5075,8 @@
       "type": "keyword",
       "label": "Pandas",
       "description": "A course concept in the programming group.",
+      "summary": "Pandas is a powerful Python library for data manipulation and analysis.",
+      "summary_file": "database/pandas.ipynb",
       "category": "programming",
       "aliases": [
         "pandas"
@@ -4974,6 +5134,8 @@
       "type": "keyword",
       "label": "Parallel Computing",
       "description": "A course concept in the computing group.",
+      "summary": "The concept of parallel computing is essential for handling large-scale computations efficiently.",
+      "summary_file": "computer/software.md",
       "category": "computing",
       "aliases": [
         "parallel computing",
@@ -5011,6 +5173,8 @@
       "type": "keyword",
       "label": "Periodic Boundary Conditions",
       "description": "A course concept in the structures group.",
+      "summary": "Mathematically, the periodic boundary condition is applied by replicating the simulation cell in all directions, so that atoms that leave the simulation cell re-enter (wrap) from the opposite side.",
+      "summary_file": "models_and_theories_I/force_fields.md",
       "category": "structures",
       "aliases": [
         "periodic boundary condition",
@@ -5055,6 +5219,8 @@
       "type": "keyword",
       "label": "Phase Diagram",
       "description": "A course concept in the high throughput group.",
+      "summary": "Noted that the phase diagram is calculated using DFT and may not be the same as the experimental phase diagram as there is no temperature and pressure information.",
+      "summary_file": "database/materials_project.ipynb",
       "category": "high-throughput",
       "aliases": [
         "phase diagram",
@@ -5101,6 +5267,8 @@
       "type": "keyword",
       "label": "Plane Wave",
       "description": "A course concept in the electronic structure group.",
+      "summary": "The more plane waves are included in the basis set, the more accurate the results will be, but the computational cost will be higher.",
+      "summary_file": "models_and_theories_I/dft.md",
       "category": "electronic-structure",
       "aliases": [
         "plane wave",
@@ -5130,6 +5298,8 @@
       "type": "keyword",
       "label": "Potential Energy",
       "description": "A course concept in the simulation group.",
+      "summary": "The potential energy function is usually expressed as a sum of interactions between atoms or molecules, and can include terms that describe bond stretching, bond bending, torsion, and non-bonded interactions.",
+      "summary_file": "models_and_theories_I/force_fields.md",
       "category": "simulation",
       "aliases": [
         "potential energy"
@@ -5205,6 +5375,8 @@
       "type": "keyword",
       "label": "Pseudopotential",
       "description": "A course concept in the electronic structure group.",
+      "summary": "There different ways of constructing pseudopotentials such as norm-conserving pseudopotentials (NCPP) and ultrasoft pseudopotentials (USPP).",
+      "summary_file": "models_and_theories_I/dft.md",
       "category": "electronic-structure",
       "aliases": [
         "pseudopotential",
@@ -5236,6 +5408,8 @@
       "type": "keyword",
       "label": "pymatgen",
       "description": "A course concept in the structures group.",
+      "summary": "pymatgen (Python Materials Genome) is a Python library for materials analysis.",
+      "summary_file": "structures/crystal_structure.ipynb",
       "category": "structures",
       "aliases": [
         "pymatgen"
@@ -5318,6 +5492,8 @@
       "type": "keyword",
       "label": "Python",
       "description": "A course concept in the programming group.",
+      "summary": "Python is a high-level, interpreted programming language known for its simplicity and readability.",
+      "summary_file": "programming/python_introduction.ipynb",
       "category": "programming",
       "aliases": [
         "python"
@@ -5533,6 +5709,8 @@
       "type": "keyword",
       "label": "PyTorch",
       "description": "A course concept in the machine learning group.",
+      "summary": "PyTorch is a popular open-source machine learning library, particularly known for its flexibility and Pythonic feel.",
+      "summary_file": "machine_learning_I/pytorch.ipynb",
       "category": "machine-learning",
       "aliases": [
         "pytorch"
@@ -5570,6 +5748,8 @@
       "type": "keyword",
       "label": "Quantum Mechanics",
       "description": "A course concept in the electronic structure group.",
+      "summary": "Semi-empirical methods are a class of quantum mechanical methods that are based on a combination of empirical parameters and quantum mechanical principles.",
+      "summary_file": "models_and_theories_I/dft.md",
       "category": "electronic-structure",
       "aliases": [
         "quantum mechanics",
@@ -5620,6 +5800,8 @@
       "type": "keyword",
       "label": "Reciprocal Space",
       "description": "A course concept in the structures group.",
+      "summary": "The reciprocal space is a key concept in crystallography and solid-state physics.",
+      "summary_file": "structures/reciprocal_space.md",
       "category": "structures",
       "aliases": [
         "reciprocal space",
@@ -5663,6 +5845,8 @@
       "type": "keyword",
       "label": "Regression",
       "description": "A course concept in the machine learning group.",
+      "summary": "From simple linear regression, we can see that the bulk modulus is generally positively related to the density of the material.",
+      "summary_file": "database/bulk_modulus.ipynb",
       "category": "machine-learning",
       "aliases": [
         "regression"
@@ -5718,6 +5902,8 @@
       "type": "keyword",
       "label": "SOAP Descriptor",
       "description": "A course concept in the machine learning group.",
+      "summary": "The ACSFs, SOAP, HBFs, MTFs, and ACE are all based on the same idea of using a set of basis functions to represent the local atomic environment.",
+      "summary_file": "machine_learning_potentials/explicit.md",
       "category": "machine-learning",
       "aliases": [
         "smooth overlap of atomic positions",
@@ -5751,6 +5937,8 @@
       "type": "keyword",
       "label": "Space Group",
       "description": "A course concept in the structures group.",
+      "summary": "The space group is a mathematical description of the symmetry of the crystal.",
+      "summary_file": "structures/symmetry.md",
       "category": "structures",
       "aliases": [
         "space group",
@@ -5802,6 +5990,8 @@
       "type": "keyword",
       "label": "Statistical Mechanics",
       "description": "A course concept in the simulation group.",
+      "summary": "In statistical mechanics, a system is described by its microstates and macrostates.",
+      "summary_file": "models_and_theories_II/statistical_mech.md",
       "category": "simulation",
       "aliases": [
         "statistical mechanics"
@@ -5834,6 +6024,8 @@
       "type": "keyword",
       "label": "Structure Prediction",
       "description": "A course concept in the optimization group.",
+      "summary": "W. \"Crystal structure prediction using ab initio evolutionary techniques.\" J.",
+      "summary_file": "optimization/airss.md",
       "category": "optimization",
       "aliases": [
         "structure prediction",
@@ -5867,6 +6059,8 @@
       "type": "keyword",
       "label": "Structure Prototype",
       "description": "A course concept in the structures group.",
+      "summary": "Structure prototypes are used to describe the symmetry, geometry, and connectivity of atoms in a crystal structure without specifying the exact atomic positions.",
+      "summary_file": "structures/prototypes.md",
       "category": "structures",
       "aliases": [
         "structure prototype",
@@ -5903,6 +6097,8 @@
       "type": "keyword",
       "label": "Supervised Learning",
       "description": "A course concept in the machine learning group.",
+      "summary": "Supervised learning is a type of ML where the model is trained on labeled data, meaning that each training example is paired with a corresponding target value or label.",
+      "summary_file": "machine_learning_I/introduction.md",
       "category": "machine-learning",
       "aliases": [
         "supervised learning"
@@ -5932,6 +6128,8 @@
       "type": "keyword",
       "label": "Symmetry",
       "description": "A course concept in the structures group.",
+      "summary": "The symmetry of a crystal is described by the space group of the crystal.",
+      "summary_file": "structures/symmetry.md",
       "category": "structures",
       "aliases": [
         "symmetry",
@@ -6026,6 +6224,8 @@
       "type": "keyword",
       "label": "Thermodynamics",
       "description": "A course concept in the simulation group.",
+      "summary": "Thermodynamics provides the framework for this analysis.",
+      "summary_file": "high_throughput/thermodynamics.md",
       "category": "simulation",
       "aliases": [
         "thermodynamics",
@@ -6096,6 +6296,8 @@
       "type": "keyword",
       "label": "Time Complexity",
       "description": "A course concept in the computing group.",
+      "summary": "The use of hashing in these structures makes data lookup very efficient, typically achieving a time complexity of O(1), which indicates a constant time operation regardless of the data size.",
+      "summary_file": "database/concepts.md",
       "category": "computing",
       "aliases": [
         "time complexity",
@@ -6133,6 +6335,8 @@
       "type": "keyword",
       "label": "Train/Validation/Test Split",
       "description": "A course concept in the machine learning group.",
+      "summary": "Validation Set: Used to tune hyperparameters and evaluate the model's performance during training.",
+      "summary_file": "machine_learning_I/validation.md",
       "category": "machine-learning",
       "aliases": [
         "train validation test",
@@ -6172,6 +6376,8 @@
       "type": "keyword",
       "label": "Training Data",
       "description": "A course concept in the ml potentials group.",
+      "summary": "MLPs can also be improved iteratively by adding more training data, which is not that easy with traditional PBPs.",
+      "summary_file": "machine_learning_potentials/introduction.md",
       "category": "ml-potentials",
       "aliases": [
         "training data",
@@ -6221,6 +6427,8 @@
       "type": "keyword",
       "label": "Transition State",
       "description": "A course concept in the optimization group.",
+      "summary": "Transition states are saddle points on the potential energy surface, representing the energy barrier that must be overcome for a system to move from one stable state to another.",
+      "summary_file": "optimization/transition_state.md",
       "category": "optimization",
       "aliases": [
         "transition state",
@@ -6251,6 +6459,8 @@
       "type": "keyword",
       "label": "Unit Cell",
       "description": "A course concept in the structures group.",
+      "summary": "The unit cell's dimensions are defined by three lattice vectors, which represent the crystal's periodicity in each direction.",
+      "summary_file": "structures/unit_cell.md",
       "category": "structures",
       "aliases": [
         "unit cell",
@@ -6327,6 +6537,8 @@
       "type": "keyword",
       "label": "Universal Machine Learning Potential",
       "description": "A course concept in the ml potentials group.",
+      "summary": "Universal MLPs (UMLIPs) are a class of MLPs that are designed to be transferable across different systems and chemical environments.",
+      "summary_file": "machine_learning_potentials/umlp.md",
       "category": "ml-potentials",
       "aliases": [
         "universal machine learning potential",
@@ -6355,6 +6567,8 @@
       "type": "keyword",
       "label": "Unsupervised Learning",
       "description": "A course concept in the machine learning group.",
+      "summary": "Unsupervised learning is a type of ML where the model is trained on unlabeled data, meaning that there are no predefined target values or labels.",
+      "summary_file": "machine_learning_I/introduction.md",
       "category": "machine-learning",
       "aliases": [
         "unsupervised learning"
@@ -6388,6 +6602,8 @@
       "type": "keyword",
       "label": "Version Control",
       "description": "A course concept in the computing group.",
+      "summary": "Finally, we will demonstrate version control with git and collaboration using GitHub.",
+      "summary_file": "computer/index.md",
       "category": "computing",
       "aliases": [
         "version control",
@@ -6430,6 +6646,8 @@
       "type": "keyword",
       "label": "VESTA",
       "description": "A course concept in the structures group.",
+      "summary": "VESTA is a 3D visualization program for structural models, volumetric data such as electron/nuclear densities, and crystal morphologies.",
+      "summary_file": "structures/vesta.md",
       "category": "structures",
       "aliases": [
         "vesta"
@@ -6476,6 +6694,8 @@
       "type": "keyword",
       "label": "Scientific Workflow",
       "description": "A course concept in the high throughput group.",
+      "summary": "Workflow management systems are essential for coordinating and automating the various steps in a high-throughput simulation workflow.",
+      "summary_file": "high_throughput/codes.md",
       "category": "high-throughput",
       "aliases": [
         "scientific workflow",

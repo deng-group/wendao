@@ -9,8 +9,12 @@ The widget shows the part of the graph around the page a student is reading. Two
 
 from __future__ import annotations
 
+import gzip
+import hashlib
+import json
 import re
 from collections import Counter
+from pathlib import Path
 from urllib.parse import unquote
 
 
@@ -40,8 +44,9 @@ def normalize_address(address: str) -> str:
 
 
 class GraphView:
-    LIMITS = {"keyword": 8, "topic": 6, "chapter": 4}
-    MAX_OTHER_LINKS = 24
+    # Every chapter a concept appears in is shown (courses have few chapters); concepts and pages are capped.
+    LIMITS = {"keyword": 8, "topic": 6, "chapter": 16}
+    MAX_OTHER_LINKS = 30
 
     def __init__(self, graph: dict):
         self.nodes = {node["id"]: node for node in graph.get("nodes", [])}
@@ -116,8 +121,10 @@ class GraphView:
                     link = {"source": pair[0], "target": pair[1], "type": edge.get("type", "related"),
                             "weight": round(float(edge.get("weight", 0.5)), 3)}
                     (center_links if node_id in pair else other_links).append(link)
-        # Every link to the centre, plus the strongest links among the neighbours (a small window can't show all).
-        other_links.sort(key=lambda link: -link["weight"])
+        # Every link to the centre, then links to chapters (where each concept belongs), then the strongest of the rest:
+        # a small window can't show them all.
+        types = {item: self.nodes[item]["type"] for item in included}
+        other_links.sort(key=lambda link: ("chapter" not in (types[link["source"]], types[link["target"]]), -link["weight"]))
         links = center_links + other_links[: self.MAX_OTHER_LINKS]
         counts = Counter(self.nodes[other]["type"] for other in chosen)
         return {
@@ -126,3 +133,85 @@ class GraphView:
             "links": links,
             "counts": dict(counts),
         }
+
+
+class GraphFile:
+    """build/graph.json for a running server, read again when `wendao build` rewrites it (no restart needed)."""
+
+    def __init__(self, path: Path):
+        self.path = Path(path)
+        self._stamp = None
+        self._graph: dict | None = None
+        self._view: GraphView | None = None
+        self._browser: tuple[bytes, bytes, str] | None = None
+
+    def _refresh(self) -> None:
+        try:
+            stat = self.path.stat()
+        except OSError:
+            self._stamp, self._graph, self._view, self._browser = None, None, None, None
+            return
+        stamp = (stat.st_mtime_ns, stat.st_size)
+        if stamp != self._stamp:
+            graph = json.loads(self.path.read_text(encoding="utf-8"))
+            self._graph, self._view, self._stamp, self._browser = graph, GraphView(graph), stamp, None
+
+    @property
+    def graph(self) -> dict | None:
+        self._refresh()
+        return self._graph
+
+    @property
+    def view(self) -> GraphView | None:
+        self._refresh()
+        return self._view
+
+    def browser_json(self, link_for) -> tuple[bytes, bytes, str] | None:
+        """The graph the browser gets, as JSON, gzipped, and its ETag: made once per version of graph.json."""
+        self._refresh()
+        if self._graph is None:
+            return None
+        if self._browser is None:
+            body = json.dumps(browser_graph(self._graph, link_for), ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+            self._browser = (body, gzip.compress(body, 6), f'"{hashlib.sha256(body).hexdigest()[:20]}"')
+        return self._browser
+
+
+def graph_response(graph_file: GraphFile, link_for):
+    """/api/graph: gzipped when the browser accepts it (a few times smaller, which matters on phones), and
+    "not modified" when the browser already has this version. None when there is no graph yet."""
+    from flask import Response, request
+
+    made = graph_file.browser_json(link_for)
+    if made is None:
+        return None
+    body, packed, etag = made
+    headers = {"ETag": etag, "Cache-Control": "no-cache", "Vary": "Accept-Encoding"}
+    if etag in request.headers.get("If-None-Match", ""):
+        return Response(status=304, headers=headers)
+    if "gzip" in request.headers.get("Accept-Encoding", ""):
+        return Response(packed, mimetype="application/json", headers={**headers, "Content-Encoding": "gzip"})
+    return Response(body, mimetype="application/json", headers=headers)
+
+
+NODE_FIELDS = ("id", "type", "label", "visibility", "order", "chapter_id", "chapter_ids", "aliases", "mention_count", "summary")
+EDGE_FIELDS = ("source", "target", "type", "weight")
+
+
+def browser_graph(graph: dict, link_for=None) -> dict:
+    """What the graph page needs, and nothing else (no evidence text or chunk ids): about a fifth of graph.json.
+
+    `link_for(file_path)` gives a page node its address on the course website, for an "Open page" link.
+    """
+    nodes = []
+    for node in graph.get("nodes", []):
+        item = {key: node[key] for key in NODE_FIELDS if key in node}
+        # The page to open: a page itself; for a concept, where its introduction comes from; a chapter's index page.
+        page = node["source_files"][0] if node.get("type") == "topic" and node.get("source_files") else node.get("summary_file")
+        if link_for and page:
+            url = link_for(page)
+            if url:
+                item["url"] = url
+        nodes.append(item)
+    edges = [{key: edge[key] for key in EDGE_FIELDS if key in edge} for edge in graph.get("edges", [])]
+    return {"nodes": nodes, "edges": edges}

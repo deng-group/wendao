@@ -109,8 +109,7 @@ bridge_stop_concepts = [
 ]
 
 [student]
-# Students open the course app with their own key; set `server` to the course's Wendao website to
-# let them use the course AI instead.
+# The course AI by default; students may add their own key instead.
 ai = "either"
 
 [model]

@@ -1,6 +1,6 @@
 [project]
 name = "wendao"
-version = "0.3.0"
+version = "0.3.1"
 description = "An AI learning companion: turn course notes into an interactive knowledge graph and a course-grounded AI tutor"
 readme = "README.md"
 license = "GPL-3.0-or-later"
@@ -24,22 +24,22 @@ authors = [{ name = "Yanhao Deng" }, { name = "Zeyu Deng" }]
 # The base install is what students need to open a course app. Teachers add the "teacher" extra.
 dependencies = [
     "flask>=3.0,<4",
-    # Downloads the search model when a course file doesn't include it (tokenizers needs it anyway).
+    # Downloads the search model the first time it is needed.
     "huggingface-hub>=0.24,<2",
+    "nbformat>=5.9,<6",
     "numpy>=1.26,<3",
     "onnxruntime>=1.20,<2",
-    "tokenizers>=0.19,<1",
-]
-
-[project.optional-dependencies]
-# Build courses: read notes (notebooks, PDF, PowerPoint, Word, LaTeX).
-teacher = [
-    "nbformat>=5.9,<6",
+    # Read notes: PDF, Word, PowerPoint, and MyST front matter.
     "pypdf>=4,<7",
     "python-docx>=1.1,<2",
     "python-pptx>=1.0,<2",
     "pyyaml>=6,<7",
+    "tokenizers>=0.19,<1",
 ]
+
+[project.optional-dependencies]
+# Empty since 0.3.1 (everything is in the base install); kept so `pip install "wendao[teacher]"` still works.
+teacher = []
 # Run the search model with PyTorch instead of ONNX, on a GPU when available.
 gpu = ["sentence-transformers>=3,<6"]
 # Production WSGI server, used by deploy/mle-course-helper.service.
@@ -62,4 +62,4 @@ build-backend = "setuptools.build_meta"
 where = ["src"]
 
 [tool.setuptools.package-data]
-wendao = ["web/static/**/*", "web/templates/*", "starter/*"]
+wendao = ["web/static/**/*", "starter/*"]

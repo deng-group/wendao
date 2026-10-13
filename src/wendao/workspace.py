@@ -5,7 +5,7 @@ A workspace looks like this::
     my-course/
       wendao.toml       course name, where the notes are, chapters, search terms, model
       concepts.json    concepts shown in the knowledge graph
-      questions.json   test questions for `wendao eval`
+      questions.json   test questions for `wendao doctor`
       .env             API keys (never committed)
       build/           generated chunks, graph, search index, and reports
 
@@ -15,6 +15,7 @@ Every path in `wendao.toml` is relative to the workspace folder.
 from __future__ import annotations
 
 import os
+import re
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -39,6 +40,27 @@ DEFAULT_OUT_OF_SCOPE_TERMS = [
 ]
 
 CHAPTER_VISIBILITY = {"primary", "secondary", "hidden"}
+
+# Looks for the graph website and the chat widget: "modern" (indigo and violet) or "economist" (red, like The Economist).
+STYLES = ("modern", "economist")
+
+SMALL_WORDS = {"a", "an", "and", "as", "at", "by", "for", "in", "of", "on", "or", "the", "to", "vs", "with"}
+
+
+def folder_title(folder: str) -> str:
+    """A readable name for a chapter folder: "models_and_theories_II" → "Models and Theories II"."""
+    words = folder.replace("_", " ").replace("-", " ").split()
+    out = []
+    for index, word in enumerate(words):
+        if re.fullmatch(r"[ivxIVX]+", word) and index:
+            out.append(word.upper())  # roman numerals: "II", not "Ii"
+        elif word.lower() in SMALL_WORDS and index:
+            out.append(word.lower())
+        elif word.isupper() or any(ch.isupper() for ch in word[1:]):
+            out.append(word)  # keep "ML", "DFT", "GitHub"
+        else:
+            out.append(word[:1].upper() + word[1:])
+    return " ".join(out)
 
 # Search engines for the widget's Search button, which looks up highlighted text ({q} = the text).
 WEB_SEARCH_ENGINES = {
@@ -81,6 +103,7 @@ class Workspace:
     course_code: str = ""
     website: str = ""
     term: str = ""
+    style: str = "modern"
     source: Path | None = None
     use_toc: bool = False
     file_types: list[str] = field(default_factory=list)
@@ -97,7 +120,6 @@ class Workspace:
     search_device: str = "auto"
     model: dict = field(default_factory=dict)
     student_ai: str = "teacher"
-    student_server: str = ""
     questions_per_day: int = 0
     allowed_origins: list[str] = field(default_factory=list)
     roster: str = ""
@@ -196,6 +218,8 @@ class Workspace:
             os.environ.setdefault("LLM_PROVIDER", str(provider))
         if "temperature" in self.model:
             os.environ.setdefault("LLM_TEMPERATURE", str(self.model["temperature"]))
+        if "max_tokens" in self.model:
+            os.environ.setdefault("LLM_MAX_TOKENS", str(self.model["max_tokens"]))
         for key, env_name in MODEL_ENV.get(str(provider or ""), {}).items():
             if self.model.get(key):
                 os.environ.setdefault(env_name, str(self.model[key]))
@@ -245,6 +269,9 @@ def load(start: Path | None = None) -> Workspace:
     graph = config.get("graph", {})
     student = config.get("student", {})
     widget = config.get("widget", {})
+    style = str(course.get("style", "modern")).strip().lower()
+    if style not in STYLES:
+        raise WorkspaceError(f"[course] style in {CONFIG_NAME} must be \"modern\" or \"economist\", not \"{style}\".")
     if student.get("ai", "teacher") not in {"teacher", "student", "either"}:
         raise WorkspaceError(f"[student] ai in {CONFIG_NAME} must be \"teacher\", \"student\", or \"either\".")
 
@@ -258,7 +285,7 @@ def load(start: Path | None = None) -> Workspace:
         chapters.append(
             Chapter(
                 folder=item["folder"],
-                name=item.get("name", item["folder"].replace("_", " ").title()),
+                name=item.get("name", folder_title(item["folder"])),
                 description=item.get("description", ""),
                 show=show,
             )
@@ -277,6 +304,7 @@ def load(start: Path | None = None) -> Workspace:
         course_code=course.get("code", ""),
         website=course.get("website", ""),
         term=course.get("term", ""),
+        style=style,
         use_toc=bool(source.get("use_toc", False)),
         file_types=[str(kind) for kind in source.get("file_types", [])],
         source=(root / source["path"]).resolve() if source.get("path") else None,
@@ -293,7 +321,6 @@ def load(start: Path | None = None) -> Workspace:
         search_device=str(search.get("device", "auto")),
         model=dict(config.get("model", {})),
         student_ai=str(student.get("ai", "teacher")),
-        student_server=str(student.get("server", "")),
         questions_per_day=int(student.get("questions_per_day", 0) or 0),
         allowed_origins=[str(item) for item in student.get("allowed_origins", [])],
         roster=str(student.get("roster", "")),

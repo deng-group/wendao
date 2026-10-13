@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-style="{{STYLE}}">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -14,14 +14,14 @@
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 128 128'%3E%3Cdefs%3E%3ClinearGradient id='f-tile' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%231e1b4b'/%3E%3Cstop offset='1' stop-color='%231d4ed8'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect x='4' y='4' width='120' height='120' rx='28' fill='url%28%23f-tile%29'/%3E%3Cpath d='M44 50 C44 35 53 27 64 27 C77 27 86 36 86 47 C86 58 78 63 71 67 C66 70 64 73 64 81' fill='none' stroke='%23ffffff' stroke-width='10' stroke-linecap='butt' stroke-linejoin='round'/%3E%3Ccircle cx='64' cy='98' r='7' fill='%2338bdf8'/%3E%3C/svg%3E"
     />
     <title>Wendao · {{COURSE_NAME}}</title>
-    <link rel="stylesheet" href="./style.css?v=14" />
+    <link rel="stylesheet" href="./style.css?v={{VERSION}}" />
   </head>
   <body>
     <main class="app-shell">
       <section class="graph-workspace" aria-label="Course knowledge graph">
         <header class="graph-header">
           <a class="brand" href="./" aria-label="Wendao home">
-            <svg class="brand-mark" viewBox="0 0 128 128" aria-hidden="true"><defs><linearGradient id="wd-tile" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1e1b4b"/><stop offset="1" stop-color="#1d4ed8"/></linearGradient></defs><rect x="4" y="4" width="120" height="120" rx="28" fill="url(#wd-tile)"/><path d="M44 50 C44 35 53 27 64 27 C77 27 86 36 86 47 C86 58 78 63 71 67 C66 70 64 73 64 81" fill="none" stroke="#ffffff" stroke-width="10" stroke-linecap="butt" stroke-linejoin="round"/><circle cx="64" cy="98" r="7" fill="#38bdf8"/></svg>
+            <svg class="brand-mark" viewBox="0 0 128 128" aria-hidden="true"><defs><linearGradient id="wd-tile" x1="0" y1="0" x2="1" y2="1"><stop class="logo-from" offset="0" stop-color="#1e1b4b"/><stop class="logo-to" offset="1" stop-color="#1d4ed8"/></linearGradient></defs><rect x="4" y="4" width="120" height="120" rx="28" fill="url(#wd-tile)"/><path d="M44 50 C44 35 53 27 64 27 C77 27 86 36 86 47 C86 58 78 63 71 67 C66 70 64 73 64 81" fill="none" class="logo-mark" stroke="#ffffff" stroke-width="10" stroke-linecap="butt" stroke-linejoin="round"/><circle class="logo-dot" cx="64" cy="98" r="7" fill="#38bdf8"/></svg>
             <span><strong>Wendao</strong><small>{{COURSE_LABEL}}</small></span>
           </a>
 
@@ -36,9 +36,27 @@
             <button id="reset-view" class="icon-control" type="button" aria-label="Reset graph view" title="Reset view">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11a8 8 0 1 1 2.3 5.7"></path><path d="M4 5v6h6"></path></svg>
             </button>
-            <button id="fit-view" class="icon-control" type="button" aria-label="Fit graph to screen" title="Fit graph">
+            <button id="fit-view" class="icon-control" type="button" aria-label="Full screen" title="Full screen">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5"></path></svg>
             </button>
+            <div class="appearance">
+              <button id="appearance" class="icon-control" type="button" aria-label="Appearance" title="Appearance" aria-haspopup="true" aria-expanded="false">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"></circle><path d="M12 3.5v17a8.5 8.5 0 0 0 0-17Z" class="filled"></path></svg>
+              </button>
+              <div id="appearance-menu" class="appearance-menu" role="dialog" aria-label="Appearance" hidden>
+                <p>Style</p>
+                <div class="segmented" data-choice="style">
+                  <button type="button" data-value="modern">Modern</button>
+                  <button type="button" data-value="economist">Economist</button>
+                </div>
+                <p>Mode</p>
+                <div class="segmented" data-choice="mode">
+                  <button type="button" data-value="auto">Auto</button>
+                  <button type="button" data-value="light">Light</button>
+                  <button type="button" data-value="dark">Dark</button>
+                </div>
+              </div>
+            </div>
             <button id="open-chat" class="chat-launcher" type="button" aria-controls="chat-panel" aria-expanded="false">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14v11H9l-4 3V5Z"></path><path d="M8 9h8M8 12h5"></path></svg>
               <span>Ask AI</span>
@@ -49,31 +67,24 @@
         <div id="search-results" class="search-results" hidden></div>
 
         <div id="graph-stage" class="graph-stage">
-          <svg id="graph-svg" role="img" aria-label="Interactive course concept network">
-            <defs>
-              <filter id="node-glow" x="-80%" y="-80%" width="260%" height="260%">
-                <feGaussianBlur stdDeviation="5" result="blur"></feGaussianBlur>
-                <feMerge><feMergeNode in="blur"></feMergeNode><feMergeNode in="SourceGraphic"></feMergeNode></feMerge>
-              </filter>
-            </defs>
-            <g id="graph-viewport">
-              <g id="edge-layer"></g>
-              <g id="node-layer"></g>
-            </g>
-          </svg>
+          <canvas id="graph-canvas" role="img" aria-label="Course knowledge graph: chapters, pages and concepts. Use search to find one."></canvas>
 
-          <div id="graph-hint" class="graph-hint"><span></span> Overview — use the legend to filter by level</div>
+          <div id="graph-hint" class="graph-hint"><span></span> Drag to move · scroll to zoom · hover to see connections</div>
 
           <article id="node-card" class="node-card" hidden>
             <button id="close-node-card" class="card-close" type="button" aria-label="Close concept details">×</button>
             <p id="node-kind" class="node-kind">Chapter</p>
             <h2 id="node-title">Structures</h2>
+            <p id="node-summary" class="node-summary" hidden></p>
+            <button id="explain-in-widget" class="ask-node" type="button">Explain <span>→</span></button>
             <button id="ask-node" class="ask-node" type="button">Ask a question <span>→</span></button>
+            <a id="open-page" class="ask-node" target="_blank" rel="noopener" hidden>Open page <span>↗</span></a>
           </article>
 
-          <div class="legend" aria-label="Filter graph by node level">
-            <button id="legend-chapter" type="button" aria-pressed="false" title="Show chapters only"><i class="chapter-dot"></i>Chapter</button>
-            <button id="legend-concept" type="button" aria-pressed="false" title="Show concepts only"><i class="concept-dot"></i>Concept</button>
+          <div class="legend" aria-label="Show or hide kinds of nodes">
+            <button id="legend-chapter" type="button" aria-pressed="true" title="Show or hide chapters"><i class="chapter-dot"></i>Chapter</button>
+            <button id="legend-page" type="button" aria-pressed="true" title="Show or hide pages"><i class="page-dot"></i>Page</button>
+            <button id="legend-concept" type="button" aria-pressed="true" title="Show or hide concepts"><i class="concept-dot"></i>Concept</button>
           </div>
         </div>
       </section>
@@ -168,6 +179,6 @@
       </dialog>
     </main>
 
-    <script src="./app.js?v=14"></script>
+    <script src="./app.js?v={{VERSION}}"></script>
   </body>
 </html>

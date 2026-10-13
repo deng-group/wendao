@@ -51,12 +51,22 @@ class GraphViewTest(unittest.TestCase):
     def test_neighbourhood_is_small_and_connected(self):
         view = self.view.neighborhood("keyword:convex-hull")
         self.assertEqual(view["center"]["label"], "Convex Hull")
-        self.assertLessEqual(len(view["nodes"]), 18)
+        self.assertLessEqual(len(view["nodes"]), sum(GraphView.LIMITS.values()))
         self.assertTrue(all(node["type"] in {"keyword", "topic", "chapter"} for node in view["nodes"]))
         included = {view["center"]["id"], *(node["id"] for node in view["nodes"])}
         self.assertTrue(all(link["source"] in included and link["target"] in included for link in view["links"]))
         self.assertTrue(any(view["center"]["id"] in (link["source"], link["target"]) for link in view["links"]))
         self.assertIsNone(self.view.neighborhood("keyword:does-not-exist"))
+
+    def test_a_concept_shows_every_chapter_it_appears_in(self):
+        chapters = {edge["target"] if edge["source"] == "keyword:python" else edge["source"]
+                    for edge in self.view.edges if "keyword:python" in (edge["source"], edge["target"])
+                    and self.view.nodes[edge["target"] if edge["source"] == "keyword:python" else edge["source"]]["type"] == "chapter"
+                    and self.view.nodes[edge["target"] if edge["source"] == "keyword:python" else edge["source"]].get("visibility") != "hidden"}
+        view = self.view.neighborhood("keyword:python")
+        shown = {node["id"] for node in view["nodes"] if node["type"] == "chapter"}
+        self.assertEqual(shown, chapters)
+        self.assertGreater(len(shown), 4)
 
 
 class WidgetApiTest(unittest.TestCase):
@@ -71,6 +81,7 @@ class WidgetApiTest(unittest.TestCase):
     def test_health_names_the_course_and_graph(self):
         health = self.client.get("/api/health").get_json()
         self.assertEqual(health["course"]["code"], "MLE4217/5219")
+        self.assertEqual(health["course"]["style"], "modern")
         self.assertTrue(health["graph"])
 
     def test_page_and_neighbourhood_include_links_to_the_course_site(self):
@@ -103,6 +114,37 @@ class WidgetApiTest(unittest.TestCase):
         focused = pipeline.ask("Summarize this.", selection=passage)
         self.assertEqual(focused["status"], "answerable")
         self.assertEqual(focused["evidence"][0]["file_path"], "high_throughput/thermodynamics.md")
+
+    def test_serves_the_whole_course_graph_for_the_graph_tab(self):
+        page = self.client.get("/graph/")
+        self.assertEqual(page.status_code, 200)
+        self.assertIn(b"MLE4217/5219", page.data)
+        self.assertEqual(self.client.get("/graph/app.js").status_code, 200)
+        self.assertEqual(self.client.get("/graph/style.css").status_code, 200)
+        self.assertEqual(self.client.get("/graph/secret.txt").status_code, 404)
+        graph = self.client.get("/api/graph").get_json()
+        self.assertGreater(len(graph["nodes"]), 100)
+        from wendao import __version__
+
+        self.assertIn(f"app.js?v={__version__}".encode(), page.data)  # a new release: browsers fetch the new code
+        self.assertNotIn(b'id="explain-in-widget" class="ask-node" type="button" hidden', page.data)
+
+    def test_graph_is_sent_small_and_only_when_changed(self):
+        import gzip
+
+        plain = self.client.get("/api/graph")
+        packed = self.client.get("/api/graph", headers={"Accept-Encoding": "gzip, br"})
+        self.assertEqual(packed.headers["Content-Encoding"], "gzip")
+        self.assertLess(len(packed.data), len(plain.data) / 3)
+        self.assertEqual(json.loads(gzip.decompress(packed.data)), plain.get_json())
+        again = self.client.get("/api/graph", headers={"If-None-Match": plain.headers["ETag"]})
+        self.assertEqual((again.status_code, again.data), (304, b""))
+
+    def test_home_page_shows_the_new_widget(self):
+        page = self.client.get("/").data.decode()
+        self.assertIn("/static/site_widget/wendao-widget.js", page)
+        self.assertIn('data-api="http://localhost"', page)
+        self.assertEqual(self.client.get("/static/site_widget/wendao-widget.js").status_code, 200)
 
     def test_health_names_the_search_engine(self):
         self.assertEqual(self.client.get("/api/health").get_json()["web_search"]["name"], "Google")
@@ -152,6 +194,16 @@ class FeedbackTest(unittest.TestCase):
             self.assertEqual(codes, [200, 200, 400])
             self.assertEqual(self.rate(self.down, address="10.0.0.8").status_code, 200)  # someone else still can
 
+    def test_a_rebuilt_graph_is_served_without_a_restart(self):
+        graph_path = self.root / "build" / "graph.json"
+        node = {"id": "chapter:a", "type": "chapter", "label": "A"}
+        graph_path.write_text(json.dumps({"nodes": [node], "edges": []}), encoding="utf-8")
+        self.assertEqual(len(self.client.get("/api/graph").get_json()["nodes"]), 1)
+        graph_path.write_text(json.dumps({"nodes": [node, {**node, "id": "chapter:b", "label": "B"}], "edges": []}), encoding="utf-8")
+        later = graph_path.stat().st_mtime + 5
+        os.utime(graph_path, (later, later))  # as `wendao build` would, a moment later
+        self.assertEqual(len(self.client.get("/api/graph").get_json()["nodes"]), 2)
+
     def test_command_without_feedback(self):
         output = io.StringIO()
         with contextlib.redirect_stdout(output):
@@ -193,6 +245,66 @@ class WebSearchSettingTest(unittest.TestCase):
             with self.subTest(bad=bad), self.assertRaisesRegex(workspace_module.WorkspaceError, "must be one of google"):
                 self.load(f'[widget]\nweb_search = "{bad}"\n')
 
+
+
+
+class ExportTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        (self.root / "wendao.toml").write_text('[course]\nname = "Demo"\nwebsite = "https://demo.edu/"\n', encoding="utf-8")
+        (self.root / "build").mkdir()
+        graph = {"nodes": [
+            {"id": "chapter:a", "type": "chapter", "label": "A</script><script>alert(1)</script>", "visibility": "primary",
+             "chunk_ids": ["x"] * 50, "description": "long"},
+            {"id": "topic:a-intro", "type": "topic", "label": "Intro", "chapter_id": "chapter:a", "source_files": ["a/intro.md"]},
+        ], "edges": [{"id": "e1", "source": "chapter:a", "target": "topic:a-intro", "type": "contains", "weight": 1,
+                      "evidence": ["a long passage"] * 20}]}
+        (self.root / "build" / "graph.json").write_text(json.dumps(graph), encoding="utf-8")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_one_file_with_everything_inside(self):
+        from wendao.web.explorer import export_page
+
+        page = export_page(workspace_module.load(self.root))
+        self.assertNotIn("./app.js", page)
+        self.assertNotIn("./style.css", page)
+        self.assertNotIn("a long passage", page)  # only what the page needs
+        self.assertIn("https://demo.edu/a/intro/", page)  # page nodes link to the course website
+        self.assertEqual(page.count("</script>"), 2)  # a label can't close the script early
+        self.assertIn('"online":""', page)
+
+    def test_command(self):
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            main(["export", "-w", str(self.root), "--online", "https://ai.demo.edu/graph/"])
+        self.assertTrue((self.root / "build" / "demo.html").is_file())
+        self.assertIn("double-clicking", output.getvalue())
+        self.assertIn('"online":"https://ai.demo.edu/graph/"', (self.root / "build" / "demo.html").read_text(encoding="utf-8"))
+
+class StyleSettingTest(unittest.TestCase):
+    def workspace(self, course: str):
+        self.tmp = tempfile.TemporaryDirectory()
+        root = Path(self.tmp.name)
+        (root / "wendao.toml").write_text(f'[course]\nname = "Test"\n{course}', encoding="utf-8")
+        return workspace_module.load(root)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_modern_by_default_economist_on_request(self):
+        self.assertEqual(self.workspace("").style, "modern")
+        self.assertEqual(self.workspace('style = "Economist"\n').style, "economist")
+        with self.assertRaisesRegex(workspace_module.WorkspaceError, "must be \"modern\" or \"economist\""):
+            self.workspace('style = "neon"\n')
+
+    def test_the_graph_page_and_widget_get_the_style(self):
+        from wendao.web.explorer import render_index
+
+        workspace = self.workspace('style = "economist"\n')
+        self.assertIn('data-style="economist"', render_index(workspace))
 
 class SelectionPromptTest(unittest.TestCase):
     def test_highlighted_text_is_quoted_in_the_prompt_and_capped(self):

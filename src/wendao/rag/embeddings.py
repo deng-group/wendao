@@ -40,7 +40,7 @@ def torch_available() -> bool:
 def make_encoder(model_name: str, engine: str = "auto", device: str = "auto", model_path: str | None = None) -> Encoder:
     """Pick the embedding engine. "auto" uses PyTorch if the `gpu` extra is installed, else ONNX.
 
-    `model_path` is a local folder with the ONNX model files (as stored in a course pack);
+    `model_path` is a local folder with the ONNX model files (for example a copy kept next to the course);
     without it the model is downloaded from the Hugging Face Hub.
     """
     if engine not in ENGINES:

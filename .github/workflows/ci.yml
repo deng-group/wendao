@@ -25,14 +25,14 @@ jobs:
           python-version: ${{ matrix.python-version }}
           enable-cache: true
       - name: Install
-        run: uv sync --frozen --extra teacher --extra deploy
+        run: uv sync --frozen --extra deploy
       - name: Unit tests
         run: uv run python -m unittest discover -s tests -v
 
-  student-install:
-    # The base install (what students get) must open a real course file, offline, without the teacher tools,
-    # on every operating system students use.
-    name: student-install (${{ matrix.os }})
+  wheel-install:
+    # The package as pip installs it (not the dev environment) must search the example course and export
+    # its graph page, on every operating system.
+    name: wheel-install (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     strategy:
@@ -47,19 +47,14 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.12"
-      - name: Pack the example course (teacher install)
-        run: |
-          uv sync --frozen --extra teacher
-          uv run wendao pack -w examples/mle4217_5219 -o "$RUNNER_TEMP/course.wendao"
-      - name: Install the base package only
+      - name: Install the built package
         run: |
           uv build --wheel
-          uv venv "$RUNNER_TEMP/student"
-          uv pip install --python "$RUNNER_TEMP/student" dist/*.whl
-      - name: Open the course file as a student, offline
-        env:
-          HF_HUB_OFFLINE: "1"
+          uv venv "$RUNNER_TEMP/wheel"
+          uv pip install --python "$RUNNER_TEMP/wheel" dist/*.whl
+      - name: Search the example course and export its graph
         run: |
-          if [ "$RUNNER_OS" = "Windows" ]; then python="$RUNNER_TEMP/student/Scripts/python.exe"; else python="$RUNNER_TEMP/student/bin/python"; fi
-          export WENDAO_CACHE="$RUNNER_TEMP/wendao-cache"
-          "$python" tests/smoke_student_app.py "$RUNNER_TEMP/course.wendao" "What is a convex hull?"
+          if [ "$RUNNER_OS" = "Windows" ]; then bin="$RUNNER_TEMP/wheel/Scripts"; else bin="$RUNNER_TEMP/wheel/bin"; fi
+          "$bin/wendao" ask -w examples/mle4217_5219 --search-only "What is a convex hull?"
+          "$bin/wendao" export -w examples/mle4217_5219 -o "$RUNNER_TEMP/graph.html"
+          test -s "$RUNNER_TEMP/graph.html"

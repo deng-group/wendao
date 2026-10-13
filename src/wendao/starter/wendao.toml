@@ -6,6 +6,7 @@ name = "{name}"
 code = ""                     # e.g. "CS1010"
 website = ""                  # published course site, so answers can link to the right page
 # term = "AY2025/2026 Semester 2"   # otherwise read from a "- Year: ..." line in syllabus.md
+# style = "modern"            # look of the graph website and chat widget: "modern" or "economist"
 
 [source]
 path = "{source}"             # folder with your notes: Markdown, notebooks, PDF, PowerPoint, Word, LaTeX, HTML, text
@@ -31,9 +32,8 @@ aliases = {}                  # e.g. { "convexhull" = "convex hull" }
 bridge_stop_concepts = []
 
 [student]
-# How students get AI answers in the course app and on your Wendao website.
+# How students get AI answers on your Wendao website and in the course-website widget.
 ai = "teacher"                # "teacher" (your key, kept on your server), "student" (their own key), or "either"
-# server = ""                 # your Wendao website, e.g. https://course.example.edu (used by apps opened on laptops)
 # questions_per_day = 50      # per student, on your key (0 = no limit)
 # roster = "students.csv"     # class list (column "email"; optional "name", "limit"): only these students can use your
                               # course AI, after signing in with their email. See `wendao students`.
@@ -52,3 +52,4 @@ ai = "teacher"                # "teacher" (your key, kept on your server), "stud
 # model = "gpt-4.1-mini"
 # base_url = "https://api.openai.com/v1"   # for anthropic/openai; e.g. http://localhost:11434/v1 for Ollama
 # temperature = 0.2           # use "none" for models that don't accept one
+# max_tokens = 8192           # longest reply; models that think first (e.g. DeepSeek) need room for that too

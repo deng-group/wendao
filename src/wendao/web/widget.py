@@ -7,22 +7,24 @@ website (`[course] website`), extra origins in `[student] allowed_origins`, and 
 
 from __future__ import annotations
 
+import html
 import json
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from flask import Flask, Response, jsonify, render_template, request, stream_with_context
+from flask import Flask, Response, jsonify, request, send_from_directory, stream_with_context
 
+from wendao import __version__
 from wendao import workspace as workspace_module
 from wendao.rag.answer import AnswerGenerator
 from wendao.rag.pipeline import QueryPipeline
 from wendao.rag.prompts import PromptBuilder
-from wendao.web import STATIC_DIR, TEMPLATES_DIR
+from wendao.web import STATIC_DIR
 from wendao.web.accounts import SignInError, TokenSigner
 from wendao.web.ai import AiPolicy, AiUnavailable, bearer_token, student_id
-from wendao.web.explorer import course_source_url
+from wendao.web.explorer import EXPLORER_DIR, course_source_url, render_index
 from wendao.web.feedback import FeedbackError, FeedbackStore
-from wendao.web.graph_api import GraphView
+from wendao.web.graph_api import GraphFile, graph_response
 
 MAX_SELECTION = 1500  # characters of highlighted page text sent with a question
 
@@ -57,19 +59,18 @@ def create_app(workspace=None) -> Flask:
     """Create the app for a workspace (default: `$WENDAO_WORKSPACE` or the current folder)."""
     workspace = workspace or workspace_module.load()
     workspace.apply_model_settings()
-    app = Flask(__name__, static_folder=str(STATIC_DIR / "widget"), static_url_path="/static", template_folder=str(TEMPLATES_DIR))
+    app = Flask(__name__, static_folder=str(STATIC_DIR), static_url_path="/static")
     pipeline = QueryPipeline.for_workspace(workspace, top_k=5)
     prompt_builder = PromptBuilder(evidence_score_threshold=0.60, course_name=workspace.display_name)
-    # The widget runs where the teacher's key is, so it never forwards to another server.
     policy = AiPolicy.from_settings(
-        workspace.student_ai, "", workspace.questions_per_day, accounts=workspace.accounts(), limit=workspace.daily_limit()
+        workspace.student_ai, workspace.questions_per_day, accounts=workspace.accounts(), limit=workspace.daily_limit()
     )
     origins = {origin_of(workspace.website)} | {origin_of(item) or item for item in workspace.allowed_origins}
-    graph_path = Path(workspace.graph_path)
-    graph_view = GraphView(json.loads(graph_path.read_text(encoding="utf-8"))) if graph_path.exists() else None
+    graph_file = GraphFile(Path(workspace.graph_path))
 
     def selected_context(payload: dict) -> list[str]:
         """Graph nodes the student picked (e.g. a concept in the Graph tab), as labels to focus the search."""
+        graph_view = graph_file.view
         if graph_view is None:
             return []
         context = []
@@ -97,7 +98,7 @@ def create_app(workspace=None) -> Flask:
         return item
 
     def generator_for(payload: dict) -> AnswerGenerator:
-        _, provider = policy.choose(payload, student_id(request), bearer_token(request))
+        provider = policy.choose(payload, student_id(request), bearer_token(request))
         return AnswerGenerator(
             pipeline=pipeline,
             prompt_builder=prompt_builder,
@@ -124,7 +125,41 @@ def create_app(workspace=None) -> Flask:
 
     @app.get("/")
     def index():
-        return render_template("widget.html", course_name=workspace.display_name)
+        """A plain page with the widget on it, to try the widget without a course website."""
+        name = html.escape(workspace.display_name)
+        api = html.escape(request.host_url.rstrip("/"), quote=True)
+        page = f"""<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{name} · Wendao</title>
+<link rel="stylesheet" href="/static/site_widget/wendao-widget.css?v={__version__}" data-wendao-widget="style">
+<style>body{{margin:0;font-family:system-ui,sans-serif;color:#0b1220;background:#f5f6fb}}
+main{{max-width:640px;margin:12vh auto;padding:0 24px;line-height:1.6}}h1{{margin:0 0 8px}}p{{color:#5b6577}}</style>
+</head><body><main><h1>{name}</h1>
+<p>This is the Wendao chat widget, the same one <code>wendao widget install</code> adds to your course website.
+Open it with the button at the bottom-right.</p></main>
+<script src="/static/site_widget/wendao-widget.js?v={__version__}" data-version="{__version__}" data-api="{api}" defer></script>
+</body></html>"""
+        return Response(page, content_type="text/html; charset=utf-8")
+
+    # The whole course graph (the same page as `wendao serve`), shown inside the widget's Graph tab.
+    graph_page = render_index(workspace)
+
+    @app.get("/graph/")
+    def graph_index():
+        if graph_file.graph is None:
+            return Response("This course has no knowledge graph yet. Run `wendao build`.", status=404)
+        return Response(graph_page, content_type="text/html; charset=utf-8")
+
+    @app.get("/graph/<any('app.js', 'style.css'):filename>")
+    def graph_files(filename: str):
+        return send_from_directory(EXPLORER_DIR, filename)
+
+    @app.get("/api/graph")
+    def course_graph():
+        response = graph_response(graph_file, lambda path: course_source_url(path, workspace.website))
+        if response is None:
+            return jsonify({"ok": False, "message": "No knowledge graph yet."}), 404
+        return response
 
     @app.get("/api/health")
     def health():
@@ -133,8 +168,9 @@ def create_app(workspace=None) -> Flask:
             "ok": True,
             "ai": ai,
             "default_provider": ai["provider"],
-            "course": {"name": workspace.course_name, "code": workspace.course_code, "display": workspace.display_name},
-            "graph": graph_view is not None,
+            "course": {"name": workspace.course_name, "code": workspace.course_code, "display": workspace.display_name,
+                       "style": workspace.style},
+            "graph": graph_file.view is not None,
             "web_search": workspace.web_search,
             "feedback": True,  # this server takes thumbs up / down on answers  # where the Search button looks up highlighted text
         })
@@ -151,12 +187,14 @@ def create_app(workspace=None) -> Flask:
     @app.get("/api/page")
     def page():
         """The graph node for the page the student is reading (`?path=` is the browser address)."""
+        graph_view = graph_file.view
         found = graph_view.page(request.args.get("path", ""), base=urlsplit(workspace.website or "").path) if graph_view else None
         return jsonify({"ok": True, "node": with_links(found) if found else None})
 
     @app.get("/api/neighborhood")
     def neighborhood():
         """A node and its closest neighbours, for the widget's Graph tab."""
+        graph_view = graph_file.view
         view = graph_view.neighborhood(request.args.get("node", "")) if graph_view else None
         if view is None:
             return jsonify({"ok": False, "message": "This part of the graph was not found."}), 404

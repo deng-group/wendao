@@ -27,6 +27,8 @@ DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1"
 DEFAULT_GEMINI_MODEL = "gemini-2.5-flash"
 DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-6"
 DEFAULT_TEMPERATURE = 0.2
+# Room for the answer, and for the thinking that models like DeepSeek do before it (thinking counts too).
+DEFAULT_MAX_TOKENS = 8192
 
 
 def load_env_file(path: Path) -> None:
@@ -60,6 +62,30 @@ def temperature_setting() -> dict:
         return {"temperature": float(raw)}
     except ValueError:
         raise RuntimeError(f"LLM_TEMPERATURE must be a number or `none`, not `{raw}`.") from None
+
+
+def max_tokens_setting() -> int:
+    """The longest reply allowed, in tokens: `LLM_MAX_TOKENS` (or `[model] max_tokens`), default 8192."""
+    raw = os.environ.get("LLM_MAX_TOKENS", "").strip()
+    if not raw:
+        return DEFAULT_MAX_TOKENS
+    try:
+        value = int(raw)
+    except ValueError:
+        value = 0
+    if value <= 0:
+        raise RuntimeError(f"LLM_MAX_TOKENS (max_tokens under [model]) must be a whole number above 0, not `{raw}`.")
+    return value
+
+
+def no_answer_error(model: str | None, stop_reason: str | None) -> RuntimeError:
+    """The model replied, but with no answer text (never show its raw reply or its thinking instead)."""
+    if str(stop_reason or "").lower() in {"max_tokens", "length", "max_output_tokens"}:
+        return RuntimeError(
+            f"The model{_for_model(model)} returned no answer: its thinking used up the {max_tokens_setting()}-token "
+            "limit before the answer. Raise `max_tokens` under [model] in wendao.toml (or LLM_MAX_TOKENS)."
+        )
+    return RuntimeError(f"The model{_for_model(model)} returned no answer text" + (f" (stop reason: {stop_reason})." if stop_reason else "."))
 
 
 def _curl_value(value: str, what: str) -> str:
@@ -131,7 +157,13 @@ class _PinnedHTTPSHandler(request.HTTPSHandler):
         return self.do_open(lambda host, **kwargs: _PinnedHTTPSConnection(host, self.pinned_ip, **kwargs), req, context=self._context)
 
 
-def _open(req: request.Request, label: str, timeout: int, follow_redirects: bool = True, pinned_ip: str | None = None):
+def _for_model(model: str | None) -> str:
+    """" for model X" in error messages: a wrong model name is the most common cause of a refused request."""
+    return f" for model {model}" if model else ""
+
+
+def _open(req: request.Request, label: str, timeout: int, follow_redirects: bool = True, pinned_ip: str | None = None,
+          model: str | None = None):
     """Open an HTTP request and turn transport failures into readable errors."""
     try:
         if pinned_ip:
@@ -149,9 +181,9 @@ def _open(req: request.Request, label: str, timeout: int, follow_redirects: bool
                 f"{label} server tried to redirect to another address; redirects aren't allowed for your own AI server."
             ) from exc
         body = exc.read().decode("utf-8", errors="replace")[:500]
-        raise RuntimeError(f"{label} API error {exc.code}: {body}") from exc
+        raise RuntimeError(f"{label} API error {exc.code}{_for_model(model)}: {body}") from exc
     except error.URLError as exc:
-        raise RuntimeError(f"{label} API unreachable: {exc.reason}") from exc
+        raise RuntimeError(f"{label} API unreachable{_for_model(model)}: {exc.reason}") from exc
 
 
 def _iter_sse_data(response) -> Iterator[dict]:
@@ -285,7 +317,7 @@ class OpenAICompatibleProvider:
         )
 
     def generate(self, prompt_package: dict) -> dict:
-        with _open(self._request(prompt_package, stream=False), "OpenAI-compatible", 90, self.follow_redirects, self.pinned_ip) as response:
+        with _open(self._request(prompt_package, stream=False), "OpenAI-compatible", 90, self.follow_redirects, self.pinned_ip, self.resolved_model()) as response:
             raw = json.loads(response.read().decode("utf-8"))
         return {
             "provider": self.name,
@@ -297,11 +329,11 @@ class OpenAICompatibleProvider:
 
     def stream(self, prompt_package: dict) -> Iterator[str]:
         """Yield text deltas from an OpenAI-compatible SSE response."""
-        with _open(self._request(prompt_package, stream=True), "OpenAI-compatible", 120, self.follow_redirects, self.pinned_ip) as response:
+        with _open(self._request(prompt_package, stream=True), "OpenAI-compatible", 120, self.follow_redirects, self.pinned_ip, self.resolved_model()) as response:
             for event_payload in _iter_sse_data(response):
                 if event_payload.get("error"):
                     message = event_payload["error"].get("message", "Unknown streaming error")
-                    raise RuntimeError(f"OpenAI-compatible API error: {message}")
+                    raise RuntimeError(f"OpenAI-compatible API error{_for_model(self.resolved_model())}: {message}")
                 for choice in event_payload.get("choices", []):
                     text = (choice.get("delta") or {}).get("content")
                     if text:
@@ -316,7 +348,8 @@ class OpenAICompatibleProvider:
                 parts.append(text)
         if parts:
             return "\n".join(parts).strip()
-        return json.dumps(raw, ensure_ascii=False)
+        reason = next((choice.get("finish_reason") for choice in raw.get("choices", []) if choice.get("finish_reason")), None)
+        raise no_answer_error(raw.get("model"), reason)
 
 
 @dataclass
@@ -356,7 +389,7 @@ class GeminiProvider:
         )
 
     def generate(self, prompt_package: dict) -> dict:
-        with _open(self._request(prompt_package, stream=False), "Gemini", 60, self.follow_redirects) as response:
+        with _open(self._request(prompt_package, stream=False), "Gemini", 60, self.follow_redirects, model=self.resolved_model()) as response:
             raw = json.loads(response.read().decode("utf-8"))
         return {
             "provider": self.name,
@@ -368,11 +401,11 @@ class GeminiProvider:
 
     def stream(self, prompt_package: dict) -> Iterator[str]:
         """Yield text deltas from a Gemini SSE response."""
-        with _open(self._request(prompt_package, stream=True), "Gemini", 120, self.follow_redirects) as response:
+        with _open(self._request(prompt_package, stream=True), "Gemini", 120, self.follow_redirects, model=self.resolved_model()) as response:
             for event_payload in _iter_sse_data(response):
                 if event_payload.get("error"):
                     message = event_payload["error"].get("message", "Unknown streaming error")
-                    raise RuntimeError(f"Gemini API error: {message}")
+                    raise RuntimeError(f"Gemini API error{_for_model(self.resolved_model())}: {message}")
                 for candidate in event_payload.get("candidates", []):
                     for part in candidate.get("content", {}).get("parts", []):
                         if part.get("text"):
@@ -384,11 +417,12 @@ class GeminiProvider:
         for candidate in raw.get("candidates", []):
             for part in candidate.get("content", {}).get("parts", []):
                 text = part.get("text")
-                if text:
+                if text and not part.get("thought"):  # leave out the model's thinking
                     parts.append(text)
         if parts:
             return "\n".join(parts).strip()
-        return json.dumps(raw, ensure_ascii=False)
+        reason = next((c.get("finishReason") for c in raw.get("candidates", []) if c.get("finishReason")), None)
+        raise no_answer_error(raw.get("modelVersion"), reason)
 
 
 @dataclass
@@ -436,7 +470,7 @@ class AnthropicProvider:
         messages = prompt_package["messages"]
         payload = {
             "model": model,
-            "max_tokens": 2048,
+            "max_tokens": max_tokens_setting(),
             **temperature_setting(),
             "system": messages[0]["content"],
             "messages": [
@@ -469,7 +503,7 @@ class AnthropicProvider:
             )
         if completed.returncode != 0:
             body = (completed.stdout or completed.stderr).strip()
-            raise RuntimeError(f"Anthropic API error via curl: {body}")
+            raise RuntimeError(f"Anthropic API error{_for_model(self.resolved_model())}: {body}")
         raw = json.loads(completed.stdout)
 
         answer = self._extract_text(raw)
@@ -490,7 +524,7 @@ class AnthropicProvider:
         messages = prompt_package["messages"]
         payload = {
             "model": self.resolved_model(),
-            "max_tokens": 2048,
+            "max_tokens": max_tokens_setting(),
             **temperature_setting(),
             "stream": True,
             "system": messages[0]["content"],
@@ -523,6 +557,8 @@ class AnthropicProvider:
             process.stdin.write(json.dumps(payload))
             process.stdin.close()
             non_event_output = []
+            answered = False
+            stop_reason = None
             try:
                 for raw_line in process.stdout:
                     line = raw_line.strip()
@@ -536,17 +572,24 @@ class AnthropicProvider:
                     event_payload = json.loads(data)
                     if event_payload.get("type") == "error":
                         message = event_payload.get("error", {}).get("message", "Unknown streaming error")
-                        raise RuntimeError(f"Anthropic API error: {message}")
+                        raise RuntimeError(f"Anthropic API error{_for_model(self.resolved_model())}: {message}")
+                    if event_payload.get("type") == "message_delta":
+                        stop_reason = (event_payload.get("delta") or {}).get("stop_reason") or stop_reason
                     if event_payload.get("type") != "content_block_delta":
                         continue
                     delta = event_payload.get("delta", {})
                     if delta.get("type") == "text_delta" and delta.get("text"):
+                        answered = True
                         yield delta["text"]
                 return_code = process.wait()
                 if return_code != 0:
                     assert process.stderr is not None
                     body = " ".join(non_event_output) or process.stderr.read().strip()
-                    raise RuntimeError(f"Anthropic streaming API error via curl: {body}")
+                    raise RuntimeError(f"Anthropic API error{_for_model(self.resolved_model())}: {body}")
+                if not answered and non_event_output:  # not a stream at all: show what the server said
+                    raise RuntimeError(f"Anthropic API error{_for_model(self.resolved_model())}: {' '.join(non_event_output)[:500]}")
+                if not answered:
+                    raise no_answer_error(self.resolved_model(), stop_reason)
             finally:
                 if process.poll() is None:
                     process.terminate()
@@ -558,14 +601,10 @@ class AnthropicProvider:
 
     @staticmethod
     def _extract_text(raw: dict) -> str:
-        parts = []
-        for item in raw.get("content", []):
-            text = item.get("text")
-            if text:
-                parts.append(text)
+        parts = [item["text"] for item in raw.get("content", []) if item.get("type", "text") == "text" and item.get("text")]
         if parts:
             return "\n".join(parts).strip()
-        return json.dumps(raw, ensure_ascii=False)
+        raise no_answer_error(raw.get("model"), raw.get("stop_reason"))
 
 
 PROVIDER_NAMES = ("dry_run", "anthropic", "openai", "gemini")

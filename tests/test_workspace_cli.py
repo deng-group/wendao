@@ -109,6 +109,7 @@ class WorkspaceCliTest(unittest.TestCase):
         output = run_cli("build", "-w", str(self.root))
         self.assertIn("3 files (markdown) → 3 chunks", output)
         self.assertIn("Term: AY2026/2027 Semester 1", output)
+        self.assertNotIn("No concepts yet", output)
         for path in ["build/chunks.jsonl", "build/graph.json"]:
             self.assertTrue((self.root / path).is_file(), path)
 
@@ -120,11 +121,101 @@ class WorkspaceCliTest(unittest.TestCase):
         self.assertIn("needs_time_context", output)
         self.assertIn("syllabus.md", output)
 
-        output = run_cli("eval", "-w", str(self.root))
-        self.assertIn("2/2 passed", output)
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output), contextlib.suppress(SystemExit):  # no model set up here
+            main(["doctor", "-w", str(self.root), "--no-model"])
+        self.assertIn("Questions: 2/2 as expected", output.getvalue())
+        self.assertNotIn("Question q", output.getvalue())
         self.assertTrue((self.root / "build/reports/search.md").is_file())
-        output = run_cli("eval", "-w", str(self.root), "--answers")
-        self.assertIn("2/2 passed", output)
+        self.assertTrue((self.root / "build/reports/answers.md").is_file())
+
+    def test_doctor_says_how_to_fix_problems(self):
+        self.init_course()
+        (self.root / "questions.json").unlink()
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output), self.assertRaises(SystemExit):
+            main(["doctor", "-w", str(self.root), "--no-model"])
+        output = output.getvalue()
+        self.assertIn("Build:     not built yet", output)
+        self.assertIn("Fix: Run `wendao build`.", output)
+
+        run_cli("build", "-w", str(self.root))
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output), self.assertRaises(SystemExit):
+            main(["doctor", "-w", str(self.root), "--no-model"])
+        self.assertIn("wendao doctor --add-questions", output.getvalue())
+        self.assertIn("Build:     ok", output.getvalue())
+
+        (self.root / "notes" / "week02" / "energy.md").write_text("# Energy\n\nChanged.\n", encoding="utf-8")
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output), self.assertRaises(SystemExit):
+            main(["doctor", "-w", str(self.root), "--no-model"])
+        self.assertIn("your notes changed after the last build (week02/energy.md)", output.getvalue())
+
+        run_cli("build", "-w", str(self.root))
+        graph_path = self.root / "build" / "graph.json"
+        graph = json.loads(graph_path.read_text(encoding="utf-8"))
+        graph_path.write_text(json.dumps({**graph, "schema_version": "1.0"}), encoding="utf-8")  # built by 0.3.0
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output), self.assertRaises(SystemExit):
+            main(["doctor", "-w", str(self.root), "--no-model"])
+        self.assertIn("Build:     made by an older Wendao", output.getvalue())
+
+    def test_doctor_on_a_new_empty_workspace(self):
+        run_cli("init", str(self.root))
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output), self.assertRaises(SystemExit):
+            main(["doctor", "-w", str(self.root), "--no-model"])
+        self.assertIn("Notes: no files Wendao can read.", output.getvalue())
+        self.assertIn(".md", output.getvalue())
+
+    def test_model_fix_reads_the_error(self):
+        from wendao.cli import model_fix
+
+        self.assertIn("ANTHROPIC_AUTH_TOKEN", model_fix("anthropic", "API error 401: invalid x-api-key"))
+        self.assertIn("busy", model_fix("anthropic", '{"error":{"message":"No available accounts"}}'))
+        self.assertIn("model name", model_fix("openai", "HTTP 404: model not found"))
+        self.assertIn("base_url", model_fix("openai", "Connection refused"))
+        self.assertIn("[model]", model_fix("dry_run", "No language model is configured."))
+
+    def use_starter_concepts(self):
+        starter = Path(__file__).resolve().parents[1] / "src" / "wendao" / "starter" / "concepts.json"
+        (self.root / "concepts.json").write_text(starter.read_text(encoding="utf-8"), encoding="utf-8")
+
+    def test_build_says_what_to_do_without_concepts(self):
+        self.init_course()
+        self.use_starter_concepts()
+        keep = {key: value for key, value in os.environ.items()
+                if not key.startswith(("ANTHROPIC_", "OPENAI_", "GEMINI_", "GOOGLE_API", "LLM_"))}
+        with mock.patch.dict(os.environ, keep, clear=True):  # no model: nothing is sent anywhere
+            output = run_cli("build", "-w", str(self.root))
+        self.assertIn("0 concepts", output)
+        self.assertIn("No concepts yet", output)
+
+    def test_first_build_finds_concepts_when_a_model_is_set_up(self):
+        from wendao import suggest
+
+        class FakeModel:
+            def generate(self, package):
+                return {"answer": json.dumps([{"label": "Kinetic Energy", "aliases": ["kinetic energy"]}])}
+
+        self.init_course()
+        self.use_starter_concepts()
+        with mock.patch.dict(os.environ, {"LLM_PROVIDER": "openai"}), \
+                mock.patch.object(suggest, "course_model", return_value=(FakeModel(), "fake model")):
+            output = run_cli("build", "-w", str(self.root))
+            self.assertIn("Finding concepts", output)
+            self.assertIn("Kinetic Energy", output)
+            self.assertNotIn("No concepts yet", output)
+            again = run_cli("build", "-w", str(self.root))  # it has concepts now: not asked again
+        self.assertNotIn("Finding concepts", again)
+
+    def test_chapter_names_from_folders(self):
+        from wendao.workspace import folder_title
+
+        self.assertEqual(folder_title("models_and_theories_II"), "Models and Theories II")
+        self.assertEqual(folder_title("intro-to-DFT"), "Intro to DFT")
+        self.assertEqual(folder_title("week02"), "Week02")
 
     def test_commands_find_the_workspace_from_a_subfolder(self):
         self.init_course()
