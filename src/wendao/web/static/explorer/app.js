@@ -14,9 +14,16 @@ if (EXPORTED) document.documentElement.classList.add(EXPORTED.online ? "exported
 function openOnline(node) {
   window.open(node ? `${EXPORTED.online}?focus=${encodeURIComponent(node.id)}` : EXPORTED.online, "_blank", "noopener");
 }
-// The look the teacher chose ([course] style in wendao.toml); `?style=` previews another one.
-const STYLE = PARAMS.get("style") || document.documentElement.dataset.style || "modern";
-document.documentElement.classList.toggle("style-modern", STYLE === "modern");
+// Appearance: the style the teacher chose ([course] style in wendao.toml), unless this reader picked another one
+// (saved in the browser); `?style=` previews one. Light or dark follows the computer unless picked too.
+const LOOK_KEY = "wendao_look_v1";
+function savedLook() {
+  try { return JSON.parse(localStorage.getItem(LOOK_KEY) || "{}") || {}; } catch { return {}; }
+}
+function currentStyle() {
+  return PARAMS.get("style") || (!EMBEDDED && savedLook().style) || document.documentElement.dataset.style || "modern";
+}
+document.documentElement.classList.toggle("style-modern", currentStyle() === "modern");
 if (EMBEDDED) {
   document.documentElement.classList.add("embedded");
   document.documentElement.classList.toggle("dark", PARAMS.get("theme") === "dark");
@@ -1284,13 +1291,31 @@ if (EMBEDDED) {
   });
 }
 
-// Outside the widget, follow the computer's light or dark setting, also when it changes.
-if (!EMBEDDED && window.matchMedia) {
-  const darkSetting = window.matchMedia("(prefers-color-scheme: dark)");
-  const applyTheme = () => {
-    document.documentElement.classList.toggle("dark", darkSetting.matches);
+// Outside the widget: the Appearance menu (style, and light / dark / auto). Auto follows the computer, live.
+// Inside the widget the course website decides, so the menu is hidden.
+if (!EMBEDDED) {
+  const darkSetting = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : { matches: false, addEventListener() {} };
+  const button = document.querySelector("#appearance");
+  const menu = document.querySelector("#appearance-menu");
+  const applyLook = () => {
+    const look = savedLook(); const mode = look.mode || "auto"; const style = currentStyle();
+    document.documentElement.classList.toggle("style-modern", style === "modern");
+    document.documentElement.classList.toggle("dark", mode === "dark" || (mode === "auto" && darkSetting.matches));
+    menu.querySelectorAll('[data-choice="style"] button').forEach((item) => item.setAttribute("aria-pressed", String(item.dataset.value === style)));
+    menu.querySelectorAll('[data-choice="mode"] button').forEach((item) => item.setAttribute("aria-pressed", String(item.dataset.value === mode)));
     if (state.graph) { readColours(); draw(); }
   };
-  applyTheme();
-  darkSetting.addEventListener("change", applyTheme);
+  menu.querySelectorAll(".segmented button").forEach((item) => item.addEventListener("click", () => {
+    const look = savedLook();
+    look[item.parentElement.dataset.choice] = item.dataset.value;
+    try { localStorage.setItem(LOOK_KEY, JSON.stringify(look)); } catch { /* private mode: still applies until reload */ }
+    if (item.parentElement.dataset.choice === "style" && PARAMS.has("style")) PARAMS.delete("style");
+    applyLook();
+  }));
+  const setMenu = (open) => { menu.hidden = !open; button.setAttribute("aria-expanded", String(open)); };
+  button.addEventListener("click", (event) => { event.stopPropagation(); setMenu(menu.hidden); });
+  document.addEventListener("click", (event) => { if (!menu.hidden && !event.target.closest(".appearance")) setMenu(false); });
+  document.addEventListener("keydown", (event) => { if (event.key === "Escape" && !menu.hidden) { setMenu(false); button.focus(); } });
+  applyLook();
+  darkSetting.addEventListener("change", () => { if ((savedLook().mode || "auto") === "auto") applyLook(); });
 }

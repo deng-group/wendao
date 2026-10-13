@@ -39,6 +39,24 @@
             <button id="fit-view" class="icon-control" type="button" aria-label="Fit graph to screen" title="Fit graph">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5"></path></svg>
             </button>
+            <div class="appearance">
+              <button id="appearance" class="icon-control" type="button" aria-label="Appearance" title="Appearance" aria-haspopup="true" aria-expanded="false">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"></circle><path d="M12 3.5v17a8.5 8.5 0 0 0 0-17Z" class="filled"></path></svg>
+              </button>
+              <div id="appearance-menu" class="appearance-menu" role="dialog" aria-label="Appearance" hidden>
+                <p>Style</p>
+                <div class="segmented" data-choice="style">
+                  <button type="button" data-value="modern">Modern</button>
+                  <button type="button" data-value="economist">Economist</button>
+                </div>
+                <p>Mode</p>
+                <div class="segmented" data-choice="mode">
+                  <button type="button" data-value="auto">Auto</button>
+                  <button type="button" data-value="light">Light</button>
+                  <button type="button" data-value="dark">Dark</button>
+                </div>
+              </div>
+            </div>
             <button id="open-chat" class="chat-launcher" type="button" aria-controls="chat-panel" aria-expanded="false">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14v11H9l-4 3V5Z"></path><path d="M8 9h8M8 12h5"></path></svg>
               <span>Ask AI</span>

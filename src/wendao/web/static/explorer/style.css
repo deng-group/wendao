@@ -290,3 +290,18 @@ kbd { padding: 3px 6px; border: 1px solid var(--line); border-radius: 5px; color
 /* A file made by `wendao export`: no AI without a server (or "Ask AI" opens the online version) */
 .exported-offline #open-chat, .exported-offline #ask-node, .exported .chat-panel, .exported-offline .chat-panel { display: none !important; }
 a.ask-node { text-decoration: none; }
+
+/* Appearance menu: style and light / dark / auto */
+.appearance { position: relative; }
+#appearance svg { width: 18px; fill: none; stroke: var(--muted); stroke-width: 1.7; }
+#appearance svg .filled { fill: var(--muted); stroke: none; }
+.appearance-menu { position: absolute; z-index: 40; top: calc(100% + 8px); right: 0; width: 248px; padding: 12px; border: 1px solid var(--line-strong);
+  border-radius: 12px; background: var(--panel); box-shadow: 0 18px 44px rgba(18, 18, 18, 0.16); }
+.appearance-menu p { margin: 2px 2px 6px; color: var(--muted); font-size: 0.68rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.appearance-menu p + .segmented { margin-bottom: 12px; }
+.appearance-menu .segmented:last-child { margin-bottom: 0; }
+.segmented { display: flex; gap: 2px; padding: 3px; border-radius: 9px; background: var(--panel-2); }
+.segmented button { flex: 1; padding: 6px 8px; border: 0; border-radius: 7px; color: var(--muted); background: transparent; cursor: pointer; font-size: 0.8rem; font-weight: 600; }
+.segmented button:hover { color: var(--text); }
+.segmented button[aria-pressed="true"] { color: var(--text); background: var(--panel); box-shadow: 0 1px 3px rgba(18, 18, 18, 0.12); }
+.embedded .appearance { display: none; }
