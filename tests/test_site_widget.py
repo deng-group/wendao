@@ -232,6 +232,43 @@ class WebSearchSettingTest(unittest.TestCase):
 
 
 
+
+class ExportTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        (self.root / "wendao.toml").write_text('[course]\nname = "Demo"\nwebsite = "https://demo.edu/"\n', encoding="utf-8")
+        (self.root / "build").mkdir()
+        graph = {"nodes": [
+            {"id": "chapter:a", "type": "chapter", "label": "A</script><script>alert(1)</script>", "visibility": "primary",
+             "chunk_ids": ["x"] * 50, "description": "long"},
+            {"id": "topic:a-intro", "type": "topic", "label": "Intro", "chapter_id": "chapter:a", "source_files": ["a/intro.md"]},
+        ], "edges": [{"id": "e1", "source": "chapter:a", "target": "topic:a-intro", "type": "contains", "weight": 1,
+                      "evidence": ["a long passage"] * 20}]}
+        (self.root / "build" / "graph.json").write_text(json.dumps(graph), encoding="utf-8")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_one_file_with_everything_inside(self):
+        from wendao.web.explorer import export_page
+
+        page = export_page(workspace_module.load(self.root))
+        self.assertNotIn("./app.js", page)
+        self.assertNotIn("./style.css", page)
+        self.assertNotIn("a long passage", page)  # only what the page needs
+        self.assertIn("https://demo.edu/a/intro/", page)  # page nodes link to the course website
+        self.assertEqual(page.count("</script>"), 2)  # a label can't close the script early
+        self.assertIn('"online":""', page)
+
+    def test_command(self):
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            main(["export", "-w", str(self.root), "--online", "https://ai.demo.edu/graph/"])
+        self.assertTrue((self.root / "build" / "demo.html").is_file())
+        self.assertIn("double-clicking", output.getvalue())
+        self.assertIn('"online":"https://ai.demo.edu/graph/"', (self.root / "build" / "demo.html").read_text(encoding="utf-8"))
+
 class StyleSettingTest(unittest.TestCase):
     def workspace(self, course: str):
         self.tmp = tempfile.TemporaryDirectory()

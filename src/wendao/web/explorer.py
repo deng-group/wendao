@@ -5,6 +5,7 @@ from __future__ import annotations
 import html
 import json
 import re
+from pathlib import Path
 from urllib.parse import quote
 
 from flask import Flask, Response, jsonify, request, send_from_directory, stream_with_context
@@ -16,7 +17,7 @@ from wendao.rag.prompts import PromptBuilder
 from wendao.web import STATIC_DIR
 from wendao.web.accounts import SignInError
 from wendao.web.ai import AiPolicy, AiUnavailable, bearer_token, forward_login, forward_stream, student_id
-from wendao.web.graph_api import GraphFile
+from wendao.web.graph_api import GraphFile, browser_graph
 
 EXPLORER_DIR = STATIC_DIR / "explorer"
 
@@ -59,6 +60,24 @@ def render_index(workspace) -> str:
     }
     for placeholder, value in replacements.items():
         page = page.replace(placeholder, html.escape(value))
+    return page
+
+
+def export_page(workspace, online: str = "") -> str:
+    """The graph website as one HTML file: page, style, code and graph inside. It opens by double-click, with no
+    server (`wendao export`). The AI needs a server: with `online` (that server's graph page), "Ask AI" opens it.
+    """
+    graph = browser_graph(json.loads(Path(workspace.graph_path).read_text(encoding="utf-8")),
+                          lambda path: course_source_url(path, workspace.website))
+    data = {"graph": graph, "online": online}
+    # "</" can't appear inside <script>: write it as "<\/" (the same in JSON).
+    script = json.dumps(data, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
+    page = render_index(workspace)
+    css = (EXPLORER_DIR / "style.css").read_text(encoding="utf-8")
+    code = (EXPLORER_DIR / "app.js").read_text(encoding="utf-8").replace("</script", "<\\/script")
+    page = re.sub(r'<link rel="stylesheet" href="\./style\.css[^"]*" />', lambda _: f"<style>\n{css}\n</style>", page, count=1)
+    page = re.sub(r'<script src="\./app\.js[^"]*"></script>',
+                  lambda _: f"<script>window.WENDAO_EXPORT = {script};</script>\n<script>\n{code}\n</script>", page, count=1)
     return page
 
 
@@ -125,7 +144,7 @@ def create_app(workspace=None) -> Flask:
 
     @app.get("/api/graph")
     def course_graph():
-        return jsonify(graph_file.graph or {"nodes": [], "edges": []})
+        return jsonify(browser_graph(graph_file.graph or {}, lambda path: course_source_url(path, workspace.website)))
 
     @app.post("/api/login")
     def login():

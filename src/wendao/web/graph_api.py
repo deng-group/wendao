@@ -162,3 +162,24 @@ class GraphFile:
     def view(self) -> GraphView | None:
         self._refresh()
         return self._view
+
+
+NODE_FIELDS = ("id", "type", "label", "visibility", "order", "chapter_id", "chapter_ids", "aliases", "mention_count")
+EDGE_FIELDS = ("source", "target", "type", "weight")
+
+
+def browser_graph(graph: dict, link_for=None) -> dict:
+    """What the graph page needs, and nothing else (no evidence text or chunk ids): about a fifth of graph.json.
+
+    `link_for(file_path)` gives a page node its address on the course website, for an "Open page" link.
+    """
+    nodes = []
+    for node in graph.get("nodes", []):
+        item = {key: node[key] for key in NODE_FIELDS if key in node}
+        if link_for and node.get("type") == "topic" and node.get("source_files"):
+            url = link_for(node["source_files"][0])
+            if url:
+                item["url"] = url
+        nodes.append(item)
+    edges = [{key: edge[key] for key in EDGE_FIELDS if key in edge} for edge in graph.get("edges", [])]
+    return {"nodes": nodes, "edges": edges}

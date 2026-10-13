@@ -123,6 +123,7 @@ Run `wendao` commands anywhere inside the workspace. Wendao finds `wendao.toml` 
 | `wendao serve` | teacher | Run the course website (the knowledge graph with the AI agent) |
 | `wendao serve --widget` | teacher | Run the API for the chat widget on your existing course website |
 | `wendao widget install _build/html` | teacher | Add the chat widget (with the graph) to every page of a built course website |
+| `wendao export` | teacher | Put the knowledge graph in one HTML file that students open by double-clicking |
 | `wendao pack` | teacher | Put the built course into one file to share with students |
 | `wendao feedback` | teacher | See which answers students marked as not helpful, and why |
 | `wendao students` | teacher | See your class list and how many questions each student asked |
@@ -287,8 +288,13 @@ only emails and daily question counts (in `usage.db`, next to `wendao.toml`), no
 Signing in uses the email alone, so someone who knows a classmate's email could use that classmate's questions for the
 day, but never more than that.
 
-Then share the course in one or both ways:
+Then share the course in one or more ways:
 
+- **One HTML file (nothing to install):** run `wendao export`. It writes `build/<course-name>.html` (about 0.5 MB), with
+  the whole knowledge graph inside: search, connections, and links to your course pages. Students open it by
+  double-clicking, or you put it on any website (for example next to your course on Cloudflare Pages or GitHub Pages).
+  The AI needs a server; with `wendao export --online https://<your Wendao server>/graph/`, its **Ask AI** button
+  opens the online version.
 - **Website:** put it on a server with [`deploy/DEPLOYMENT.md`](https://github.com/deng-group/wendao/blob/main/deploy/DEPLOYMENT.md) and send your students the
   link. This is also the `server` that course files use for the course AI.
 - **Course file:** run `wendao pack`. It writes `build/<course-name>.wendao`, which contains the graph, the search index,

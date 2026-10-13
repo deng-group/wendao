@@ -24,7 +24,7 @@ from wendao.web.accounts import SignInError, TokenSigner
 from wendao.web.ai import AiPolicy, AiUnavailable, bearer_token, student_id
 from wendao.web.explorer import EXPLORER_DIR, course_source_url, render_index
 from wendao.web.feedback import FeedbackError, FeedbackStore
-from wendao.web.graph_api import GraphFile
+from wendao.web.graph_api import GraphFile, browser_graph
 
 MAX_SELECTION = 1500  # characters of highlighted page text sent with a question
 
@@ -159,7 +159,7 @@ Open it with the button at the bottom-right.</p></main>
     def course_graph():
         if graph_file.graph is None:
             return jsonify({"ok": False, "message": "No knowledge graph yet."}), 404
-        return jsonify(graph_file.graph)
+        return jsonify(browser_graph(graph_file.graph, lambda path: course_source_url(path, workspace.website)))
 
     @app.get("/api/health")
     def health():

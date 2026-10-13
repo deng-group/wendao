@@ -286,3 +286,7 @@ kbd { padding: 3px 6px; border: 1px solid var(--line); border-radius: 5px; color
 .brand-mark .logo-to { stop-color: var(--logo-to); }
 .brand-mark .logo-mark { stroke: var(--logo-mark); }
 .brand-mark .logo-dot { fill: var(--logo-dot); }
+
+/* A file made by `wendao export`: no AI without a server (or "Ask AI" opens the online version) */
+.exported-offline #open-chat, .exported-offline #ask-node, .exported .chat-panel, .exported-offline .chat-panel { display: none !important; }
+a.ask-node { text-decoration: none; }

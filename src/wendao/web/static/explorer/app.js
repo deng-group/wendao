@@ -8,6 +8,12 @@ const SIGN_IN_KEY = "wendao_sign_in_v1";
 // widget's chat, the widget says which page the student is on (focus) and whether the site is dark.
 const PARAMS = new URLSearchParams(window.location.search);
 const EMBEDDED = PARAMS.has("embed") && window.parent !== window;
+// A file made by `wendao export`: the graph is inside, there is no server. The AI lives online, if the teacher said where.
+const EXPORTED = window.WENDAO_EXPORT || null;
+if (EXPORTED) document.documentElement.classList.add(EXPORTED.online ? "exported" : "exported-offline");
+function openOnline(node) {
+  window.open(node ? `${EXPORTED.online}?focus=${encodeURIComponent(node.id)}` : EXPORTED.online, "_blank", "noopener");
+}
 // The look the teacher chose ([course] style in wendao.toml); `?style=` previews another one.
 const STYLE = PARAMS.get("style") || document.documentElement.dataset.style || "modern";
 document.documentElement.classList.toggle("style-modern", STYLE === "modern");
@@ -129,6 +135,7 @@ function openAiSettings(note) {
 }
 
 async function loadCourseAi() {
+  if (EXPORTED) return; // no server to ask
   try {
     const response = await fetch("/api/health");
     if (response.ok) courseAi = { ...courseAi, ...((await response.json()).ai || {}) };
@@ -865,6 +872,9 @@ function showNodeCard(node) {
   elements.nodeKind.textContent = node.type === "topic" ? "page" : kind;
   elements.nodeKind.style.color = node.type === "chapter" ? "var(--chapter)" : node.type === "topic" ? "var(--page)" : "var(--concept)";
   elements.nodeTitle.textContent = node.label;
+  const openPage = document.querySelector("#open-page");
+  openPage.hidden = !node.url;
+  if (node.url) openPage.href = node.url;
   elements.nodeCard.hidden = false;
 }
 
@@ -1169,10 +1179,14 @@ function resizeQuestion() {
 
 async function initialize() {
   try {
-    const response = await fetch("/api/graph");
-    if (!response.ok) throw new Error("Graph data could not be loaded.");
+    let graph = EXPORTED && EXPORTED.graph;
+    if (!graph) {
+      const response = await fetch("/api/graph");
+      if (!response.ok) throw new Error("Graph data could not be loaded.");
+      graph = await response.json();
+    }
     readColours(); resizeCanvas();
-    indexGraph(await response.json());
+    indexGraph(graph);
     state.transform = { x: elements.stage.clientWidth / 2, y: elements.stage.clientHeight / 2, k: 0.5 };
     setInitialView();
     const focus = PARAMS.get("focus");
@@ -1208,12 +1222,13 @@ document.querySelector("#close-node-card").addEventListener("click", () => { ele
 document.querySelector("#ask-node").addEventListener("click", () => {
   const node = state.nodesById.get(state.selectedId); if (!node) return;
   if (EMBEDDED) { tellWidget("ask", node); return; }
+  if (EXPORTED) { openOnline(node); return; }
   elements.question.value = "";
   elements.question.placeholder = `Ask about ${node.label}…`;
   resizeQuestion();
   setChatOpen(true);
 });
-elements.openChat.addEventListener("click", () => setChatOpen(true));
+elements.openChat.addEventListener("click", () => (EXPORTED ? openOnline(null) : setChatOpen(true)));
 elements.clearChat.addEventListener("click", clearConversation);
 elements.closeChat.addEventListener("click", () => setChatOpen(false));
 elements.contextChip.addEventListener("click", clearSelection);

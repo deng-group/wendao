@@ -452,6 +452,26 @@ def cmd_students(args: argparse.Namespace) -> None:
 # pack and open --------------------------------------------------------------------------------
 
 
+def cmd_export(args: argparse.Namespace) -> None:
+    from wendao.pack import slugify
+    from wendao.web.explorer import export_page
+
+    workspace = load_workspace(args)
+    workspace.require(workspace.graph_path, "Run `wendao build` first.")
+    online = (args.online or "").strip()
+    if online and not online.startswith(("https://", "http://")):
+        raise WorkspaceError("--online must be a web address, e.g. https://wendao.example.edu/graph/")
+    path = Path(args.output).expanduser() if args.output else workspace.build_dir / f"{slugify(workspace.course_name)}.html"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(export_page(workspace, online), encoding="utf-8")
+    say(f"Made {relative(workspace, path)} ({path.stat().st_size / 1_000_000:.1f} MB): the knowledge graph in one file.")
+    say("  Students open it by double-clicking; it needs no server and no install. You can also put it on any website.")
+    if online:
+        say(f"  \"Ask AI\" opens the online version at {online}.")
+    else:
+        say("  The AI chat needs a server. Add --online https://<your Wendao server>/graph/ to link to it.")
+
+
 def cmd_pack(args: argparse.Namespace) -> None:
     from wendao.pack import pack  # only packs what `wendao build` made: no teacher tools needed
 
@@ -611,6 +631,11 @@ def build_parser() -> argparse.ArgumentParser:
     students = commands.add_parser("students", parents=[common], help="see the class list and questions asked per student")
     students.add_argument("--all", action="store_true", help="total questions over all days instead of today")
     students.set_defaults(func=cmd_students)
+
+    export = commands.add_parser("export", parents=[common], help="put the knowledge graph in one HTML file that opens by double-click")
+    export.add_argument("-o", "--output", help="where to write it (default: build/<course-name>.html)")
+    export.add_argument("--online", help="address of your online graph page, for the \"Ask AI\" button")
+    export.set_defaults(func=cmd_export)
 
     pack = commands.add_parser("pack", parents=[common], help="package the built course into one file for students")
     pack.add_argument("-o", "--output", help="where to write it (default: build/<course-name>.wendao)")
