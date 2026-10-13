@@ -196,9 +196,14 @@ function svgElement(name, attributes = {}) {
 // itself. Dragging a node pulls its neighbours along and it springs back when let go. Hover a node to see what it
 // connects to; zoom in for labels.
 const KINDS = { chapter: "Chapter", topic: "Page", keyword: "Concept" };
-// Links drawn and simulated: a chapter holds its pages, a page mentions concepts, chapters follow each other.
-const LINK_TYPES = { contains: 70, mentions: 48, sequence: 140 };
-const CHARGE = { chapter: -420, topic: -70, keyword: -95 };
+// The layout uses a tidy skeleton: a chapter holds its pages, and each concept hangs on the one or two chapters
+// that use it most (concepts shared by chapters sit between them). Every chapter becomes a cluster, like the
+// "dandelions" in Obsidian. All other links (which pages mention a concept, ...) light up on hover and selection.
+const LINK_DISTANCE = { contains: 40, covers: 60, sequence: 240 };
+const LINK_STRENGTH = { contains: 0.8, covers: 0.5, sequence: 0.04 };
+const CHAPTERS_PER_CONCEPT = 2;
+const SHOWN_LINK_TYPES = new Set(["contains", "covers", "mentions", "sequence"]); // what hover shows
+const CHARGE = { chapter: -1400, topic: -90, keyword: -110 };
 const VELOCITY_DECAY = 0.4;
 const ALPHA_MIN = 0.001;
 const ALPHA_DECAY = 1 - Math.pow(ALPHA_MIN, 1 / 300);
@@ -255,17 +260,22 @@ function buildSimulation() {
     sim.nodes.push(item); sim.byId.set(node.id, item); sim.neighbours.set(node.id, new Set());
   }
   for (const edge of state.graph.edges) {
-    if (!(edge.type in LINK_TYPES)) continue;
+    if (!SHOWN_LINK_TYPES.has(edge.type) || !sim.byId.has(edge.source) || !sim.byId.has(edge.target) || edge.source === edge.target) continue;
+    sim.neighbours.get(edge.source).add(edge.target); sim.neighbours.get(edge.target).add(edge.source);
+  }
+  for (const edge of skeletonEdges(sim)) {
     const source = sim.byId.get(edge.source); const target = sim.byId.get(edge.target);
-    if (!source || !target || source === target) continue;
-    sim.links.push({ source, target, distance: LINK_TYPES[edge.type] });
-    source.degree += 1; target.degree += 1;
-    sim.neighbours.get(source.id).add(target.id); sim.neighbours.get(target.id).add(source.id);
+    sim.links.push({ source, target, distance: LINK_DISTANCE[edge.type], strength: LINK_STRENGTH[edge.type] * (edge.secondary ? 0.4 : 1) });
+  }
+  const layoutDegree = new Map();
+  for (const { source, target } of sim.links) {
+    layoutDegree.set(source.id, (layoutDegree.get(source.id) || 0) + 1); layoutDegree.set(target.id, (layoutDegree.get(target.id) || 0) + 1);
   }
   for (const link of sim.links) {
-    link.strength = 1 / Math.min(link.source.degree, link.target.degree);
-    link.bias = link.source.degree / (link.source.degree + link.target.degree);
+    const a = layoutDegree.get(link.source.id); const b = layoutDegree.get(link.target.id);
+    link.bias = a / (a + b);
   }
+  for (const item of sim.nodes) item.degree = sim.neighbours.get(item.id).size; // how connected it really is
   for (const item of sim.nodes) {
     // Size grows with the number of links, like Obsidian: hubs stand out.
     const base = item.node.type === "chapter" ? 7 : item.node.type === "keyword" ? 3.2 : 2.8;
@@ -274,6 +284,24 @@ function buildSimulation() {
   state.sim = sim;
   seedPositions();
   state.alpha = 1;
+}
+
+function skeletonEdges(sim) {
+  const usable = (type) => state.graph.edges.filter((edge) => edge.type === type && edge.source !== edge.target
+    && sim.byId.has(edge.source) && sim.byId.has(edge.target));
+  const edges = [...usable("contains"), ...usable("sequence")];
+  const byConcept = new Map();
+  for (const edge of usable("covers")) {
+    const concept = sim.byId.get(edge.source).node.type === "keyword" ? edge.source : edge.target;
+    if (!byConcept.has(concept)) byConcept.set(concept, []);
+    byConcept.get(concept).push(edge);
+  }
+  for (const list of byConcept.values()) {
+    list.sort((a, b) => (b.weight || 0) - (a.weight || 0))
+      .slice(0, CHAPTERS_PER_CONCEPT)
+      .forEach((edge, index) => edges.push(index ? { ...edge, secondary: true } : edge));
+  }
+  return edges;
 }
 
 // A sensible start so the physics settles quickly: chapters on a ring, pages next to their chapter,
@@ -295,9 +323,9 @@ function seedPositions() {
   }
   for (const item of sim.nodes) {
     if (item.node.type !== "keyword") continue;
-    const pages = [...sim.neighbours.get(item.id)].map((id) => sim.byId.get(id)).filter((other) => other?.node.type === "topic");
-    const mean = (key) => (pages.length ? pages.reduce((sum, page) => sum + page[key], 0) / pages.length : 0);
-    item.x = mean("x") * 0.8 + jitter(); item.y = mean("y") * 0.8 + jitter();
+    const chapters = [...sim.neighbours.get(item.id)].map((id) => sim.byId.get(id)).filter((other) => other?.node.type === "chapter");
+    const mean = (key) => (chapters.length ? chapters.reduce((sum, chapter) => sum + chapter[key], 0) / chapters.length : 0);
+    item.x = mean("x") * 1.2 + jitter(); item.y = mean("y") * 1.2 + jitter();
   }
 }
 
@@ -306,6 +334,9 @@ function shownNodes() {
 }
 function shownLinks() {
   return state.sim.links.filter((link) => !state.hiddenKinds.has(link.source.node.type) && !state.hiddenKinds.has(link.target.node.type));
+}
+function isShownNode(item) {
+  return item && !state.hiddenKinds.has(item.node.type);
 }
 
 // One step of the physics (the same forces as d3-force: charge, links, a gentle pull to the middle).
@@ -323,6 +354,11 @@ function tick() {
       const pushA = (CHARGE[b.node.type] * alpha) / l; const pushB = (CHARGE[a.node.type] * alpha) / l;
       a.vx += dx * pushA; a.vy += dy * pushA;
       b.vx -= dx * pushB; b.vy -= dy * pushB;
+      const room = a.r + b.r + 8; // never overlap
+      if (l < room * room) {
+        const d = Math.sqrt(l); const shift = ((room - d) / d) * 0.5;
+        a.vx -= dx * shift * 0.5; a.vy -= dy * shift * 0.5; b.vx += dx * shift * 0.5; b.vy += dy * shift * 0.5;
+      }
     }
   }
   for (const link of shownLinks()) {
@@ -335,7 +371,7 @@ function tick() {
     source.vx += dx * (1 - link.bias); source.vy += dy * (1 - link.bias);
   }
   for (const item of nodes) {
-    item.vx -= item.x * 0.015 * alpha; item.vy -= item.y * 0.015 * alpha; // gentle pull to the middle
+    item.vx -= item.x * 0.01 * alpha; item.vy -= item.y * 0.01 * alpha; // gentle pull to the middle
     if (item.fx !== null) { item.x = item.fx; item.y = item.fy; item.vx = 0; item.vy = 0; continue; }
     item.vx *= 1 - VELOCITY_DECAY; item.vy *= 1 - VELOCITY_DECAY;
     item.x += item.vx; item.y += item.vy;
@@ -402,19 +438,20 @@ function draw() {
 
   context.lineWidth = 1 / k;
   context.strokeStyle = colours.link;
-  context.globalAlpha = near ? 0.35 : 1;
+  context.globalAlpha = near ? 0.25 : 0.7;
   context.beginPath();
   for (const { source, target } of shownLinks()) {
-    if (near && (source.id === focus || target.id === focus)) continue;
     context.moveTo(source.x, source.y); context.lineTo(target.x, target.y);
   }
   context.stroke();
   if (near) {
-    context.globalAlpha = 1; context.strokeStyle = colours.linkActive; context.lineWidth = 1.6 / k;
+    const centre = state.sim.byId.get(focus);
+    context.globalAlpha = 1; context.strokeStyle = colours.linkActive; context.lineWidth = 1.4 / k;
     context.beginPath();
-    for (const { source, target } of shownLinks()) {
-      if (source.id !== focus && target.id !== focus) continue;
-      context.moveTo(source.x, source.y); context.lineTo(target.x, target.y);
+    for (const id of state.sim.neighbours.get(focus) || []) {
+      const other = state.sim.byId.get(id);
+      if (!isShownNode(other) || !isShownNode(centre)) continue;
+      context.moveTo(centre.x, centre.y); context.lineTo(other.x, other.y);
     }
     context.stroke();
   }
@@ -430,21 +467,27 @@ function draw() {
     }
   }
 
-  // Labels: chapters always; everything once zoomed in; the focus and its neighbours always.
-  const zoomed = Math.max(0, Math.min(1, (k - 0.85) / 0.5));
-  context.textAlign = "center"; context.textBaseline = "top";
-  context.lineJoin = "round";
-  for (const item of nodes) {
+  // Labels: the focus and its neighbours, chapters, then the best-connected nodes, as long as they don't overlap.
+  // Zooming in leaves room for more.
+  const zoomed = Math.max(0, Math.min(1, (k - 0.6) / 0.6));
+  context.textAlign = "center"; context.textBaseline = "top"; context.lineJoin = "round";
+  const priority = (item) => (item.id === focus ? 4 : near?.has(item.id) ? 3 : item.node.type === "chapter" ? 2 : 1) * 1000 + item.degree;
+  const placed = [];
+  for (const item of [...nodes].sort((a, b) => priority(b) - priority(a))) {
     const isNear = near?.has(item.id);
     let alpha = item.node.type === "chapter" ? 1 : zoomed;
-    if (near) alpha = isNear ? 1 : Math.min(alpha, 0.15);
+    if (near) alpha = isNear ? 1 : Math.min(alpha, 0.12);
     if (alpha < 0.05) continue;
     const size = (item.node.type === "chapter" ? 13 : 11) / Math.max(k, 0.6);
     context.font = `${item.node.type === "chapter" ? 700 : 500} ${size}px Inter, ui-sans-serif, system-ui, sans-serif`;
-    const label = item.node.label.length > 32 ? `${item.node.label.slice(0, 30)}…` : item.node.label;
+    const label = item.node.label.length > 30 ? `${item.node.label.slice(0, 28)}…` : item.node.label;
+    const width = context.measureText(label).width; const top = item.y + item.r + 3 / k;
+    const box = { left: item.x - width / 2 - 2 / k, right: item.x + width / 2 + 2 / k, top, bottom: top + size * 1.2 };
+    if (!isNear && item.node.type !== "chapter" && placed.some((other) => box.left < other.right && box.right > other.left && box.top < other.bottom && box.bottom > other.top)) continue;
+    placed.push(box);
     context.globalAlpha = alpha;
-    context.lineWidth = 3 / k; context.strokeStyle = colours.halo; context.strokeText(label, item.x, item.y + item.r + 3 / k);
-    context.fillStyle = colours.text; context.fillText(label, item.x, item.y + item.r + 3 / k);
+    context.lineWidth = 3 / k; context.strokeStyle = colours.halo; context.strokeText(label, item.x, top);
+    context.fillStyle = colours.text; context.fillText(label, item.x, top);
   }
   context.globalAlpha = 1;
 }
