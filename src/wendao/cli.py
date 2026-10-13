@@ -165,6 +165,11 @@ def cmd_build(args: argparse.Namespace) -> None:
     step_graph(workspace)
     step_index(workspace, rebuild=False)
     say(f"Done in {time.monotonic() - started:.0f}s. Try: wendao ask \"<a question about your course>\"")
+    say(RESTART_NOTE)
+
+
+# The web apps read the graph and search index when they start.
+RESTART_NOTE = "If `wendao serve` is already running, stop it (Ctrl+C) and start it again to see the changes."
 
 
 def cmd_extract(args: argparse.Namespace) -> None:
@@ -174,6 +179,7 @@ def cmd_extract(args: argparse.Namespace) -> None:
 
 def cmd_graph(args: argparse.Namespace) -> None:
     step_graph(load_workspace(args))
+    say(RESTART_NOTE)
 
 
 def cmd_index(args: argparse.Namespace) -> None:
