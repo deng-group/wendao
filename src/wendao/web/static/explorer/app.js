@@ -284,6 +284,7 @@ function buildSimulation() {
     item.r = Math.min(base + Math.sqrt(item.degree) * (item.node.type === "chapter" ? 1.4 : 1.05), 22);
   }
   state.sim = sim;
+  state.shown = null;
   seedPositions();
   state.alpha = 1;
   state.homesSet = false;
@@ -332,38 +333,146 @@ function seedPositions() {
   }
 }
 
+// What the legend lets through, kept until the legend changes (not rebuilt every frame).
 function shownNodes() {
-  return state.sim.nodes.filter((item) => !state.hiddenKinds.has(item.node.type));
+  if (!state.shown) refreshShown();
+  return state.shown.nodes;
 }
 function shownLinks() {
-  return state.sim.links.filter((link) => !state.hiddenKinds.has(link.source.node.type) && !state.hiddenKinds.has(link.target.node.type));
+  if (!state.shown) refreshShown();
+  return state.shown.links;
+}
+function refreshShown() {
+  const hidden = state.hiddenKinds;
+  state.shown = {
+    nodes: state.sim.nodes.filter((item) => !hidden.has(item.node.type)),
+    links: state.sim.links.filter((link) => !hidden.has(link.source.node.type) && !hidden.has(link.target.node.type)),
+  };
 }
 function isShownNode(item) {
   return item && !state.hiddenKinds.has(item.node.type);
 }
 
 // One step of the physics (the same forces as d3-force: charge, links, a gentle pull to the middle).
-function tick() {
-  const alpha = state.alpha;
-  const nodes = shownNodes();
+// Push between nodes. Small graphs: every pair (exact, under 1 ms for a few hundred nodes). Large graphs: a
+// Barnes-Hut quadtree, where a far-away group of nodes pushes like one, so the cost grows like n log n.
+const BARNES_HUT_FROM = 300;
+// How far a group must be to push like one node (squared): 0.9 as in d3, coarser for very large graphs.
+const theta2 = (n) => (n > 2000 ? 1.44 : 0.81);
+
+function chargeExact(nodes, alpha) {
   for (let i = 0; i < nodes.length; i += 1) {
-    const a = nodes[i];
+    const a = nodes[i]; const chargeA = CHARGE[a.node.type];
     for (let j = i + 1; j < nodes.length; j += 1) {
       const b = nodes[j];
       let dx = b.x - a.x; let dy = b.y - a.y;
       let l = dx * dx + dy * dy;
       if (l > 640000) continue; // far apart: no push
       if (l < 1) { dx = Math.random() - 0.5; dy = Math.random() - 0.5; l = 1; }
-      const pushA = (CHARGE[b.node.type] * alpha) / l; const pushB = (CHARGE[a.node.type] * alpha) / l;
+      const pushA = (CHARGE[b.node.type] * alpha) / l; const pushB = (chargeA * alpha) / l;
       a.vx += dx * pushA; a.vy += dy * pushA;
       b.vx -= dx * pushB; b.vy -= dy * pushB;
-      const room = a.r + b.r + 8; // never overlap
-      if (l < room * room) {
-        const d = Math.sqrt(l); const shift = ((room - d) / d) * 0.5;
-        a.vx -= dx * shift * 0.5; a.vy -= dy * shift * 0.5; b.vx += dx * shift * 0.5; b.vy += dy * shift * 0.5;
+    }
+  }
+}
+
+// The quadtree lives in flat typed arrays (no objects per cell), and is walked with a reused stack.
+const tree = { size: 0, x0: null, y0: null, side: null, charge: null, cx: null, cy: null, kid: null, item: null, stack: new Int32Array(4096) };
+function treeCell(x0, y0, side) {
+  const cell = tree.size++;
+  tree.x0[cell] = x0; tree.y0[cell] = y0; tree.side[cell] = side;
+  tree.charge[cell] = 0; tree.cx[cell] = 0; tree.cy[cell] = 0; tree.kid[cell] = -1; tree.item[cell] = -1;
+  return cell;
+}
+function chargeBarnesHut(nodes, alpha) {
+  const n = nodes.length; const capacity = n * 8 + 16;
+  if (!tree.x0 || tree.x0.length < capacity) {
+    for (const key of ["x0", "y0", "side", "charge", "cx", "cy"]) tree[key] = new Float64Array(capacity);
+    tree.kid = new Int32Array(capacity); tree.item = new Int32Array(capacity);
+  }
+  tree.size = 0;
+  let minX = Infinity; let minY = Infinity; let maxX = -Infinity; let maxY = -Infinity;
+  const q = new Float64Array(n);
+  for (let i = 0; i < n; i += 1) {
+    const item = nodes[i]; q[i] = CHARGE[item.node.type];
+    if (item.x < minX) minX = item.x; if (item.y < minY) minY = item.y; if (item.x > maxX) maxX = item.x; if (item.y > maxY) maxY = item.y;
+  }
+  const root = treeCell(minX, minY, Math.max(maxX - minX, maxY - minY, 1));
+  const quadrant = (cell, i) => (nodes[i].x >= tree.x0[cell] + tree.side[cell] / 2 ? 1 : 0) + (nodes[i].y >= tree.y0[cell] + tree.side[cell] / 2 ? 2 : 0);
+  for (let i = 0; i < n; i += 1) {
+    let cell = root; let depth = 0;
+    for (;;) {
+      const total = tree.charge[cell] + q[i];
+      tree.cx[cell] = (tree.cx[cell] * tree.charge[cell] + nodes[i].x * q[i]) / total;
+      tree.cy[cell] = (tree.cy[cell] * tree.charge[cell] + nodes[i].y * q[i]) / total;
+      tree.charge[cell] = total;
+      if (tree.kid[cell] < 0 && tree.item[cell] < 0 && total === q[i]) { tree.item[cell] = i; break; }
+      if (depth > 24 || tree.size + 4 > capacity) break; // nodes on top of each other
+      if (tree.kid[cell] < 0) {
+        const half = tree.side[cell] / 2; const first = tree.size;
+        for (let k = 0; k < 4; k += 1) treeCell(tree.x0[cell] + (k & 1) * half, tree.y0[cell] + (k >> 1) * half, half);
+        tree.kid[cell] = first;
+        const old = tree.item[cell]; tree.item[cell] = -1;
+        if (old >= 0) { // move the node that was here one level down
+          const down = first + quadrant(cell, old);
+          tree.charge[down] = q[old]; tree.cx[down] = nodes[old].x; tree.cy[down] = nodes[old].y; tree.item[down] = old;
+        }
+      }
+      cell = tree.kid[cell] + quadrant(cell, i); depth += 1;
+    }
+  }
+  if (tree.stack.length < tree.size) tree.stack = new Int32Array(tree.size * 2);
+  const stack = tree.stack; const openFrom = theta2(n);
+  for (let i = 0; i < n; i += 1) {
+    const item = nodes[i]; let top = 0; stack[top++] = root;
+    while (top) {
+      const cell = stack[--top];
+      if (!tree.charge[cell] || tree.item[cell] === i) continue;
+      let dx = tree.cx[cell] - item.x; let dy = tree.cy[cell] - item.y; let l = dx * dx + dy * dy;
+      const side = tree.side[cell];
+      if (tree.kid[cell] >= 0 && side * side > openFrom * Math.max(l, 1)) {
+        const first = tree.kid[cell]; stack[top++] = first; stack[top++] = first + 1; stack[top++] = first + 2; stack[top++] = first + 3;
+        continue;
+      }
+      if (l > 640000) continue;
+      if (l < 1) { dx = Math.random() - 0.5; dy = Math.random() - 0.5; l = 1; }
+      const push = (tree.charge[cell] * alpha) / l;
+      item.vx += dx * push; item.vy += dy * push;
+    }
+  }
+}
+
+// Nodes never overlap; only nodes in the same or neighbouring grid squares are compared.
+const SEPARATE_CELL = 60;
+function separate(nodes) {
+  const n = nodes.length; const grid = new Map(); const cellOf = new Int32Array(n * 2);
+  for (let i = 0; i < n; i += 1) {
+    const gx = Math.floor(nodes[i].x / SEPARATE_CELL); const gy = Math.floor(nodes[i].y / SEPARATE_CELL);
+    cellOf[i * 2] = gx; cellOf[i * 2 + 1] = gy;
+    const key = gx * 1000003 + gy; const bucket = grid.get(key);
+    if (bucket) bucket.push(i); else grid.set(key, [i]);
+  }
+  for (let i = 0; i < n; i += 1) {
+    const a = nodes[i]; const gx = cellOf[i * 2]; const gy = cellOf[i * 2 + 1];
+    for (let ox = -1; ox <= 1; ox += 1) for (let oy = -1; oy <= 1; oy += 1) {
+      const bucket = grid.get((gx + ox) * 1000003 + gy + oy);
+      if (!bucket) continue;
+      for (const j of bucket) {
+        if (j <= i) continue;
+        const b = nodes[j]; const dx = b.x - a.x; const dy = b.y - a.y; const l = dx * dx + dy * dy; const room = a.r + b.r + 8;
+        if (l >= room * room || l === 0) continue;
+        const d = Math.sqrt(l); const shift = ((room - d) / d) * 0.25;
+        a.vx -= dx * shift; a.vy -= dy * shift; b.vx += dx * shift; b.vy += dy * shift;
       }
     }
   }
+}
+
+function tick() {
+  const alpha = state.alpha;
+  const nodes = shownNodes();
+  if (nodes.length >= BARNES_HUT_FROM) chargeBarnesHut(nodes, alpha); else chargeExact(nodes, alpha);
+  separate(nodes);
   for (const link of shownLinks()) {
     const { source, target } = link;
     let dx = target.x + target.vx - source.x - source.vx; let dy = target.y + target.vy - source.y - source.vy;
@@ -390,7 +499,7 @@ function startPhysics(alpha) {
     tick();
     if (state.fitPending && state.alpha < 0.08) { state.fitPending = false; fitGraph(); }
     if (!state.homesSet && state.alpha < 0.02) rememberHomes();
-    draw();
+    render();
     if (state.alpha > ALPHA_MIN || state.alphaTarget > 0) state.frame = requestAnimationFrame(loop);
     else state.frame = null;
   };
@@ -414,7 +523,7 @@ function readColours() {
 }
 
 function resizeCanvas() {
-  const canvas = elements.canvas; const ratio = window.devicePixelRatio || 1;
+  const canvas = elements.canvas; const ratio = Math.min(window.devicePixelRatio || 1, 2);
   const width = elements.stage.clientWidth; const height = elements.stage.clientHeight;
   // Keep the same part of the graph in the middle when the area grows or shrinks (e.g. the widget is enlarged).
   if (state.size) { state.transform.x += (width - state.size.width) / 2; state.transform.y += (height - state.size.height) / 2; }
@@ -435,8 +544,15 @@ function focusId() {
   return state.hoverId || state.selectedId;
 }
 
+// Several things may ask for a redraw in one frame (hover, zoom, physics): draw once per frame.
 function draw() {
-  if (!state.sim) return;
+  if (state.drawQueued) return;
+  state.drawQueued = true;
+  requestAnimationFrame(() => { state.drawQueued = false; render(); });
+}
+
+function render() {
+  if (!state.sim || !state.colours) return;
   const canvas = elements.canvas; const context = canvas.getContext("2d");
   const { x, y, k } = state.transform; const ratio = state.ratio || 1;
   context.setTransform(1, 0, 0, 1, 0, 0);
@@ -445,12 +561,17 @@ function draw() {
   const colours = state.colours;
   const focus = focusId();
   const near = focus ? new Set([focus, ...state.sim.neighbours.get(focus) || []]) : null;
+  // The part of the graph on screen (with a margin): anything outside is not drawn.
+  const view = { left: -x / k - 60, top: -y / k - 60, right: (canvas.width / ratio - x) / k + 60, bottom: (canvas.height / ratio - y) / k + 60 };
+  const onScreen = (item) => item.x > view.left && item.x < view.right && item.y > view.top && item.y < view.bottom;
 
   context.lineWidth = 1 / k;
   context.strokeStyle = colours.link;
   context.globalAlpha = near ? 0.25 : 0.7;
   context.beginPath();
   for (const { source, target } of shownLinks()) {
+    if ((source.x < view.left && target.x < view.left) || (source.x > view.right && target.x > view.right)
+      || (source.y < view.top && target.y < view.top) || (source.y > view.bottom && target.y > view.bottom)) continue;
     context.moveTo(source.x, source.y); context.lineTo(target.x, target.y);
   }
   context.stroke();
@@ -466,40 +587,95 @@ function draw() {
     context.stroke();
   }
 
+  // Nodes: one fill per colour (and per faded / not faded), not one per node.
   const nodes = shownNodes();
+  const batches = new Map();
   for (const item of nodes) {
-    context.globalAlpha = near && !near.has(item.id) ? 0.18 : 1;
-    context.fillStyle = colours[item.node.type] || colours.keyword;
-    context.beginPath(); context.arc(item.x, item.y, item.r, 0, Math.PI * 2); context.fill();
-    if (item.id === state.selectedId) {
-      context.lineWidth = 2.5 / k; context.strokeStyle = colours.text;
-      context.beginPath(); context.arc(item.x, item.y, item.r + 3 / k, 0, Math.PI * 2); context.stroke();
-    }
+    if (!onScreen(item)) continue;
+    const key = `${item.node.type}|${near && !near.has(item.id) ? 1 : 0}`;
+    if (!batches.has(key)) batches.set(key, []);
+    batches.get(key).push(item);
+  }
+  for (const [key, items] of batches) {
+    const [type, faded] = key.split("|");
+    context.globalAlpha = faded === "1" ? 0.18 : 1;
+    context.fillStyle = colours[type] || colours.keyword;
+    context.beginPath();
+    for (const item of items) { context.moveTo(item.x + item.r, item.y); context.arc(item.x, item.y, item.r, 0, Math.PI * 2); }
+    context.fill();
+  }
+  const selected = state.selectedId && state.sim.byId.get(state.selectedId);
+  if (selected && isShownNode(selected)) {
+    context.globalAlpha = 1; context.lineWidth = 2.5 / k; context.strokeStyle = colours.text;
+    context.beginPath(); context.arc(selected.x, selected.y, selected.r + 3 / k, 0, Math.PI * 2); context.stroke();
   }
 
-  // Labels: the focus and its neighbours, chapters, then the best-connected nodes, as long as they don't overlap.
-  // Zooming in leaves room for more.
+  drawLabels(context, nodes, near, focus, onScreen);
+  context.globalAlpha = 1;
+}
+
+// Labels: the focus and its neighbours, chapters, then the best-connected nodes, as long as they don't overlap
+// (checked on a coarse grid). Zooming in leaves room for more. Label widths are measured once.
+const LABEL_FONT = { chapter: [700, 13], other: [500, 11] };
+function drawLabels(context, nodes, near, focus, onScreen) {
+  const { k } = state.transform;
   const zoomed = Math.max(0, Math.min(1, (k - 0.6) / 0.6));
-  context.textAlign = "center"; context.textBaseline = "top"; context.lineJoin = "round";
-  const priority = (item) => (item.id === focus ? 4 : near?.has(item.id) ? 3 : item.node.type === "chapter" ? 2 : 1) * 1000 + item.degree;
-  const placed = [];
-  for (const item of [...nodes].sort((a, b) => priority(b) - priority(a))) {
+  const scale = 1 / Math.max(k, 0.6);
+  const candidates = [];
+  for (const item of nodes) {
     const isNear = near?.has(item.id);
     let alpha = item.node.type === "chapter" ? 1 : zoomed;
     if (near) alpha = isNear ? 1 : Math.min(alpha, 0.12);
-    if (alpha < 0.05) continue;
-    const size = (item.node.type === "chapter" ? 13 : 11) / Math.max(k, 0.6);
-    context.font = `${item.node.type === "chapter" ? 700 : 500} ${size}px Inter, ui-sans-serif, system-ui, sans-serif`;
-    const label = item.node.label.length > 30 ? `${item.node.label.slice(0, 28)}…` : item.node.label;
-    const width = context.measureText(label).width; const top = item.y + item.r + 3 / k;
-    const box = { left: item.x - width / 2 - 2 / k, right: item.x + width / 2 + 2 / k, top, bottom: top + size * 1.2 };
-    if (!isNear && item.node.type !== "chapter" && placed.some((other) => box.left < other.right && box.right > other.left && box.top < other.bottom && box.bottom > other.top)) continue;
-    placed.push(box);
-    context.globalAlpha = alpha;
-    context.lineWidth = 3 / k; context.strokeStyle = colours.halo; context.strokeText(label, item.x, top);
-    context.fillStyle = colours.text; context.fillText(label, item.x, top);
+    if (alpha >= 0.05 && onScreen(item)) candidates.push({ item, alpha, isNear });
   }
-  context.globalAlpha = 1;
+  if (!candidates.length) return;
+  const rank = ({ item, isNear }) => (item.id === focus ? 4 : isNear ? 3 : item.node.type === "chapter" ? 2 : 1) * 1000 + item.degree;
+  candidates.sort((a, b) => rank(b) - rank(a));
+  context.textAlign = "center"; context.textBaseline = "top"; context.lineJoin = "round";
+  const cell = 80 / k; const taken = new Map();
+  const cellsOf = (box) => {
+    const keys = [];
+    for (let gx = Math.floor(box.left / cell); gx <= Math.floor(box.right / cell); gx += 1)
+      for (let gy = Math.floor(box.top / cell); gy <= Math.floor(box.bottom / cell); gy += 1) keys.push(`${gx},${gy}`);
+    return keys;
+  };
+  const overlaps = (box, keys) => keys.some((key) => (taken.get(key) || []).some((other) =>
+    box.left < other.right && box.right > other.left && box.top < other.bottom && box.bottom > other.top));
+  let font = "";
+  for (const { item, alpha, isNear } of candidates) {
+    const [weight, base] = item.node.type === "chapter" ? LABEL_FONT.chapter : LABEL_FONT.other;
+    if (item.labelWidth === undefined) { // measured once at the base size; scaled after
+      item.labelText = item.node.label.length > 30 ? `${item.node.label.slice(0, 28)}…` : item.node.label;
+      context.font = `${weight} ${base}px Inter, ui-sans-serif, system-ui, sans-serif`; font = "";
+      item.labelWidth = context.measureText(item.labelText).width;
+    }
+    const size = base * scale; const width = item.labelWidth * scale;
+    const height = size * 1.2; const gap = 3 / k;
+    // Where a label can go: under the node first; a chapter (always named) may also go above, right or left.
+    const spots = [[item.x - width / 2, item.y + item.r + gap]];
+    if (item.node.type === "chapter") {
+      spots.push([item.x - width / 2, item.y - item.r - gap - height], [item.x + item.r + gap * 2, item.y - height / 2],
+        [item.x - item.r - gap * 2 - width, item.y - height / 2]);
+    }
+    let box = null; let keys = null;
+    for (const [left, top] of spots) {
+      const candidate = { left: left - 2 / k, right: left + width + 2 / k, top, bottom: top + height };
+      const candidateKeys = cellsOf(candidate);
+      if (!overlaps(candidate, candidateKeys)) { box = candidate; keys = candidateKeys; break; }
+    }
+    if (!box) {
+      if (!isNear && item.node.type !== "chapter") continue; // no room: leave it out (zoom in to see it)
+      box = { left: spots[0][0] - 2 / k, right: spots[0][0] + width + 2 / k, top: spots[0][1], bottom: spots[0][1] + height };
+      keys = cellsOf(box);
+    }
+    const top = box.top; const centre = (box.left + box.right) / 2;
+    for (const key of keys) { if (!taken.has(key)) taken.set(key, []); taken.get(key).push(box); }
+    const wanted = `${weight} ${size}px Inter, ui-sans-serif, system-ui, sans-serif`;
+    if (wanted !== font) { context.font = wanted; font = wanted; }
+    context.globalAlpha = alpha;
+    context.lineWidth = 3 / k; context.strokeStyle = state.colours.halo; context.strokeText(item.labelText, centre, top);
+    context.fillStyle = state.colours.text; context.fillText(item.labelText, centre, top);
+  }
 }
 
 // ---------- views ----------
@@ -513,6 +689,7 @@ function updateModeControls() {
 function toggleKind(kind) {
   if (state.hiddenKinds.has(kind)) state.hiddenKinds.delete(kind); else state.hiddenKinds.add(kind);
   if (state.hiddenKinds.size === 3) state.hiddenKinds.delete(kind); // never hide everything
+  state.shown = null;
   if (state.selectedId && state.hiddenKinds.has(state.sim.byId.get(state.selectedId)?.node.type)) clearSelection();
   updateModeControls();
   startPhysics(0.5);
@@ -528,6 +705,7 @@ function clearSelection() {
 
 function setInitialView() {
   state.hiddenKinds.clear();
+  state.shown = null;
   updateModeControls();
   clearSelection();
   state.fitPending = true;
@@ -538,7 +716,7 @@ function selectNode(nodeId, options = {}) {
   const node = state.nodesById.get(nodeId);
   if (!node) return;
   clearNodeExplanation();
-  if (state.hiddenKinds.delete(node.type)) updateModeControls();
+  if (state.hiddenKinds.delete(node.type)) { state.shown = null; updateModeControls(); }
   state.selectedId = nodeId;
   showNodeCard(node);
   updateContext();
