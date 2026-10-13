@@ -14,9 +14,9 @@ cd examples/mle4217_5219
 uv run wendao doctor --no-model               # the example's 21 test questions must all pass
 ```
 
-Dependencies are in `pyproject.toml` and `uv.lock`; commit both together. `pip install wendao` (no extras) is what
-students and website servers get; `wendao[teacher]` adds the readers for building courses. Keep teacher-only imports
-lazy: CI checks that a base install can search the example and export its graph.
+Dependencies are in `pyproject.toml` and `uv.lock`; commit both together. `pip install wendao` has everything for
+building and serving a course; extras: `gpu` (PyTorch search) and `deploy` (gunicorn). Keep the note readers' imports
+lazy, so serving starts fast. CI checks that the built wheel installs and runs on Linux, Windows, and macOS.
 
 | Folder | What's in it |
 | --- | --- |

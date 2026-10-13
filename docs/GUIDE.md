@@ -95,7 +95,7 @@ wendao ask --search-only "What is a convex hull?"
 This shows the pages search found and whether Wendao thinks it can answer.
 
 Wendao runs its search model on the CPU, so no graphics card is needed. For a very large course, you can build on a
-GPU with `pip install "wendao[teacher,gpu]"`. Both give the same results.
+GPU with `pip install "wendao[gpu]"`. Both give the same results.
 
 ## 4. Connect a model
 

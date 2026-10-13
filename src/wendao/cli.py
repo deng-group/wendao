@@ -102,16 +102,16 @@ TEACHER_MODULES = {"nbformat": "nbformat", "pypdf": "pypdf", "docx": "python-doc
 
 
 def require_teacher_tools() -> None:
-    """Building a course needs the teacher extra; say so plainly if it is missing."""
+    """Building a course needs the note readers; say so plainly if this Python lacks them (a broken install)."""
     import importlib.util
 
     missing = [package for module, package in TEACHER_MODULES.items() if importlib.util.find_spec(module) is None]
     if missing:
         # Name this Python: a common mix-up is installing with one `pip` and running another `wendao`.
         raise RuntimeError(
-            "Building a course needs the teacher tools, which are not installed for the Python that runs Wendao "
+            "Building a course needs packages that are missing for the Python that runs Wendao "
             f"({sys.executable}; missing: {', '.join(missing)}).\n"
-            f"Install them there with:  \"{sys.executable}\" -m pip install \"wendao[teacher]\""
+            f"Install them there with:  \"{sys.executable}\" -m pip install --upgrade wendao"
         )
 
 

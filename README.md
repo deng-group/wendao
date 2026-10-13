@@ -62,7 +62,7 @@ they used. If the course doesn't cover a question, the agent says so.
 You need Python 3.11 or newer.
 
 ```bash
-pip install "wendao[teacher]"
+pip install wendao
 ```
 
 Students don't install anything: they use your website, the chat widget on your course pages, or one HTML file.

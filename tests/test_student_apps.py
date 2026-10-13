@@ -167,7 +167,7 @@ class WebsiteTest(unittest.TestCase):
             errors = io.StringIO()
             with contextlib.redirect_stderr(errors), self.assertRaises(SystemExit):
                 run_cli("build", "-w", str(self.root))
-        self.assertIn('-m pip install "wendao[teacher]"', errors.getvalue())
+        self.assertIn('-m pip install --upgrade wendao', errors.getvalue())
         self.assertIn(sys.executable, errors.getvalue())  # says which Python is missing them
 
 if __name__ == "__main__":
