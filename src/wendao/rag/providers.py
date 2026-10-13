@@ -131,7 +131,13 @@ class _PinnedHTTPSHandler(request.HTTPSHandler):
         return self.do_open(lambda host, **kwargs: _PinnedHTTPSConnection(host, self.pinned_ip, **kwargs), req, context=self._context)
 
 
-def _open(req: request.Request, label: str, timeout: int, follow_redirects: bool = True, pinned_ip: str | None = None):
+def _for_model(model: str | None) -> str:
+    """" for model X" in error messages: a wrong model name is the most common cause of a refused request."""
+    return f" for model {model}" if model else ""
+
+
+def _open(req: request.Request, label: str, timeout: int, follow_redirects: bool = True, pinned_ip: str | None = None,
+          model: str | None = None):
     """Open an HTTP request and turn transport failures into readable errors."""
     try:
         if pinned_ip:
@@ -149,7 +155,7 @@ def _open(req: request.Request, label: str, timeout: int, follow_redirects: bool
                 f"{label} server tried to redirect to another address; redirects aren't allowed for your own AI server."
             ) from exc
         body = exc.read().decode("utf-8", errors="replace")[:500]
-        raise RuntimeError(f"{label} API error {exc.code}: {body}") from exc
+        raise RuntimeError(f"{label} API error {exc.code}{_for_model(model)}: {body}") from exc
     except error.URLError as exc:
         raise RuntimeError(f"{label} API unreachable: {exc.reason}") from exc
 
@@ -285,7 +291,7 @@ class OpenAICompatibleProvider:
         )
 
     def generate(self, prompt_package: dict) -> dict:
-        with _open(self._request(prompt_package, stream=False), "OpenAI-compatible", 90, self.follow_redirects, self.pinned_ip) as response:
+        with _open(self._request(prompt_package, stream=False), "OpenAI-compatible", 90, self.follow_redirects, self.pinned_ip, self.resolved_model()) as response:
             raw = json.loads(response.read().decode("utf-8"))
         return {
             "provider": self.name,
@@ -297,11 +303,11 @@ class OpenAICompatibleProvider:
 
     def stream(self, prompt_package: dict) -> Iterator[str]:
         """Yield text deltas from an OpenAI-compatible SSE response."""
-        with _open(self._request(prompt_package, stream=True), "OpenAI-compatible", 120, self.follow_redirects, self.pinned_ip) as response:
+        with _open(self._request(prompt_package, stream=True), "OpenAI-compatible", 120, self.follow_redirects, self.pinned_ip, self.resolved_model()) as response:
             for event_payload in _iter_sse_data(response):
                 if event_payload.get("error"):
                     message = event_payload["error"].get("message", "Unknown streaming error")
-                    raise RuntimeError(f"OpenAI-compatible API error: {message}")
+                    raise RuntimeError(f"OpenAI-compatible API error{_for_model(self.resolved_model())}: {message}")
                 for choice in event_payload.get("choices", []):
                     text = (choice.get("delta") or {}).get("content")
                     if text:
@@ -356,7 +362,7 @@ class GeminiProvider:
         )
 
     def generate(self, prompt_package: dict) -> dict:
-        with _open(self._request(prompt_package, stream=False), "Gemini", 60, self.follow_redirects) as response:
+        with _open(self._request(prompt_package, stream=False), "Gemini", 60, self.follow_redirects, model=self.resolved_model()) as response:
             raw = json.loads(response.read().decode("utf-8"))
         return {
             "provider": self.name,
@@ -368,11 +374,11 @@ class GeminiProvider:
 
     def stream(self, prompt_package: dict) -> Iterator[str]:
         """Yield text deltas from a Gemini SSE response."""
-        with _open(self._request(prompt_package, stream=True), "Gemini", 120, self.follow_redirects) as response:
+        with _open(self._request(prompt_package, stream=True), "Gemini", 120, self.follow_redirects, model=self.resolved_model()) as response:
             for event_payload in _iter_sse_data(response):
                 if event_payload.get("error"):
                     message = event_payload["error"].get("message", "Unknown streaming error")
-                    raise RuntimeError(f"Gemini API error: {message}")
+                    raise RuntimeError(f"Gemini API error{_for_model(self.resolved_model())}: {message}")
                 for candidate in event_payload.get("candidates", []):
                     for part in candidate.get("content", {}).get("parts", []):
                         if part.get("text"):
@@ -469,7 +475,7 @@ class AnthropicProvider:
             )
         if completed.returncode != 0:
             body = (completed.stdout or completed.stderr).strip()
-            raise RuntimeError(f"Anthropic API error via curl: {body}")
+            raise RuntimeError(f"Anthropic API error{_for_model(self.resolved_model())}: {body}")
         raw = json.loads(completed.stdout)
 
         answer = self._extract_text(raw)
@@ -536,7 +542,7 @@ class AnthropicProvider:
                     event_payload = json.loads(data)
                     if event_payload.get("type") == "error":
                         message = event_payload.get("error", {}).get("message", "Unknown streaming error")
-                        raise RuntimeError(f"Anthropic API error: {message}")
+                        raise RuntimeError(f"Anthropic API error{_for_model(self.resolved_model())}: {message}")
                     if event_payload.get("type") != "content_block_delta":
                         continue
                     delta = event_payload.get("delta", {})
@@ -546,7 +552,7 @@ class AnthropicProvider:
                 if return_code != 0:
                     assert process.stderr is not None
                     body = " ".join(non_event_output) or process.stderr.read().strip()
-                    raise RuntimeError(f"Anthropic streaming API error via curl: {body}")
+                    raise RuntimeError(f"Anthropic API error{_for_model(self.resolved_model())}: {body}")
             finally:
                 if process.poll() is None:
                     process.terminate()

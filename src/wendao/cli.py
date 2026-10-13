@@ -240,7 +240,7 @@ def cmd_ask(args: argparse.Namespace) -> None:
 
 
 def cmd_check(args: argparse.Namespace) -> None:
-    from wendao.rag.providers import check_connection, default_provider_name
+    from wendao.rag.providers import check_connection, default_model_name, default_provider_name
 
     workspace = load_workspace(args)
     say(f"Workspace: {workspace.root}")
@@ -255,7 +255,8 @@ def cmd_check(args: argparse.Namespace) -> None:
     try:
         provider, model = check_connection()
     except RuntimeError as exc:
-        say("Model:     not working")
+        name = default_provider_name()
+        say(f"Model:     not working ({name} / {default_model_name(name)})" if name != "dry_run" else "Model:     not working")
         if default_provider_name() != "dry_run":
             raise
         raise RuntimeError(

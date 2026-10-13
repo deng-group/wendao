@@ -125,7 +125,7 @@ class GeminiProviderTest(unittest.TestCase):
         body = b"".join(f"data: {json.dumps(event)}\r\n\r\n".encode() for event in events)
         captured = {}
 
-        def fake_open(req, label, timeout, follow_redirects=True):
+        def fake_open(req, label, timeout, follow_redirects=True, **kwargs):
             captured["url"] = req.full_url
             return io.BytesIO(body)
 
@@ -199,3 +199,49 @@ class StreamingFallbackTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RefusingServer(BaseHTTPRequestHandler):
+    """Answers like a relay that doesn't offer the requested model."""
+
+    def do_POST(self):  # noqa: N802 - http.server naming
+        self.rfile.read(int(self.headers.get("Content-Length", 0)))
+        body = json.dumps({"error": {"message": "No available accounts: no available accounts", "type": "api_error"},
+                           "type": "error"}).encode()
+        self.send_response(503)
+        self.send_header("Content-Type", "application/json")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, *args):
+        pass
+
+
+class ErrorsNameTheModelTest(unittest.TestCase):
+    """A wrong model name is the usual reason a relay refuses; the error should say which model was asked for."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.server = HTTPServer(("127.0.0.1", 0), RefusingServer)
+        cls.base = f"http://127.0.0.1:{cls.server.server_address[1]}"
+        threading.Thread(target=cls.server.serve_forever, daemon=True).start()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.server.shutdown()
+        cls.server.server_close()
+
+    def package(self):
+        return {"messages": [{"role": "system", "content": "s"}, {"role": "user", "content": "u"}], "evidence": []}
+
+    def test_anthropic_and_openai_errors_name_the_model(self):
+        env = {"ANTHROPIC_BASE_URL": self.base, "ANTHROPIC_AUTH_TOKEN": "sk-test", "OPENAI_BASE_URL": self.base + "/v1",
+               "OPENAI_API_KEY": "sk-test"}
+        with mock.patch.dict(os.environ, env):
+            anthropic = providers.provider_from_name("anthropic", model="claude-sonnet-4-6")
+            for call in (lambda: anthropic.generate(self.package()), lambda: list(anthropic.stream(self.package()))):
+                with self.assertRaisesRegex(RuntimeError, "for model claude-sonnet-4-6: .*No available accounts"):
+                    call()
+            openai = providers.provider_from_name("openai", model="gpt-4.1-mini")
+            with self.assertRaisesRegex(RuntimeError, "API error 503 for model gpt-4.1-mini: .*No available accounts"):
+                openai.generate(self.package())
