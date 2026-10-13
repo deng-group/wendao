@@ -204,7 +204,9 @@ const LINK_STRENGTH = { contains: 0.8, covers: 0.5, sequence: 0.04 };
 const CHAPTERS_PER_CONCEPT = 2;
 const SHOWN_LINK_TYPES = new Set(["contains", "covers", "mentions", "sequence"]); // what hover shows
 const CHARGE = { chapter: -1400, topic: -90, keyword: -110 };
-const VELOCITY_DECAY = 0.4;
+const VELOCITY_DECAY = 0.28; // a little momentum: nodes swing past and settle, instead of gliding to a stop
+// Once the graph has settled, each node remembers its spot and is pulled back to it like a rubber band.
+const HOME_PULL = 0.12;
 const ALPHA_MIN = 0.001;
 const ALPHA_DECAY = 1 - Math.pow(ALPHA_MIN, 1 / 300);
 
@@ -284,6 +286,7 @@ function buildSimulation() {
   state.sim = sim;
   seedPositions();
   state.alpha = 1;
+  state.homesSet = false;
 }
 
 function skeletonEdges(sim) {
@@ -372,6 +375,7 @@ function tick() {
   }
   for (const item of nodes) {
     item.vx -= item.x * 0.01 * alpha; item.vy -= item.y * 0.01 * alpha; // gentle pull to the middle
+    if (item.hx !== undefined) { item.vx += (item.hx - item.x) * HOME_PULL * alpha; item.vy += (item.hy - item.y) * HOME_PULL * alpha; }
     if (item.fx !== null) { item.x = item.fx; item.y = item.fy; item.vx = 0; item.vy = 0; continue; }
     item.vx *= 1 - VELOCITY_DECAY; item.vy *= 1 - VELOCITY_DECAY;
     item.x += item.vx; item.y += item.vy;
@@ -385,11 +389,17 @@ function startPhysics(alpha) {
   const loop = () => {
     tick();
     if (state.fitPending && state.alpha < 0.08) { state.fitPending = false; fitGraph(); }
+    if (!state.homesSet && state.alpha < 0.02) rememberHomes();
     draw();
     if (state.alpha > ALPHA_MIN || state.alphaTarget > 0) state.frame = requestAnimationFrame(loop);
     else state.frame = null;
   };
   state.frame = requestAnimationFrame(loop);
+}
+
+function rememberHomes() {
+  for (const item of state.sim.nodes) { item.hx = item.x; item.hy = item.y; }
+  state.homesSet = true;
 }
 
 // ---------- drawing ----------
@@ -594,7 +604,7 @@ elements.canvas.addEventListener("pointerdown", (event) => {
   elements.canvas.setPointerCapture(event.pointerId);
   if (item) {
     item.fx = item.x; item.fy = item.y;
-    state.alphaTarget = 0.3; startPhysics(0.3);
+    state.alphaTarget = 0.5; startPhysics(0.5);
     state.pointer = { kind: "node", item, startX: event.clientX, startY: event.clientY, moved: false };
   } else {
     state.pointer = { kind: "pan", startX: event.clientX, startY: event.clientY, originX: state.transform.x, originY: state.transform.y, moved: false };
@@ -627,6 +637,7 @@ function endPointer(event) {
   if (pointer.kind === "node") {
     pointer.item.fx = null; pointer.item.fy = null; // let go: it springs back into place
     state.alphaTarget = 0;
+    startPhysics(0.7); // warm enough for the spring-back to be seen
     if (!pointer.moved && event.type === "pointerup") selectNode(pointer.item.id);
   } else if (!pointer.moved && event.type === "pointerup") {
     clearSelection();
