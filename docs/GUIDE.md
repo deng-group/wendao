@@ -84,7 +84,9 @@ wendao build
 ```
 
 This reads your notes, builds the knowledge graph, and builds the search index. The first run downloads the search
-model. Run it again whenever you change your notes or settings.
+model. Run it again whenever you change your notes or settings, or after upgrading Wendao: it only redoes what
+changed. Unchanged notes aren't read again, the graph is kept when its inputs are the same, and the search index only
+processes new or edited text. `wendao build --force` redoes everything.
 
 Check the search results before you connect a model:
 

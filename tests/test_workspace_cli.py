@@ -161,6 +161,36 @@ class WorkspaceCliTest(unittest.TestCase):
             main(["doctor", "-w", str(self.root), "--no-model"])
         self.assertIn("Build:     made by an older Wendao", output.getvalue())
 
+    def test_build_redoes_only_what_changed(self):
+        self.init_course()
+        first = run_cli("build", "-w", str(self.root))
+        self.assertIn("Extracting notes", first)
+        again = run_cli("build", "-w", str(self.root))
+        self.assertIn("Notes: unchanged since the last build", again)
+        self.assertIn("Knowledge graph: up to date", again)
+        self.assertNotIn("restart it", again)  # nothing new for a running server
+
+        concepts = json.loads((self.root / "concepts.json").read_text(encoding="utf-8"))
+        concepts["concepts"][0]["aliases"].append("momentum")
+        (self.root / "concepts.json").write_text(json.dumps(concepts), encoding="utf-8")
+        output = run_cli("build", "-w", str(self.root))
+        self.assertIn("Notes: unchanged", output)
+        self.assertIn("Building the knowledge graph", output)
+
+        (self.root / "notes" / "week02" / "energy.md").write_text("# Energy\n\nKinetic energy, again.\n", encoding="utf-8")
+        output = run_cli("build", "-w", str(self.root))
+        self.assertIn("Extracting notes", output)
+        self.assertIn("restart it", output)
+
+        # A new Wendao version (or other [source] settings) reads the notes again, even if they didn't change.
+        record = json.loads((self.root / "build" / "notes.json").read_text(encoding="utf-8"))
+        (self.root / "build" / "notes.json").write_text(json.dumps({**record, "settings": "older"}), encoding="utf-8")
+        self.assertIn("Extracting notes", run_cli("build", "-w", str(self.root)))
+
+        forced = run_cli("build", "-w", str(self.root), "--force")
+        self.assertIn("Extracting notes", forced)
+        self.assertIn("Building the knowledge graph", forced)
+
     def test_doctor_on_a_new_empty_workspace(self):
         run_cli("init", str(self.root))
         output = io.StringIO()

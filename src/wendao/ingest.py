@@ -373,8 +373,36 @@ def fingerprints_path(workspace) -> Path:
     return workspace.build_dir / "notes.json"
 
 
+def extract_settings(workspace) -> str:
+    """Besides the files themselves, what decides the chunks: the [source] settings and the Wendao version (a new
+    version may read notes differently)."""
+    from wendao import __version__
+
+    settings = {
+        "wendao": __version__, "source": str(workspace.source), "use_toc": workspace.use_toc,
+        "exclude": sorted(workspace.exclude), "ignore_dirs": sorted(workspace.ignore_dirs),
+        "types": sorted(workspace.file_suffixes or []), "time_sensitive": sorted(workspace.time_sensitive_files),
+        "term": workspace.term,
+    }
+    return hashlib.sha256(json.dumps(settings, sort_keys=True).encode("utf-8")).hexdigest()[:16]
+
+
+def read_record(workspace) -> tuple[str | None, dict[str, str]] | None:
+    """The last build's (settings, file fingerprints), or None. Older records hold only the fingerprints."""
+    path = fingerprints_path(workspace)
+    if not path.exists():
+        return None
+    try:
+        record = json.loads(path.read_text(encoding="utf-8"))
+    except ValueError:
+        return None
+    if isinstance(record.get("files"), dict):
+        return record.get("settings"), record["files"]
+    return None, record
+
+
 def fingerprints(source: Path, files: list[str]) -> dict[str, str]:
-    """A short content hash of each note file, so `wendao doctor` can tell when the notes changed."""
+    """A short content hash of each note file, so Wendao can tell when the notes changed."""
     result = {}
     for name in files:
         path = source / name
@@ -385,16 +413,23 @@ def fingerprints(source: Path, files: list[str]) -> dict[str, str]:
 
 def changed_notes(workspace) -> list[str] | None:
     """Note files added, changed, or removed since the last build; None if the build kept no record."""
-    path = fingerprints_path(workspace)
-    if not path.exists():
+    record = read_record(workspace)
+    if record is None:
         return None
     source = workspace.require_source()
-    before = json.loads(path.read_text(encoding="utf-8"))
+    before = record[1]
     files = set(before)
     if not workspace.use_toc:
         files |= set(discover_content_files(source, workspace.exclude, workspace.ignore_dirs, workspace.file_suffixes))
     now = fingerprints(source, sorted(files))
     return sorted(name for name in files if before.get(name) != now.get(name))
+
+
+def notes_up_to_date(workspace) -> bool:
+    """The chunks were made from exactly these notes, with these settings and this Wendao version."""
+    record = read_record(workspace)
+    return (workspace.chunks_path.exists() and record is not None and record[0] == extract_settings(workspace)
+            and changed_notes(workspace) == [])
 
 
 def extract(workspace) -> dict:
@@ -409,8 +444,9 @@ def extract(workspace) -> dict:
         extractor.process_files(files)
         file_count = len(files)
     extractor.save_chunks(workspace.chunks_path)
-    used = files if not workspace.use_toc else sorted({chunk["file_path"] for chunk in extractor.chunks})
-    fingerprints_path(workspace).write_text(json.dumps(fingerprints(source, used), indent=0), encoding="utf-8")
+    used = files if not workspace.use_toc else sorted({chunk["file_path"] for chunk in extractor.chunks} | {"myst.yml"})
+    record = {"settings": extract_settings(workspace), "files": fingerprints(source, used)}
+    fingerprints_path(workspace).write_text(json.dumps(record, indent=0), encoding="utf-8")
     return {
         "files": file_count,
         "chunks": len(extractor.chunks),

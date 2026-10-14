@@ -8,6 +8,7 @@ show them together.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import re
@@ -580,6 +581,33 @@ def validate(graph: dict) -> list[str]:
     return errors
 
 
+def graph_inputs(workspace) -> str:
+    """What the graph is made from: the chunks, concepts.json, the chapter and graph settings, the course details, and
+    the Wendao version. The same inputs give the same graph, so `wendao build` can keep it."""
+    from wendao import __version__
+
+    digest = hashlib.sha256()
+    for path in (workspace.chunks_path, workspace.concepts_path):
+        digest.update(path.read_bytes() if path.exists() else b"")
+        digest.update(b"\0")
+    settings = {
+        "wendao": __version__, "schema": GRAPH_SCHEMA,
+        "chapters": [[chapter.folder, chapter.name, chapter.description, chapter.show] for chapter in workspace.chapters],
+        "stop": sorted(workspace.bridge_stop_concepts),
+        "course": [workspace.course_code, workspace.course_name, workspace.website],
+    }
+    digest.update(json.dumps(settings, sort_keys=True).encode("utf-8"))
+    return digest.hexdigest()[:20]
+
+
+def graph_up_to_date(workspace) -> bool:
+    try:
+        graph = json.loads(workspace.graph_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    return graph.get("built_from") == graph_inputs(workspace)
+
+
 def build(workspace) -> dict:
     """Build build/graph.json for a workspace and check it. Returns the graph."""
     chunks_path = workspace.require(workspace.chunks_path, "Run `wendao extract` (or `wendao build`) first.")
@@ -593,6 +621,7 @@ def build(workspace) -> dict:
         bridge_stop_concepts=set(workspace.bridge_stop_concepts),
         course=course,
     )
+    graph["built_from"] = graph_inputs(workspace)
     errors = validate(graph)
     if errors:
         preview = "\n".join(f"  - {error}" for error in errors[:20])

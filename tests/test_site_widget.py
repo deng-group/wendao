@@ -381,5 +381,37 @@ class InstallTest(unittest.TestCase):
         self.assertIn("Replaced the previous course widget", output.getvalue())
 
 
+class SearchIndexReuseTest(unittest.TestCase):
+    """A changed note recomputes only its own chunks' embeddings; the rest come from the saved index."""
+
+    def test_only_new_or_changed_chunks_are_computed(self):
+        import numpy as np
+
+        from wendao.rag import retriever
+
+        class CountingEncoder:
+            name, device, texts = "fake", "cpu", []
+
+            def encode(self, texts):
+                CountingEncoder.texts.extend(texts)
+                return np.array([[len(text), 1.0] for text in texts], dtype=np.float32)
+
+        chunks = [{"chunk_id": f"c{i}", "content": f"text {i}"} for i in range(4)]
+        with tempfile.TemporaryDirectory() as folder, mock.patch.object(retriever, "make_encoder", lambda *a, **k: CountingEncoder()):
+            cache = Path(folder)
+            retriever.EmbeddingIndex(chunks, cache, "fake-model")
+            self.assertEqual(len(CountingEncoder.texts), 4)
+            self.assertTrue(retriever.EmbeddingIndex.is_current(chunks, cache, "fake-model"))
+
+            CountingEncoder.texts.clear()
+            changed = chunks[:3] + [{"chunk_id": "c3", "content": "edited"}, {"chunk_id": "c4", "content": "new"}]
+            self.assertFalse(retriever.EmbeddingIndex.is_current(changed, cache, "fake-model"))
+            index = retriever.EmbeddingIndex(changed, cache, "fake-model")
+            self.assertEqual(CountingEncoder.texts, ["edited", "new"])
+            self.assertEqual(index.reused, 3)
+            self.assertEqual(index.chunk_embeddings.shape, (5, 2))
+            self.assertEqual(index.chunk_embeddings[3].tolist(), [6.0, 1.0])  # "edited", not the old text
+
+
 if __name__ == "__main__":
     unittest.main()
