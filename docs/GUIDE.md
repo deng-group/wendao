@@ -78,7 +78,7 @@ with a link to that page.
 **Guided path.** `wendao build` also makes a path through the course: each chapter in your teaching order, followed by
 up to three key concepts it introduces. A concept is introduced in the chapter that uses it most, not where it is first
 mentioned in passing, and concepts under `[graph] bridge_stop_concepts` are left out. Students start it with the
-**Guided path** button and go step by step (Back / Next, or the arrow keys); each step shows the introduction, where
+guided path button (the route icon at the top) and go step by step (Back / Next, or the arrow keys); each step shows the introduction, where
 the concept comes up again, and links to explain it with AI or read the course page. The browser remembers where they
 stopped. To send students straight into it, link to the graph website with `?path` at the end. Chapters with
 `show = "secondary"` or `"hidden"` are not part of the path.

@@ -337,7 +337,6 @@ a.ask-node { text-decoration: none; }
 }
 
 /* Guided path: a card that walks through the course, with progress, Back and Next. */
-.path-launcher svg { fill: none; }
 .path-progress { margin: 0 0 8px; padding-right: 28px; color: var(--muted); font-size: .72rem; font-weight: 650; }
 .path-bar { height: 4px; margin: 0 0 14px; overflow: hidden; border-radius: 4px; background: var(--line); }
 .path-bar i { display: block; height: 100%; width: 0; border-radius: 4px; background: var(--accent); transition: width .25s ease; }
@@ -357,6 +356,4 @@ a.ask-node { text-decoration: none; }
   .path-card > * { flex-basis: 100%; }
   .path-card .path-actions { margin-top: 4px; }
   .path-card .path-extra { margin-top: 2px; }
-  .path-launcher { width: 36px; padding: 0; justify-content: center; }
-  .path-launcher span { display: none; }
 }

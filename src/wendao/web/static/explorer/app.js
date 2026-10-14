@@ -1365,7 +1365,12 @@ function updatePathButton() {
   const steps = pathSteps();
   pathEls.launch.hidden = !steps.length;
   const saved = Number(localStorage.getItem(pathKey()) || 0);
-  pathEls.launch.querySelector("span").textContent = saved > 0 && saved < steps.length ? "Continue path" : "Guided path";
+  // An icon only; the words are in the tooltip. Highlighted while there is a path to continue.
+  const resume = saved > 0 && saved < steps.length;
+  const label = resume ? `Continue the guided path (step ${saved + 1} of ${steps.length})` : "Guided path: the course, chapter by chapter";
+  pathEls.launch.title = label;
+  pathEls.launch.setAttribute("aria-label", label);
+  pathEls.launch.classList.toggle("active", resume);
 }
 
 function openPath(index) {
