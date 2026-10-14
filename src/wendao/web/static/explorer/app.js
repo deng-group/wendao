@@ -718,8 +718,11 @@ function drawLabels(context, nodes, near, focus, onScreen) {
     if (near) alpha = isNear ? 1 : Math.min(alpha, 0.12);
     if (alpha >= 0.05 && onScreen(item)) candidates.push({ item, alpha, isNear });
   }
-  if (!candidates.length) return;
-  const rank = ({ item, isNear }) => (item.id === focus ? 4 : isNear ? 3 : item.node.type === "chapter" ? 2 : 1) * 1000 + item.degree;
+  if (!candidates.length) { state.labelled = new Set(); return; }
+  // A label that was showing keeps priority (within its group) and its place, so labels don't flicker while nodes move.
+  const shownBefore = state.labelled || new Set(); const shownNow = new Set();
+  const rank = ({ item, isNear }) => (item.id === focus ? 4 : isNear ? 3 : item.node.type === "chapter" ? 2 : 1) * 1000
+    + (shownBefore.has(item.id) ? 500 : 0) + Math.min(item.degree, 499);
   candidates.sort((a, b) => rank(b) - rank(a));
   context.textAlign = "center"; context.textBaseline = "top"; context.lineJoin = "round";
   const cell = 80 / k; const taken = new Map();
@@ -748,16 +751,20 @@ function drawLabels(context, nodes, near, focus, onScreen) {
         [item.x - item.r - gap * 2 - width, item.y - height / 2]);
     }
     let box = null; let keys = null;
-    for (const [left, top] of spots) {
+    const order = spots.map((_, at) => at);
+    if (item.labelSpot > 0 && item.labelSpot < spots.length) order.unshift(...order.splice(item.labelSpot, 1)); // last place first
+    for (const at of order) {
+      const [left, top] = spots[at];
       const candidate = { left: left - 2 / k, right: left + width + 2 / k, top, bottom: top + height };
       const candidateKeys = cellsOf(candidate);
-      if (!overlaps(candidate, candidateKeys)) { box = candidate; keys = candidateKeys; break; }
+      if (!overlaps(candidate, candidateKeys)) { box = candidate; keys = candidateKeys; item.labelSpot = at; break; }
     }
     if (!box) {
       if (!isNear && item.node.type !== "chapter") continue; // no room: leave it out (zoom in to see it)
       box = { left: spots[0][0] - 2 / k, right: spots[0][0] + width + 2 / k, top: spots[0][1], bottom: spots[0][1] + height };
       keys = cellsOf(box);
     }
+    shownNow.add(item.id);
     const top = box.top; const centre = (box.left + box.right) / 2;
     for (const key of keys) { if (!taken.has(key)) taken.set(key, []); taken.get(key).push(box); }
     const wanted = `${weight} ${size}px Inter, ui-sans-serif, system-ui, sans-serif`;
@@ -766,6 +773,7 @@ function drawLabels(context, nodes, near, focus, onScreen) {
     context.lineWidth = 3 / k; context.strokeStyle = state.colours.halo; context.strokeText(item.labelText, centre, top);
     context.fillStyle = state.colours.text; context.fillText(item.labelText, centre, top);
   }
+  state.labelled = shownNow;
 }
 
 // ---------- views ----------
@@ -905,9 +913,7 @@ elements.canvas.addEventListener("pointerdown", (event) => {
   }
   if (touches.size > 2) return;
   const point = graphPoint(event); const item = nodeAt(point);
-  if (item) {
-    item.fx = item.x; item.fy = item.y;
-    state.alphaTarget = 0.2; startPhysics(0.2); // dragging stirs the graph a little, not a lot
+  if (item) { // the physics starts only once this becomes a drag: a click just selects, without stirring the graph
     state.pointer = { kind: "node", item, startX: event.clientX, startY: event.clientY, moved: false };
   } else {
     state.pointer = { kind: "pan", startX: event.clientX, startY: event.clientY, originX: state.transform.x, originY: state.transform.y, moved: false };
@@ -938,7 +944,8 @@ elements.canvas.addEventListener("pointermove", (event) => {
   if (pointer.kind === "pan") {
     state.viewTouched = true;
     state.transform.x = pointer.originX + dx; state.transform.y = pointer.originY + dy; draw();
-  } else {
+  } else if (pointer.moved) {
+    if (!pointer.dragging) { pointer.dragging = true; state.alphaTarget = 0.2; startPhysics(0.2); } // a little, not a lot
     const point = graphPoint(event); pointer.item.fx = point.x; pointer.item.fy = point.y;
   }
 });
@@ -951,9 +958,11 @@ function endPointer(event) {
   state.pointer = null;
   if (!pointer || pointer.kind === "pinch") return;
   if (pointer.kind === "node") {
-    pointer.item.fx = null; pointer.item.fy = null; // let go: it springs back into place
-    state.alphaTarget = 0;
-    startPhysics(0.3); // enough to drift back into place
+    if (pointer.dragging) {
+      pointer.item.fx = null; pointer.item.fy = null; // let go: it springs back into place
+      state.alphaTarget = 0;
+      startPhysics(0.3); // enough to drift back into place
+    }
     if (!pointer.moved && event.type === "pointerup") selectNode(pointer.item.id, { fit: true }); // a click centres and zooms
   } else if (!pointer.moved && event.type === "pointerup") {
     clearSelection();
