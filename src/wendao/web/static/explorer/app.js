@@ -260,9 +260,9 @@ function setExplainButtonBusy(busy) {
   elements.explainNode.disabled = busy;
   elements.explainNode.textContent = busy ? "Explaining…" : "Explain";
 }
+// Stop an explanation that is still being written (it is then removed); finished ones stay in the chat history.
 function clearNodeExplanation() {
   abortAutomaticExplanation();
-  elements.messages.querySelectorAll(".auto-explanation").forEach((message) => message.remove());
 }
 
 // Which nodes students see: no hidden chapters, and nothing that belongs only to hidden chapters.
@@ -1219,10 +1219,12 @@ function scrollMessagesToBottom(force = false) {
 function setSources(sources = []) {
   elements.sourceList.replaceChildren(); elements.sourceCount.textContent = String(sources.length); elements.sourceDrawer.hidden = !sources.length;
   for (const source of sources) {
-    // Link to the course website when one is set in wendao.toml; otherwise show the source as plain text.
-    const item = document.createElement(source.url ? "a" : "div"); item.className = "source-item";
-    if (source.url) { item.href = source.url; item.target = "_blank"; item.rel = "noopener noreferrer"; }
-    const title = document.createElement("strong"); title.textContent = source.title || "Course material";
+    // A link to the course website when one is set in wendao.toml; otherwise a button that shows the page in the graph.
+    const page = !source.url && state.graph?.nodes.find((node) => node.type === "topic" && node.file === source.file_path);
+    const item = document.createElement(source.url ? "a" : page ? "button" : "div"); item.className = "source-item";
+    if (source.url) { item.href = source.url; item.target = "_blank"; item.rel = "noopener noreferrer"; item.title = "Open this page of the course"; }
+    if (page) { item.type = "button"; item.title = "Show this page in the graph"; item.addEventListener("click", () => selectNode(page.id, { fit: true })); }
+    const title = document.createElement("strong"); title.textContent = `${source.title || "Course material"}${source.url ? " ↗" : ""}`;
     const path = document.createElement("small"); path.textContent = [source.file_path, source.location].filter(Boolean).join(", ");
     item.append(title, path); elements.sourceList.appendChild(item);
   }
@@ -1413,6 +1415,18 @@ const pathEls = {
   pageLinks: document.querySelector("#path-page-links"),
 };
 
+// A course page as a link: to the course website when there is one ([course] website), else to its place in the graph.
+function pageLink(page, label = page.label) {
+  if (page.url) {
+    const link = document.createElement("a"); link.href = page.url; link.target = "_blank"; link.rel = "noopener";
+    link.textContent = `${label} ↗`; link.title = "Open this page of the course"; return link;
+  }
+  const button = document.createElement("button"); button.type = "button"; button.textContent = label;
+  button.title = "Show this page in the graph";
+  button.addEventListener("click", () => selectNode(page.id, { fit: true }));
+  return button;
+}
+
 // The pages to read for a step: a chapter's pages in order; for a concept, the pages of its chapter that use it most.
 function pathPages(step, node) {
   if (node.type === "chapter") {
@@ -1443,13 +1457,15 @@ function updatePathButton() {
   const label = resume ? `Continue the guided path (step ${saved + 1} of ${steps.length})` : "Guided path: the course, chapter by chapter";
   pathEls.launch.title = label;
   pathEls.launch.setAttribute("aria-label", label);
-  pathEls.launch.classList.toggle("active", resume);
+  pathEls.launch.classList.toggle("active", guide.open);
+  pathEls.launch.setAttribute("aria-pressed", String(guide.open));
 }
 
 function openPath(index) {
   if (!pathSteps().length) return;
   elements.nodeCard.hidden = true;
   guide.open = true;
+  updatePathButton();
   showPathStep(index);
 }
 
@@ -1487,11 +1503,7 @@ function showPathStep(index) {
   const pages = pathPages(step, node); const shown = pages.slice(0, 8);
   pathEls.pages.hidden = !pages.length;
   pathEls.pagesLabel.textContent = isChapter ? `Pages in this chapter (${pages.length})` : "Where to read about it";
-  pathEls.pageLinks.replaceChildren(...shown.map((page) => {
-    const link = document.createElement(page.url ? "a" : "span"); link.textContent = page.label;
-    if (page.url) { link.href = page.url; link.target = "_blank"; link.rel = "noopener"; }
-    return link;
-  }));
+  pathEls.pageLinks.replaceChildren(...shown.map((page) => pageLink(page)));
   if (pages.length > shown.length) {
     const more = document.createElement("span"); more.textContent = `+${pages.length - shown.length} more`; pathEls.pageLinks.appendChild(more);
   }
@@ -1517,6 +1529,7 @@ function closePath() {
 }
 
 pathEls.launch.addEventListener("click", () => {
+  if (guide.open) { closePath(); return; } // the button switches the path on and off
   const steps = pathSteps();
   const saved = Number(localStorage.getItem(pathKey()) || 0);
   openPath(saved > 0 && saved < steps.length ? saved : 0);
