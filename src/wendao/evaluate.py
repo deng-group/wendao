@@ -328,7 +328,7 @@ def run_real(workspace, pipeline: QueryPipeline, questions: list[dict], retries:
     model = default_model_name(provider_name)
     generator = AnswerGenerator(
         pipeline=pipeline,
-        prompt_builder=PromptBuilder(course_name=workspace.display_name),
+        prompt_builder=PromptBuilder.for_workspace(workspace),
         provider=provider_from_name(provider_name, model=model),
         course_name=workspace.display_name,
     )

@@ -120,6 +120,8 @@ class Workspace:
     search_device: str = "auto"
     model: dict = field(default_factory=dict)
     student_ai: str = "teacher"
+    # Graded work: "full" answers as usual; "hints" explains and hints but doesn't solve assignments, quizzes, exams.
+    assignment_help: str = "full"
     questions_per_day: int = 0
     allowed_origins: list[str] = field(default_factory=list)
     roster: str = ""
@@ -169,6 +171,11 @@ class Workspace:
         if not self.file_types:
             return None
         return {"." + kind.lower().lstrip(".") for kind in self.file_types}
+
+    @property
+    def instructions_path(self) -> Path:
+        """The teacher's instructions for answers: AGENTS.md next to wendao.toml, or the file under [model] instructions."""
+        return self.root / str(self.model.get("instructions") or "AGENTS.md")
 
     @property
     def roster_path(self) -> Path | None:
@@ -272,6 +279,9 @@ def load(start: Path | None = None) -> Workspace:
     style = str(course.get("style", "modern")).strip().lower()
     if style not in STYLES:
         raise WorkspaceError(f"[course] style in {CONFIG_NAME} must be \"modern\" or \"economist\", not \"{style}\".")
+    assignment_help = str(student.get("assignment_help", "full")).strip().lower()
+    if assignment_help not in {"full", "hints"}:
+        raise WorkspaceError(f'[student] assignment_help in {CONFIG_NAME} must be "full" or "hints", not "{assignment_help}".')
     if student.get("ai", "teacher") not in {"teacher", "student", "either"}:
         raise WorkspaceError(f"[student] ai in {CONFIG_NAME} must be \"teacher\", \"student\", or \"either\".")
 
@@ -321,6 +331,7 @@ def load(start: Path | None = None) -> Workspace:
         search_device=str(search.get("device", "auto")),
         model=dict(config.get("model", {})),
         student_ai=str(student.get("ai", "teacher")),
+        assignment_help=assignment_help,
         questions_per_day=int(student.get("questions_per_day", 0) or 0),
         allowed_origins=[str(item) for item in student.get("allowed_origins", [])],
         roster=str(student.get("roster", "")),

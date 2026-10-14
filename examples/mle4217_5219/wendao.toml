@@ -111,6 +111,7 @@ bridge_stop_concepts = [
 [student]
 # The course AI by default; students may add their own key instead.
 ai = "either"
+assignment_help = "hints"     # graded work: explain and hint, don't solve assignments or exams
 
 [model]
 # The course uses an Anthropic-compatible relay. Put ANTHROPIC_AUTH_TOKEN in .env.

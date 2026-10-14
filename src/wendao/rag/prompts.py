@@ -6,6 +6,9 @@ policy that the answer generator sends to one.
 
 from __future__ import annotations
 
+import re
+from pathlib import Path
+
 
 SYSTEM_INSTRUCTION = """You are the course helper for {course_name}.
 Answer students using only the provided course evidence and optional short-memory context.
@@ -27,6 +30,24 @@ Answer the question directly. Do not begin with a sentence telling the student w
 Use readable Markdown formatting. For procedural or workflow questions, use a concise numbered list. For conceptual questions, use short paragraphs or bullets when that improves readability.
 Prefer concise, instructional answers that help students understand the concept.
 """
+
+
+# [student] assignment_help = "hints": help with graded work without doing it for the student.
+ASSIGNMENT_HINTS = """Graded work: if the question asks you to solve or complete an assignment, quiz, homework, project, or exam question, or looks like one (it asks for the final answer, complete code, or a full derivation for a specific task), do not give the final answer, the complete code, or the full solution. Explain the concepts it needs, give hints and the first step, point to the course pages that help, and suggest how the student can check their own work. Explaining concepts, and examples that are already in the course notes, are fine to answer fully."""
+
+# The teacher's own instructions (AGENTS.md) come before this, so the rules above always win a conflict.
+RULES_FIRST = """These rules always come first: if the teacher's instructions conflict with them, follow the rules (answer only from the course evidence, never invent facts or citations, and say clearly when the evidence does not cover the question)."""
+
+MAX_TEACHER_INSTRUCTIONS = 4000  # characters; they are sent with every question
+
+
+def read_teacher_instructions(path: Path | None) -> str:
+    """The teacher's instructions from AGENTS.md (or the file under [model] instructions), without HTML comments
+    (the starter file's examples are inside one). Empty when there is no file."""
+    if not path or not Path(path).is_file():
+        return ""
+    text = re.sub(r"<!--.*?-->", "", Path(path).read_text(encoding="utf-8", errors="replace"), flags=re.S)
+    return text.strip()[:MAX_TEACHER_INSTRUCTIONS]
 
 
 STATUS_POLICIES = {
@@ -76,6 +97,8 @@ class PromptBuilder:
         evidence_score_threshold: float = 0.60,
         presentation_mode: str = "location_lead",
         course_name: str = "this course",
+        instructions_path: Path | None = None,
+        assignment_help: str = "full",
     ):
         if presentation_mode not in {"location_lead", "direct"}:
             raise ValueError("presentation_mode must be 'location_lead' or 'direct'")
@@ -84,6 +107,38 @@ class PromptBuilder:
         self.evidence_score_threshold = evidence_score_threshold
         self.presentation_mode = presentation_mode
         self.course_name = course_name
+        self.instructions_path = instructions_path  # read again when the file changes: no restart needed
+        self.assignment_help = assignment_help
+        self._instructions = (None, "")  # (file stamp, text)
+
+    @classmethod
+    def for_workspace(cls, workspace, **options) -> PromptBuilder:
+        """The course's prompt builder: its name, the teacher's instructions, and how to help with graded work."""
+        return cls(course_name=workspace.display_name, instructions_path=getattr(workspace, "instructions_path", None),
+                   assignment_help=getattr(workspace, "assignment_help", "full"), **options)
+
+    def teacher_instructions(self) -> str:
+        path = self.instructions_path
+        try:
+            stat = Path(path).stat() if path else None
+        except OSError:
+            stat = None
+        stamp = (stat.st_mtime_ns, stat.st_size) if stat else None
+        if stamp != self._instructions[0]:
+            self._instructions = (stamp, read_teacher_instructions(path) if stamp else "")
+        return self._instructions[1]
+
+    def system_instruction(self) -> str:
+        """Wendao's rules, the graded-work rule, the teacher's own instructions, and then which of them wins."""
+        template = DIRECT_ANSWER_SYSTEM_INSTRUCTION if self.presentation_mode == "direct" else SYSTEM_INSTRUCTION
+        parts = [template.replace("{course_name}", self.course_name).strip()]
+        if self.assignment_help == "hints":
+            parts.append(ASSIGNMENT_HINTS)
+        teacher = self.teacher_instructions()
+        if teacher:
+            parts.append("The course teacher's instructions for answers:\n<<<\n" + teacher + "\n>>>")
+            parts.append(RULES_FIRST)
+        return "\n\n".join(parts)
 
     def build(
         self,
@@ -95,8 +150,7 @@ class PromptBuilder:
         status = pipeline_result["status"]
         policies = DIRECT_ANSWER_STATUS_POLICIES if self.presentation_mode == "direct" else STATUS_POLICIES
         policy = policies.get(status, policies["weak_evidence"])
-        template = DIRECT_ANSWER_SYSTEM_INSTRUCTION if self.presentation_mode == "direct" else SYSTEM_INSTRUCTION
-        system_instruction = template.replace("{course_name}", self.course_name)
+        system_instruction = self.system_instruction()
         memory = self._trim_memory(short_memory or [])
         evidence = self._select_evidence(pipeline_result)
 

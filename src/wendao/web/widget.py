@@ -61,7 +61,7 @@ def create_app(workspace=None) -> Flask:
     workspace.apply_model_settings()
     app = Flask(__name__, static_folder=str(STATIC_DIR), static_url_path="/static")
     pipeline = QueryPipeline.for_workspace(workspace, top_k=5)
-    prompt_builder = PromptBuilder(evidence_score_threshold=0.60, course_name=workspace.display_name)
+    prompt_builder = PromptBuilder.for_workspace(workspace, evidence_score_threshold=0.60)
     policy = AiPolicy.from_settings(
         workspace.student_ai, workspace.questions_per_day, accounts=workspace.accounts(), limit=workspace.daily_limit()
     )
