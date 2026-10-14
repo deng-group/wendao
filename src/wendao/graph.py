@@ -18,8 +18,8 @@ from pathlib import Path
 from wendao.workspace import folder_title
 
 # The graph.json format. 1.1 (Wendao 0.3.1): introductions for concepts and chapters, and course links.
-# 1.2: a guided learning path ("path").
-GRAPH_SCHEMA = "1.2"
+# 1.2: a guided learning path ("path"). 1.3: chapter overviews and objectives, page order.
+GRAPH_SCHEMA = "1.3"
 # Key concepts the learning path introduces in each chapter.
 PATH_CONCEPTS_PER_CHAPTER = 3
 
@@ -123,17 +123,77 @@ def concept_summary(aliases: list[str], label: str, chunks: list[dict]) -> tuple
     return best, best_file
 
 
-def chapter_intro(module_chunks: list[dict]) -> tuple[str, str]:
-    """A chapter's name and opening paragraph, from its index page (README) if it has one."""
+# Index-page sections: the chapter overview, what students will learn, and parts never to show (slides, recordings).
+OVERVIEW_HEADINGS = re.compile(r"\b(content|contents|overview|introduction|intro|about|summary|description|this (chapter|week|lecture))\b", re.I)
+OBJECTIVE_HEADINGS = re.compile(r"\b(objectives?|outcomes?|goals?|aims?|you will learn|you'll learn|what you will)\b", re.I)
+SKIP_HEADINGS = re.compile(r"\b(slides?|videos?|recordings?|zoom|readings?|references?|assignments?|homework|links?|resources?)\b", re.I)
+PRIVATE_TEXT = re.compile(r"zoom|passcode|password|log ?in|recorded|recording|nus email", re.I)
+
+
+def page_sections(text: str) -> list[tuple[str, str]]:
+    """A Markdown page as (heading, body) pairs; text before the first heading has the heading ""."""
+    sections = [["", []]]
+    in_code = False
+    for line in text.splitlines():
+        if line.strip().startswith("```"):
+            in_code = not in_code
+        heading = None if in_code else re.match(r"^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$", line)
+        if heading:
+            sections.append([heading.group(1).strip(), []])
+        else:
+            sections[-1][1].append(line)
+    return [(heading, "\n".join(body)) for heading, body in sections]
+
+
+def list_items(text: str) -> list[str]:
+    """The bullet or numbered items in a section, as plain text."""
+    items = []
+    for line in text.splitlines():
+        match = re.match(r"^\s*(?:[-*+]|\d+[.)])\s+(.+)$", line)
+        if match:
+            item = re.sub(r"!?\[([^\]]*)\]\([^)]*\)", r"\1", match.group(1))
+            item = " ".join(re.sub(r"[*_`]{1,3}", "", item).split()).rstrip(";,")
+            if 3 <= len(item) <= 200 and not PRIVATE_TEXT.search(item):
+                items.append(item)
+    return items
+
+
+def chapter_outline(module_chunks: list[dict]) -> dict:
+    """What a chapter's index page (or README) says about it: its title, an overview, and what students will learn.
+
+    Read by section, so slides, lecture recordings and their login details are never picked up.
+    """
     index = [chunk for chunk in module_chunks if Path(chunk.get("file_path", "")).stem.lower() in {"index", "readme"}]
     if not index:
-        return "", ""
+        return {"title": "", "overview": "", "objectives": []}
+    index.sort(key=lambda chunk: int(re.search(r"(\d+)$", chunk.get("chunk_id", "0")).group(1)) if re.search(r"(\d+)$", chunk.get("chunk_id", "0")) else 0)
     title = str(index[0].get("title", "")).strip()
-    for sentence_list in (plain_sentences(str(chunk.get("content", ""))) for chunk in index):
-        intro = " ".join(sentence_list[:2]).strip()
-        if len(intro) >= 30 and not re.search(r"[$\\{}<>|]", intro):
-            return title, intro[:320]
-    return title, ""
+    sections = page_sections("\n".join(str(chunk.get("content", "")) for chunk in index))
+
+    def readable(body: str) -> str:
+        sentences = [sentence for sentence in plain_sentences(body)
+                     if len(sentence) >= 20 and not PRIVATE_TEXT.search(sentence) and not re.search(r"[$\\{}<>|]", sentence)]
+        text = ""
+        for sentence in sentences:
+            if len(text) + len(sentence) > 600:
+                break
+            text = f"{text} {sentence}".strip()
+        return text
+
+    overview = next((readable(body) for heading, body in sections if OVERVIEW_HEADINGS.search(heading)
+                     and not SKIP_HEADINGS.search(heading) and readable(body)), "")
+    if not overview:  # no "Content" or "Overview" heading: the first readable paragraph outside slides and recordings
+        overview = next((readable(body) for heading, body in sections
+                         if not SKIP_HEADINGS.search(heading) and not OBJECTIVE_HEADINGS.search(heading) and readable(body)), "")
+    objectives = next((list_items(body) for heading, body in sections if OBJECTIVE_HEADINGS.search(heading) and list_items(body)), [])
+    return {"title": title, "overview": overview, "objectives": objectives[:6]}
+
+
+def chapter_intro(module_chunks: list[dict]) -> tuple[str, str]:
+    """A chapter's name and a short introduction (its first two overview sentences), from its index page."""
+    outline = chapter_outline(module_chunks)
+    sentences = plain_sentences(outline["overview"])
+    return outline["title"], " ".join(sentences[:2])[:320]
 
 
 def edge_key(source: str, target: str, edge_type: str) -> tuple[str, str, str]:
@@ -246,6 +306,7 @@ def build_graph(
 
     for module_index, module in enumerate(ordered_modules):
         module_chunks = chunks_by_module[module]
+        outline = chapter_outline(module_chunks)
         index_title, index_intro = chapter_intro(module_chunks)
         default_label = "Course Information" if module == "root" else (index_title or folder_title(module))
         setting = chapter_settings.get(module)
@@ -275,12 +336,14 @@ def build_graph(
                 "source_files": sorted({chunk["file_path"] for chunk in module_chunks}),
                 "keyword_ids": [keyword_id(value) for value in chapter_keywords],
                 "summary": (setting.description if setting else "") or index_intro,
+                "overview": outline["overview"],
+                "objectives": outline["objectives"],
                 "summary_file": next((path for path in sorted({chunk["file_path"] for chunk in module_chunks})
                                       if Path(path).stem.lower() in {"index", "readme"}), ""),
             }
         )
 
-        for section, title in section_keys:
+        for page_order, (section, title) in enumerate(section_keys):
             section_chunks = chunks_by_topic[(module, section)]
             node_id = topic_id(module, section)
             module_topics[module].append(node_id)
@@ -305,6 +368,7 @@ def build_graph(
                     "module": module,
                     "section": section,
                     "chapter_id": chapter_id(module),
+                    "order": page_order,
                     "visibility": topic_visibility,
                     "chunk_ids": [chunk["chunk_id"] for chunk in section_chunks],
                     "source_files": sorted({chunk["file_path"] for chunk in section_chunks}),

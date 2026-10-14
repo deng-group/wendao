@@ -360,3 +360,23 @@ a.ask-node { text-decoration: none; }
   .path-launcher { width: 36px; padding: 0; justify-content: center; }
   .path-launcher span { display: none; }
 }
+
+.path-card { max-height: calc(100% - 120px); overflow-y: auto; overscroll-behavior: contain; }
+.path-section { margin-top: 12px; color: var(--muted); font-size: .78rem; line-height: 1.45; }
+.path-section > b { display: block; margin-bottom: 4px; color: var(--text); font-weight: 650; }
+.path-section ul { margin: 0; padding-left: 18px; }
+.path-section li { margin: 2px 0; }
+.path-pages { display: flex; flex-wrap: wrap; gap: 6px; }
+.path-pages a, .path-pages span { padding: 3px 9px; border: 1px solid var(--line); border-radius: 999px; color: var(--text); background: var(--panel, #fff); font-size: .74rem; text-decoration: none; }
+.path-pages a:hover { border-color: var(--accent-line); color: var(--accent-strong); }
+.dark .path-pages a:hover { color: var(--accent); }
+@media (max-width: 590px), (max-height: 560px) {
+  .path-card { max-height: 58%; }
+  .path-section ul { padding-left: 16px; }
+}
+/* Back / Next stay in view while the card scrolls. */
+.path-actions { position: sticky; bottom: -20px; z-index: 1; margin-inline: -20px; padding: 10px 20px 12px; background: var(--panel); border-top: 1px solid var(--line); }
+.path-card { background: var(--panel); }
+@media (max-width: 590px), (max-height: 560px) {
+  .path-card .path-actions { flex-basis: calc(100% + 32px); bottom: -14px; margin-inline: -16px; padding: 8px 16px 10px; }
+}

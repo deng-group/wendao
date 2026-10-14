@@ -1354,7 +1354,26 @@ const pathEls = {
   also: document.querySelector("#path-also"), back: document.querySelector("#path-back"),
   next: document.querySelector("#path-next"), explain: document.querySelector("#path-explain"),
   open: document.querySelector("#path-open"), skip: document.querySelector("#path-skip"),
+  learn: document.querySelector("#path-learn"), objectives: document.querySelector("#path-objectives"),
+  pages: document.querySelector("#path-pages"), pagesLabel: document.querySelector("#path-pages-label"),
+  pageLinks: document.querySelector("#path-page-links"),
 };
+
+// The pages to read for a step: a chapter's pages in order; for a concept, the pages of its chapter that use it most.
+function pathPages(step, node) {
+  if (node.type === "chapter") {
+    return state.graph.nodes
+      .filter((item) => item.type === "topic" && item.chapter_id === node.id && item.visibility !== "hidden")
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  }
+  return state.graph.edges
+    .filter((edge) => edge.type === "mentions" && edge.target === node.id)
+    .map((edge) => ({ edge, page: state.nodesById.get(edge.source) }))
+    .filter(({ page }) => page && page.chapter_id === step.chapter)
+    .sort((a, b) => (b.edge.weight || 0) - (a.edge.weight || 0))
+    .slice(0, 3)
+    .map(({ page }) => page);
+}
 const pathKey = () => `wendao_path_v1:${document.title}`;
 
 function pathSteps() {
@@ -1397,8 +1416,27 @@ function showPathStep(index) {
   pathEls.kind.textContent = isChapter ? "Chapter" : `Key concept in ${state.nodesById.get(step.chapter)?.label || "this chapter"}`;
   pathEls.kind.style.color = isChapter ? "var(--chapter)" : "var(--concept)";
   pathEls.title.textContent = node.label;
-  pathEls.summary.textContent = node.summary || "";
-  pathEls.summary.hidden = !node.summary;
+  // A chapter shows its overview from the index page (the short summary if there is none); a concept, its introduction.
+  const text = (isChapter && node.overview) || node.summary || "";
+  pathEls.summary.textContent = text;
+  pathEls.summary.hidden = !text;
+  const objectives = isChapter ? node.objectives || [] : [];
+  pathEls.learn.hidden = !objectives.length;
+  pathEls.objectives.replaceChildren(...objectives.map((item) => {
+    const li = document.createElement("li"); li.textContent = item.replace(/\.$/, ""); return li;
+  }));
+  const pages = pathPages(step, node); const shown = pages.slice(0, 8);
+  pathEls.pages.hidden = !pages.length;
+  pathEls.pagesLabel.textContent = isChapter ? `Pages in this chapter (${pages.length})` : "Where to read about it";
+  pathEls.pageLinks.replaceChildren(...shown.map((page) => {
+    const link = document.createElement(page.url ? "a" : "span"); link.textContent = page.label;
+    if (page.url) { link.href = page.url; link.target = "_blank"; link.rel = "noopener"; }
+    return link;
+  }));
+  if (pages.length > shown.length) {
+    const more = document.createElement("span"); more.textContent = `+${pages.length - shown.length} more`; pathEls.pageLinks.appendChild(more);
+  }
+  pathEls.card.scrollTop = 0;
   const also = (step.also_in || []).map((id) => state.nodesById.get(id)?.label).filter(Boolean);
   pathEls.also.hidden = !also.length;
   pathEls.also.replaceChildren();
