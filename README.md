@@ -35,7 +35,8 @@ Guides: [teacher guide](https://github.com/deng-group/wendao/blob/main/docs/GUID
 ### Knowledge graph
 
 Chapters, pages, and concepts, linked where the course connects them. Drag, zoom, and search; click a concept to read
-a short introduction from the notes and jump to the course page.
+a short introduction from the notes and jump to the course page. New to the course? **Guided path** walks through it
+chapter by chapter, with the key concepts each chapter introduces ([try it](https://deng-group.github.io/wendao/?path)).
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/deng-group/wendao/main/docs/assets/demo/knowledge_graph_demo.gif" width="100%" alt="Screen recording: hovering and dragging nodes in the Wendao knowledge graph, searching for a concept and reading its introduction, filtering with the legend, and switching to dark mode and The Economist style">

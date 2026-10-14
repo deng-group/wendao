@@ -274,6 +274,7 @@ class ExampleWorkspaceTest(unittest.TestCase):
         self.assertEqual(validate(graph), [])
         self.assertEqual(graph["nodes"], committed["nodes"])
         self.assertEqual(graph["edges"], committed["edges"])
+        self.assertEqual(graph["path"], committed["path"])
 
         # Links the course relies on in teaching; these should survive graph changes.
         related = {frozenset((e["source"], e["target"])) for e in graph["edges"] if e["type"] == "related"}
@@ -285,6 +286,36 @@ class ExampleWorkspaceTest(unittest.TestCase):
             self.assertIn(frozenset(pair), related)
         primary = [n for n in graph["nodes"] if n["type"] == "chapter" and n["visibility"] == "primary"]
         self.assertGreaterEqual(len(primary), 10)
+
+        # The guided path: every shown chapter in teaching order, each followed by a few concepts it introduces.
+        path = graph["path"]
+        chapters_in_path = [step["node"] for step in path if step["node"] == step["chapter"]]
+        self.assertEqual(chapters_in_path, [n["id"] for n in sorted(primary, key=lambda n: n["order"])])
+        concepts = [step["node"] for step in path if step["node"] != step["chapter"]]
+        self.assertEqual(len(concepts), len(set(concepts)))  # each concept is introduced once
+        where = {step["node"]: step["chapter"] for step in path}
+        self.assertEqual(where["keyword:crystal-structure"], "chapter:structures")  # its main chapter, not Orientation
+
+
+class LearningPathTest(unittest.TestCase):
+    def test_concepts_come_in_their_main_chapter(self):
+        from collections import Counter
+
+        from wendao.graph import learning_path
+
+        counts = {
+            "intro": Counter({"lattice": 1, "python": 9, "dft": 1}),  # an overview mentions everything once
+            "structures": Counter({"lattice": 6, "symmetry": 4, "basis": 2, "unit-cell": 1}),
+            "dft": Counter({"dft": 8, "lattice": 2}),
+        }
+        path = learning_path(["intro", "structures", "dft"], counts, stop_concepts={"python"}, per_chapter=2)
+        self.assertEqual([step["node"] for step in path], [
+            "chapter:intro",
+            "chapter:structures", "keyword:lattice", "keyword:symmetry",  # the two most used; "python" is too common
+            "chapter:dft", "keyword:dft",
+        ])
+        lattice = next(step for step in path if step["node"] == "keyword:lattice")
+        self.assertEqual(lattice["also_in"], ["chapter:intro", "chapter:dft"])
 
 
 if __name__ == "__main__":

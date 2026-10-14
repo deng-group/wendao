@@ -17,7 +17,10 @@ from pathlib import Path
 from wendao.workspace import folder_title
 
 # The graph.json format. 1.1 (Wendao 0.3.1): introductions for concepts and chapters, and course links.
-GRAPH_SCHEMA = "1.1"
+# 1.2: a guided learning path ("path").
+GRAPH_SCHEMA = "1.2"
+# Key concepts the learning path introduces in each chapter.
+PATH_CONCEPTS_PER_CHAPTER = 3
 
 
 def load_jsonl(path: Path) -> list[dict]:
@@ -153,6 +156,34 @@ def top_symmetric_pairs(
     return chosen
 
 
+def learning_path(
+    chapters: list[str], chapter_counts: dict[str, Counter], stop_concepts: set[str], per_chapter: int = PATH_CONCEPTS_PER_CHAPTER
+) -> list[dict]:
+    """A guided path through the course: each chapter in teaching order, then the key concepts it introduces.
+
+    A concept is introduced in its main chapter, the one that mentions it most (the earlier one on a tie), not where it
+    first comes up in passing (an overview chapter mentions almost everything). Each chapter shows its few most-used
+    concepts. Very common concepts (`bridge_stop_concepts`) are left out. Steps name the other chapters that use a
+    concept, so students see where it comes back.
+    """
+    main_chapter: dict[str, str] = {}
+    for concept in sorted({concept for counts in chapter_counts.values() for concept in counts}):
+        best = max(chapters, key=lambda module: (chapter_counts[module][concept], -chapters.index(module)))
+        if chapter_counts[best][concept]:
+            main_chapter[concept] = best
+    steps = []
+    for module in chapters:
+        steps.append({"node": chapter_id(module), "chapter": chapter_id(module)})
+        introduced = sorted(
+            (concept for concept, home in main_chapter.items() if home == module and concept not in stop_concepts),
+            key=lambda concept: (-chapter_counts[module][concept], concept),
+        )[:per_chapter]
+        for concept in introduced:
+            also = [chapter_id(other) for other in chapters if other != module and chapter_counts[other][concept]]
+            steps.append({"node": keyword_id(concept), "chapter": chapter_id(module), "also_in": also[:4]})
+    return steps
+
+
 def build_graph(
     chunks: list[dict],
     raw_taxonomy: dict,
@@ -210,6 +241,7 @@ def build_graph(
     topic_evidence: dict[str, dict[str, list[str]]] = {}
     module_topics: dict[str, list[str]] = defaultdict(list)
     module_concepts: dict[str, set[str]] = defaultdict(set)
+    module_concept_counts: dict[str, Counter] = {}
 
     for module_index, module in enumerate(ordered_modules):
         module_chunks = chunks_by_module[module]
@@ -227,6 +259,7 @@ def build_graph(
             chapter_keyword_counts.update(chunk_concepts[chunk["chunk_id"]])
         chapter_keywords = sorted(chapter_keyword_counts)
         module_concepts[module].update(chapter_keywords)
+        module_concept_counts[module] = chapter_keyword_counts
 
         nodes.append(
             {
@@ -534,6 +567,7 @@ def build_graph(
         },
         "nodes": nodes,
         "edges": unique_edges,
+        "path": learning_path(primary_modules, module_concept_counts, stop_concepts),
     }
 
 

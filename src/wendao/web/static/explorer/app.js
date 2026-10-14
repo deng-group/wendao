@@ -514,7 +514,8 @@ function startPhysics(alpha) {
   if (state.frame) return;
   const loop = () => {
     tick();
-    if (state.fitPending && state.alpha < 0.08) { state.fitPending = false; fitGraph(); }
+    // Settled enough to frame: the chosen node (a ?focus link, the guided path), else everything.
+    if (state.fitPending && state.alpha < 0.08) { state.fitPending = false; if (state.selectedId) focusOn(state.selectedId); else fitGraph(); }
     if (!state.homesSet && state.alpha < 0.02) rememberHomes();
     render();
     if (state.alpha > ALPHA_MIN || state.alphaTarget > 0) state.frame = requestAnimationFrame(loop);
@@ -778,6 +779,7 @@ function toggleKind(kind) {
 }
 
 function clearSelection() {
+  if (guide.open) return; // a click on empty space doesn't end the path
   clearNodeExplanation();
   state.selectedId = null;
   elements.nodeCard.hidden = true;
@@ -797,6 +799,7 @@ function setInitialView() {
 function selectNode(nodeId, options = {}) {
   const node = state.nodesById.get(nodeId);
   if (!node) return;
+  if (guide.open) closePath(); // choosing another node leaves the path (the button offers to continue)
   clearNodeExplanation();
   if (state.hiddenKinds.delete(node.type)) { state.shown = null; updateModeControls(); }
   state.selectedId = nodeId;
@@ -819,8 +822,9 @@ function focusOn(nodeId) {
 
 function viewFor(items, maxScale = 1.6) {
   const width = elements.stage.clientWidth;
-  // On a narrow screen the node card covers the bottom of the graph: frame the part above it.
-  const card = elements.nodeCard; const covered = !card.hidden && width < 600 ? card.offsetHeight + 20 : 0;
+  // On a narrow screen a card covers the bottom of the graph: frame the part above it.
+  const card = [elements.nodeCard, pathEls.card].find((item) => !item.hidden);
+  const covered = card && width < 600 ? card.offsetHeight + 20 : 0;
   const height = Math.max(160, elements.stage.clientHeight - covered);
   if (!items.length) return { x: width / 2, y: height / 2, k: 1 };
   const xs = items.map((item) => item.x); const ys = items.map((item) => item.y);
@@ -1283,8 +1287,10 @@ async function initialize() {
     indexGraph(graph);
     state.transform = { x: elements.stage.clientWidth / 2, y: elements.stage.clientHeight / 2, k: 0.5 };
     setInitialView();
+    updatePathButton();
     const focus = PARAMS.get("focus");
     if (focus && state.nodesById.has(focus)) selectNode(focus, { fit: true });
+    else if (PARAMS.has("path")) openPath(0); // a link straight into the guided path: ?path
   } catch (error) {
     const message = document.createElement("div"); message.className = "graph-load-error"; message.textContent = error.message; elements.stage.appendChild(message);
   }
@@ -1301,6 +1307,12 @@ elements.search.addEventListener("keydown", (event) => {
 });
 document.addEventListener("keydown", (event) => {
   if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") { event.preventDefault(); elements.search.focus(); }
+  const typing = event.target.closest?.("input, textarea, select, [contenteditable]");
+  if (guide.open && !typing) {
+    if (event.key === "ArrowRight") { event.preventDefault(); showPathStep(guide.index + 1); return; }
+    if (event.key === "ArrowLeft") { event.preventDefault(); showPathStep(guide.index - 1); return; }
+    if (event.key === "Escape" && !state.chatOpen) { closePath(); return; }
+  }
   if (event.key === "Escape" && state.chatOpen) setChatOpen(false);
   else if (event.key === "Escape" && !elements.nodeCard.hidden) elements.nodeCard.hidden = true;
 });
@@ -1330,6 +1342,106 @@ elements.explainNode.addEventListener("click", () => {
   if (node && EMBEDDED) tellWidget("explain", node);
   else if (node) explainSelectedNode(node);
 });
+// ---------- guided learning path ----------
+// The steps come from `wendao build` (graph.json "path"): each chapter in teaching order, then the key concepts it
+// introduces. The step a student reached is kept in this browser, so they can continue later.
+const guide = { open: false, index: 0 };
+const pathEls = {
+  card: document.querySelector("#path-card"), launch: document.querySelector("#start-path"),
+  step: document.querySelector("#path-step"), chapter: document.querySelector("#path-chapter"),
+  bar: document.querySelector("#path-bar-fill"), kind: document.querySelector("#path-kind"),
+  title: document.querySelector("#path-title"), summary: document.querySelector("#path-summary"),
+  also: document.querySelector("#path-also"), back: document.querySelector("#path-back"),
+  next: document.querySelector("#path-next"), explain: document.querySelector("#path-explain"),
+  open: document.querySelector("#path-open"), skip: document.querySelector("#path-skip"),
+};
+const pathKey = () => `wendao_path_v1:${document.title}`;
+
+function pathSteps() {
+  return (state.graph?.path || []).filter((step) => state.nodesById.has(step.node));
+}
+
+function updatePathButton() {
+  const steps = pathSteps();
+  pathEls.launch.hidden = !steps.length;
+  const saved = Number(localStorage.getItem(pathKey()) || 0);
+  pathEls.launch.querySelector("span").textContent = saved > 0 && saved < steps.length ? "Continue path" : "Guided path";
+}
+
+function openPath(index) {
+  if (!pathSteps().length) return;
+  elements.nodeCard.hidden = true;
+  guide.open = true;
+  showPathStep(index);
+}
+
+function showPathStep(index) {
+  const steps = pathSteps();
+  if (!guide.open || !steps.length) return;
+  index = Math.max(0, Math.min(steps.length - 1, index));
+  const step = steps[index]; const node = state.nodesById.get(step.node);
+  guide.index = index;
+  localStorage.setItem(pathKey(), String(index));
+  if (state.hiddenKinds.delete(node.type)) { state.shown = null; updateModeControls(); }
+  clearNodeExplanation();
+  state.selectedId = node.id;
+  if (!REDUCED_MOTION) state.pulse = { id: node.id, start: performance.now() };
+  updateContext(); updateSuggestions(node);
+
+  const chapters = steps.filter((item) => item.node === item.chapter);
+  const chapterNumber = chapters.findIndex((item) => item.chapter === step.chapter) + 1;
+  pathEls.step.textContent = `Step ${index + 1} of ${steps.length}`;
+  pathEls.chapter.textContent = `Chapter ${chapterNumber} of ${chapters.length}`;
+  pathEls.bar.style.width = `${((index + 1) / steps.length) * 100}%`;
+  const isChapter = node.type === "chapter";
+  pathEls.kind.textContent = isChapter ? "Chapter" : `Key concept in ${state.nodesById.get(step.chapter)?.label || "this chapter"}`;
+  pathEls.kind.style.color = isChapter ? "var(--chapter)" : "var(--concept)";
+  pathEls.title.textContent = node.label;
+  pathEls.summary.textContent = node.summary || "";
+  pathEls.summary.hidden = !node.summary;
+  const also = (step.also_in || []).map((id) => state.nodesById.get(id)?.label).filter(Boolean);
+  pathEls.also.hidden = !also.length;
+  pathEls.also.replaceChildren();
+  if (also.length) { const lead = document.createElement("b"); lead.textContent = "Comes up again in: "; pathEls.also.append(lead, also.join(", ")); }
+  pathEls.back.disabled = index === 0;
+  pathEls.next.textContent = index === steps.length - 1 ? "Finish ✓" : "Next →";
+  pathEls.open.hidden = !node.url;
+  if (node.url) pathEls.open.href = node.url;
+  pathEls.skip.hidden = !steps.slice(index + 1).some((item) => item.node === item.chapter);
+  pathEls.card.hidden = false;
+  focusOn(node.id);
+  draw();
+}
+
+function closePath() {
+  guide.open = false;
+  pathEls.card.hidden = true;
+  updatePathButton();
+}
+
+pathEls.launch.addEventListener("click", () => {
+  const steps = pathSteps();
+  const saved = Number(localStorage.getItem(pathKey()) || 0);
+  openPath(saved > 0 && saved < steps.length ? saved : 0);
+});
+pathEls.back.addEventListener("click", () => showPathStep(guide.index - 1));
+pathEls.next.addEventListener("click", () => {
+  if (guide.index >= pathSteps().length - 1) { localStorage.removeItem(pathKey()); closePath(); fitGraph(); return; }
+  showPathStep(guide.index + 1);
+});
+pathEls.skip.addEventListener("click", () => {
+  const steps = pathSteps();
+  const next = steps.findIndex((item, at) => at > guide.index && item.node === item.chapter);
+  if (next >= 0) showPathStep(next);
+});
+pathEls.explain.addEventListener("click", () => {
+  const node = state.nodesById.get(state.selectedId); if (!node) return;
+  if (EMBEDDED) tellWidget("explain", node);
+  else if (EXPORTED) openOnline(node);
+  else { setChatOpen(true); explainSelectedNode(node); }
+});
+document.querySelector("#close-path").addEventListener("click", closePath);
+
 // Explain on the node card: in the widget's chat, the online version (exported file), or this page's chat panel.
 document.querySelector("#explain-in-widget").addEventListener("click", () => {
   const node = state.nodesById.get(state.selectedId); if (!node) return;

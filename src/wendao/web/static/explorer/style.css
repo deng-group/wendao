@@ -335,3 +335,28 @@ a.ask-node { text-decoration: none; }
   .node-summary, .embedded .node-summary { font-size: .82rem; max-height: none; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
   .ask-node, .embedded .ask-node, .ask-node + .ask-node { flex: 1 1 auto; width: auto; gap: 6px; margin-top: 2px; padding: 8px 10px; font-size: .78rem; }
 }
+
+/* Guided path: a card that walks through the course, with progress, Back and Next. */
+.path-launcher svg { fill: none; }
+.path-progress { margin: 0 0 8px; padding-right: 28px; color: var(--muted); font-size: .72rem; font-weight: 650; }
+.path-bar { height: 4px; margin: 0 0 14px; overflow: hidden; border-radius: 4px; background: var(--line); }
+.path-bar i { display: block; height: 100%; width: 0; border-radius: 4px; background: var(--accent); transition: width .25s ease; }
+.path-also { margin: 10px 0 0; color: var(--muted); font-size: .78rem; line-height: 1.45; }
+.path-also b { color: var(--text); font-weight: 650; }
+.path-actions { display: flex; gap: 8px; margin-top: 16px; }
+.path-nav { flex: 1; height: 38px; border: 1px solid var(--accent-line); border-radius: 9px; color: var(--accent-strong); background: var(--accent-soft); cursor: pointer; font-size: .82rem; font-weight: 750; }
+.path-nav.primary { border-color: var(--accent); color: var(--on-accent, #fff); background: var(--accent); }
+.path-nav:disabled { opacity: .4; cursor: default; }
+.path-extra { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 12px; }
+.path-link { padding: 2px 0; border: 0; color: var(--accent-strong); background: none; cursor: pointer; font-size: .78rem; font-weight: 650; text-decoration: none; }
+.path-link:hover { text-decoration: underline; }
+.dark .path-link, .dark .path-nav { color: var(--accent); }
+.dark .path-nav.primary { color: var(--on-accent, #fff); }
+.exported-offline #path-explain { display: none !important; }
+@media (max-width: 590px), (max-height: 560px) {
+  .path-card > * { flex-basis: 100%; }
+  .path-card .path-actions { margin-top: 4px; }
+  .path-card .path-extra { margin-top: 2px; }
+  .path-launcher { width: 36px; padding: 0; justify-content: center; }
+  .path-launcher span { display: none; }
+}

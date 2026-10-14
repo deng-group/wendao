@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.1",
+  "schema_version": "1.2",
   "course": {
     "code": "MLE4217/5219",
     "title": "Materials Informatics",
@@ -76966,6 +76966,325 @@
       "evidence": {
         "source": "course chapter order"
       }
+    }
+  ],
+  "path": [
+    {
+      "node": "chapter:orientation",
+      "chapter": "chapter:orientation"
+    },
+    {
+      "node": "keyword:hpc",
+      "chapter": "chapter:orientation",
+      "also_in": [
+        "chapter:computer",
+        "chapter:structures",
+        "chapter:optimization",
+        "chapter:high_throughput"
+      ]
+    },
+    {
+      "node": "chapter:programming",
+      "chapter": "chapter:programming"
+    },
+    {
+      "node": "keyword:open-source-software",
+      "chapter": "chapter:programming",
+      "also_in": []
+    },
+    {
+      "node": "chapter:computer",
+      "chapter": "chapter:computer"
+    },
+    {
+      "node": "keyword:cpu",
+      "chapter": "chapter:computer",
+      "also_in": [
+        "chapter:orientation",
+        "chapter:machine_learning_i",
+        "chapter:machine_learning_ii",
+        "chapter:machine_learning_potentials"
+      ]
+    },
+    {
+      "node": "keyword:parallel-computing",
+      "chapter": "chapter:computer",
+      "also_in": [
+        "chapter:optimization",
+        "chapter:high_throughput"
+      ]
+    },
+    {
+      "node": "keyword:time-complexity",
+      "chapter": "chapter:computer",
+      "also_in": [
+        "chapter:database",
+        "chapter:structures",
+        "chapter:machine_learning_potentials"
+      ]
+    },
+    {
+      "node": "chapter:database",
+      "chapter": "chapter:database"
+    },
+    {
+      "node": "keyword:json",
+      "chapter": "chapter:database",
+      "also_in": [
+        "chapter:orientation",
+        "chapter:structures",
+        "chapter:high_throughput"
+      ]
+    },
+    {
+      "node": "keyword:materials-project",
+      "chapter": "chapter:database",
+      "also_in": [
+        "chapter:orientation",
+        "chapter:programming",
+        "chapter:structures",
+        "chapter:high_throughput"
+      ]
+    },
+    {
+      "node": "keyword:csv",
+      "chapter": "chapter:database",
+      "also_in": [
+        "chapter:programming",
+        "chapter:structures",
+        "chapter:models_and_theories_ii",
+        "chapter:high_throughput"
+      ]
+    },
+    {
+      "node": "chapter:structures",
+      "chapter": "chapter:structures"
+    },
+    {
+      "node": "keyword:lattice",
+      "chapter": "chapter:structures",
+      "also_in": [
+        "chapter:programming",
+        "chapter:database",
+        "chapter:models_and_theories_i",
+        "chapter:models_and_theories_ii"
+      ]
+    },
+    {
+      "node": "keyword:symmetry",
+      "chapter": "chapter:structures",
+      "also_in": [
+        "chapter:database",
+        "chapter:models_and_theories_i",
+        "chapter:optimization",
+        "chapter:high_throughput"
+      ]
+    },
+    {
+      "node": "keyword:crystal-structure",
+      "chapter": "chapter:structures",
+      "also_in": [
+        "chapter:programming",
+        "chapter:database",
+        "chapter:models_and_theories_i",
+        "chapter:models_and_theories_ii"
+      ]
+    },
+    {
+      "node": "chapter:models_and_theories_i",
+      "chapter": "chapter:models_and_theories_i"
+    },
+    {
+      "node": "keyword:force-field",
+      "chapter": "chapter:models_and_theories_i",
+      "also_in": [
+        "chapter:models_and_theories_ii",
+        "chapter:optimization",
+        "chapter:high_throughput",
+        "chapter:machine_learning_i"
+      ]
+    },
+    {
+      "node": "keyword:potential-energy",
+      "chapter": "chapter:models_and_theories_i",
+      "also_in": [
+        "chapter:models_and_theories_ii",
+        "chapter:optimization",
+        "chapter:machine_learning_potentials"
+      ]
+    },
+    {
+      "node": "keyword:quantum-mechanics",
+      "chapter": "chapter:models_and_theories_i",
+      "also_in": [
+        "chapter:computer",
+        "chapter:models_and_theories_ii",
+        "chapter:machine_learning_i",
+        "chapter:machine_learning_potentials"
+      ]
+    },
+    {
+      "node": "chapter:models_and_theories_ii",
+      "chapter": "chapter:models_and_theories_ii"
+    },
+    {
+      "node": "keyword:monte-carlo",
+      "chapter": "chapter:models_and_theories_ii",
+      "also_in": [
+        "chapter:high_throughput",
+        "chapter:machine_learning_i"
+      ]
+    },
+    {
+      "node": "keyword:molecular-dynamics",
+      "chapter": "chapter:models_and_theories_ii",
+      "also_in": [
+        "chapter:database",
+        "chapter:structures",
+        "chapter:optimization",
+        "chapter:high_throughput"
+      ]
+    },
+    {
+      "node": "keyword:statistical-mechanics",
+      "chapter": "chapter:models_and_theories_ii",
+      "also_in": []
+    },
+    {
+      "node": "chapter:optimization",
+      "chapter": "chapter:optimization"
+    },
+    {
+      "node": "keyword:airss",
+      "chapter": "chapter:optimization",
+      "also_in": [
+        "chapter:high_throughput"
+      ]
+    },
+    {
+      "node": "keyword:global-optimization",
+      "chapter": "chapter:optimization",
+      "also_in": []
+    },
+    {
+      "node": "keyword:transition-state",
+      "chapter": "chapter:optimization",
+      "also_in": []
+    },
+    {
+      "node": "chapter:high_throughput",
+      "chapter": "chapter:high_throughput"
+    },
+    {
+      "node": "keyword:atomate2",
+      "chapter": "chapter:high_throughput",
+      "also_in": [
+        "chapter:orientation"
+      ]
+    },
+    {
+      "node": "keyword:thermodynamics",
+      "chapter": "chapter:high_throughput",
+      "also_in": [
+        "chapter:database",
+        "chapter:models_and_theories_ii",
+        "chapter:machine_learning_i",
+        "chapter:machine_learning_ii"
+      ]
+    },
+    {
+      "node": "keyword:dft",
+      "chapter": "chapter:high_throughput",
+      "also_in": [
+        "chapter:database",
+        "chapter:models_and_theories_i",
+        "chapter:models_and_theories_ii",
+        "chapter:optimization"
+      ]
+    },
+    {
+      "node": "chapter:machine_learning_i",
+      "chapter": "chapter:machine_learning_i"
+    },
+    {
+      "node": "keyword:regression",
+      "chapter": "chapter:machine_learning_i",
+      "also_in": [
+        "chapter:database",
+        "chapter:machine_learning_ii",
+        "chapter:machine_learning_potentials"
+      ]
+    },
+    {
+      "node": "keyword:loss-function",
+      "chapter": "chapter:machine_learning_i",
+      "also_in": [
+        "chapter:optimization",
+        "chapter:machine_learning_ii",
+        "chapter:machine_learning_potentials"
+      ]
+    },
+    {
+      "node": "keyword:pytorch",
+      "chapter": "chapter:machine_learning_i",
+      "also_in": [
+        "chapter:machine_learning_ii",
+        "chapter:machine_learning_potentials"
+      ]
+    },
+    {
+      "node": "chapter:machine_learning_ii",
+      "chapter": "chapter:machine_learning_ii"
+    },
+    {
+      "node": "keyword:gnn",
+      "chapter": "chapter:machine_learning_ii",
+      "also_in": [
+        "chapter:structures",
+        "chapter:machine_learning_i",
+        "chapter:machine_learning_potentials"
+      ]
+    },
+    {
+      "node": "keyword:diffusion-model",
+      "chapter": "chapter:machine_learning_ii",
+      "also_in": []
+    },
+    {
+      "node": "keyword:neural-network",
+      "chapter": "chapter:machine_learning_ii",
+      "also_in": [
+        "chapter:orientation",
+        "chapter:computer",
+        "chapter:structures",
+        "chapter:machine_learning_i"
+      ]
+    },
+    {
+      "node": "chapter:machine_learning_potentials",
+      "chapter": "chapter:machine_learning_potentials"
+    },
+    {
+      "node": "keyword:mace",
+      "chapter": "chapter:machine_learning_potentials",
+      "also_in": [
+        "chapter:orientation",
+        "chapter:optimization",
+        "chapter:high_throughput"
+      ]
+    },
+    {
+      "node": "keyword:machine-learning-potential",
+      "chapter": "chapter:machine_learning_potentials",
+      "also_in": [
+        "chapter:models_and_theories_i",
+        "chapter:machine_learning_i"
+      ]
+    },
+    {
+      "node": "keyword:behler-parrinello",
+      "chapter": "chapter:machine_learning_potentials",
+      "also_in": []
     }
   ]
 }
