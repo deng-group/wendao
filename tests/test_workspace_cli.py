@@ -376,6 +376,30 @@ By the end of this chapter, you should be able to:
         self.assertEqual(outline["objectives"], [])
 
 
+class OffTopicTest(unittest.TestCase):
+    """Keyword search always finds something; the gate also looks at the meaning score and the course's words."""
+
+    def result(self, meaning):
+        from wendao.rag.retriever import SearchResult
+
+        return SearchResult("c1", "a.md", "A", "a", 1.0, 5.0, meaning, False, None, "", "")
+
+    def test_off_topic_questions_are_turned_away(self):
+        from wendao.rag.answerability import AnswerabilityGate
+
+        gate = AnswerabilityGate(vocabulary={"lattice", "crystal", "structure", "with", "pizza"}, meaning_floor=0.20)
+        self.assertEqual(gate.decide("What is the best pizza topping?", [self.result(0.07)]).status, "out_of_scope")
+        # a little low, and most words never appear in the notes
+        self.assertEqual(gate.decide("How do I bake sourdough bread with a lattice crust?", [self.result(0.26)]).status, "out_of_scope")
+        # a little low, but the words are the course's own: a real question
+        self.assertEqual(gate.decide("What is a crystal structure lattice?", [self.result(0.26)]).status, "answerable")
+        self.assertEqual(gate.decide("What is a crystal lattice?", [self.result(0.55)]).status, "answerable")
+        # highlighted text, no English words, or no search model: not judged this way
+        self.assertEqual(gate.decide("explain this", [self.result(0.05)], focused=True).status, "answerable")
+        self.assertNotEqual(gate.decide("凸包是什么？", [self.result(0.05)]).status, "out_of_scope")
+        self.assertEqual(AnswerabilityGate().decide("What is the best pizza topping?", [self.result(0.07)]).status, "answerable")
+
+
 class LearningPathTest(unittest.TestCase):
     def test_concepts_come_in_their_main_chapter(self):
         from collections import Counter

@@ -69,6 +69,7 @@ Current gate thresholds:
 | `min_embedding_score` | `0.18` | If BM25 is nearly zero and embedding is below this, return `weak_evidence`. |
 | multi-source ratio | `0.72` | Top-5 results within 72% of the top score are considered close evidence. |
 | prompt evidence threshold | `0.60` | Chunks at or above this score are sent as full-content LLM evidence. |
+| off-topic meaning floor | `0.20` | With the search model: the best meaning score below this, or below `0.30` while fewer than half the question's words appear in the notes, is `out_of_scope` (after the broad-question check; not for highlighted text or questions without English words). |
 
 Short memory is intentionally small and session-scoped. The browser widget stores
 recent turns in `sessionStorage`, so memory is cleared when the tab/window is
