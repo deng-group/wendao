@@ -214,4 +214,4 @@ def browser_graph(graph: dict, link_for=None) -> dict:
                 item["url"] = url
         nodes.append(item)
     edges = [{key: edge[key] for key in EDGE_FIELDS if key in edge} for edge in graph.get("edges", [])]
-    return {"nodes": nodes, "edges": edges}
+    return {"nodes": nodes, "edges": edges, "path": graph.get("path", [])}

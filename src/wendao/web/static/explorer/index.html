@@ -33,6 +33,10 @@
           </label>
 
           <div class="graph-actions" aria-label="Graph controls">
+            <button id="start-path" class="chat-launcher path-launcher" type="button" title="A guided path through the course, chapter by chapter" hidden>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="18" r="2.2"></circle><circle cx="18" cy="6" r="2.2"></circle><path d="M8 18h6.5a3.5 3.5 0 0 0 0-7h-5a3.5 3.5 0 0 1 0-7H16"></path></svg>
+              <span>Guided path</span>
+            </button>
             <button id="reset-view" class="icon-control" type="button" aria-label="Reset graph view" title="Reset view">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11a8 8 0 1 1 2.3 5.7"></path><path d="M4 5v6h6"></path></svg>
             </button>
@@ -79,6 +83,25 @@
             <button id="explain-in-widget" class="ask-node" type="button">Explain <span>→</span></button>
             <button id="ask-node" class="ask-node" type="button">Ask a question <span>→</span></button>
             <a id="open-page" class="ask-node" target="_blank" rel="noopener" hidden>Open page <span>↗</span></a>
+          </article>
+
+          <article id="path-card" class="node-card path-card" hidden aria-live="polite" aria-label="Guided path">
+            <button id="close-path" class="card-close" type="button" aria-label="Leave the guided path" title="Leave the path (Esc)">×</button>
+            <p class="path-progress"><span id="path-step"></span> · <span id="path-chapter"></span></p>
+            <div class="path-bar" aria-hidden="true"><i id="path-bar-fill"></i></div>
+            <p id="path-kind" class="node-kind"></p>
+            <h2 id="path-title"></h2>
+            <p id="path-summary" class="node-summary" hidden></p>
+            <p id="path-also" class="path-also" hidden></p>
+            <div class="path-actions">
+              <button id="path-back" class="path-nav" type="button" title="Previous step (←)">← Back</button>
+              <button id="path-next" class="path-nav primary" type="button" title="Next step (→)">Next →</button>
+            </div>
+            <div class="path-extra">
+              <button id="path-explain" class="path-link" type="button">Explain with AI</button>
+              <a id="path-open" class="path-link" target="_blank" rel="noopener">Read more ↗</a>
+              <button id="path-skip" class="path-link" type="button">Next chapter »</button>
+            </div>
           </article>
 
           <div class="legend" aria-label="Show or hide kinds of nodes">
