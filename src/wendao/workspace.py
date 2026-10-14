@@ -123,6 +123,8 @@ class Workspace:
     # Graded work: "full" answers as usual; "hints" explains and hints but doesn't solve assignments, quizzes, exams.
     assignment_help: str = "full"
     questions_per_day: int = 0
+    # Teacher insights (`wendao insights`): "counts" (no question text), "questions" (also the text), or "off".
+    insights: str = "counts"
     allowed_origins: list[str] = field(default_factory=list)
     roster: str = ""
     web_search: dict | None = field(default_factory=lambda: web_search_engine(DEFAULT_WEB_SEARCH))
@@ -279,6 +281,9 @@ def load(start: Path | None = None) -> Workspace:
     style = str(course.get("style", "modern")).strip().lower()
     if style not in STYLES:
         raise WorkspaceError(f"[course] style in {CONFIG_NAME} must be \"modern\" or \"economist\", not \"{style}\".")
+    insights = str(student.get("insights", "counts")).strip().lower()
+    if insights not in {"counts", "questions", "off"}:
+        raise WorkspaceError(f'[student] insights in {CONFIG_NAME} must be "counts", "questions", or "off", not "{insights}".')
     assignment_help = str(student.get("assignment_help", "full")).strip().lower()
     if assignment_help not in {"full", "hints"}:
         raise WorkspaceError(f'[student] assignment_help in {CONFIG_NAME} must be "full" or "hints", not "{assignment_help}".')
@@ -333,6 +338,7 @@ def load(start: Path | None = None) -> Workspace:
         student_ai=str(student.get("ai", "teacher")),
         assignment_help=assignment_help,
         questions_per_day=int(student.get("questions_per_day", 0) or 0),
+        insights=insights,
         allowed_origins=[str(item) for item in student.get("allowed_origins", [])],
         roster=str(student.get("roster", "")),
         web_search=web_search_engine(widget.get("web_search", DEFAULT_WEB_SEARCH)),

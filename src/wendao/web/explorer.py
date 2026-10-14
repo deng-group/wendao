@@ -19,6 +19,7 @@ from wendao.web import STATIC_DIR
 from wendao.web.accounts import SignInError
 from wendao.web.ai import AiPolicy, AiUnavailable, bearer_token, student_id
 from wendao.web.graph_api import GraphFile, browser_graph, graph_response
+from wendao.web.insights import recorder, store_opener
 
 EXPLORER_DIR = STATIC_DIR / "explorer"
 
@@ -88,6 +89,7 @@ def create_app(workspace=None) -> Flask:
     workspace = workspace or workspace_module.load()
     workspace.apply_model_settings()
     graph_file = GraphFile(workspace.require(workspace.graph_path, "Run `wendao build` first."))
+    record_question = recorder(store_opener(workspace), "website", lambda: graph_file.graph)  # teacher insights
     pipeline = QueryPipeline.for_workspace(workspace, top_k=5)
     prompt_builder = PromptBuilder.for_workspace(workspace, evidence_score_threshold=0.60, presentation_mode="direct")
     index_page = render_index(workspace)
@@ -168,6 +170,7 @@ def create_app(workspace=None) -> Flask:
                     prompt_builder=prompt_builder,
                     provider=chosen,
                     course_name=workspace.display_name,
+                    on_decision=record_question,
                 )
                 for event in generator.stream_answer(
                     query,

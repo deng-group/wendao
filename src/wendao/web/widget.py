@@ -24,6 +24,7 @@ from wendao.web.accounts import SignInError, TokenSigner
 from wendao.web.ai import AiPolicy, AiUnavailable, bearer_token, student_id
 from wendao.web.explorer import EXPLORER_DIR, course_source_url, render_index
 from wendao.web.feedback import FeedbackError, FeedbackStore
+from wendao.web.insights import recorder, store_opener
 from wendao.web.graph_api import GraphFile, graph_response
 
 MAX_SELECTION = 1500  # characters of highlighted page text sent with a question
@@ -97,6 +98,8 @@ def create_app(workspace=None) -> Flask:
             item = {**item, "url": course_source_url(item["file_path"], workspace.website)}
         return item
 
+    record_question = recorder(store_opener(workspace), "widget", lambda: graph_file.graph)  # teacher insights
+
     def generator_for(payload: dict) -> AnswerGenerator:
         provider = policy.choose(payload, student_id(request), bearer_token(request))
         return AnswerGenerator(
@@ -104,6 +107,7 @@ def create_app(workspace=None) -> Flask:
             prompt_builder=prompt_builder,
             provider=provider,
             course_name=workspace.display_name,
+            on_decision=record_question,
         )
 
     @app.after_request

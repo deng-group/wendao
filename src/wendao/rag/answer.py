@@ -23,8 +23,11 @@ class AnswerGenerator:
         prompt_builder: PromptBuilder | None = None,
         provider: LLMProvider | None = None,
         course_name: str = "this course",
+        on_decision=None,
     ):
         self.pipeline = pipeline
+        # Called after the answer check with (query, pipeline result, prompt package, context): teacher insights.
+        self.on_decision = on_decision
         self.prompt_builder = prompt_builder or PromptBuilder(course_name=course_name)
         self.provider = provider or DryRunProvider()
         self.course_name = course_name
@@ -50,6 +53,11 @@ class AnswerGenerator:
             selected_context=context,
             selection=selection,
         )
+        if self.on_decision:
+            try:
+                self.on_decision(query, pipeline_result, prompt_package, context)
+            except Exception:  # noqa: BLE001 - noting the question must never stop the answer
+                pass
         return pipeline_result, prompt_package
 
     def answer(
