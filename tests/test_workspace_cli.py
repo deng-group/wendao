@@ -197,6 +197,7 @@ class WorkspaceCliTest(unittest.TestCase):
         with contextlib.redirect_stdout(output), self.assertRaises(SystemExit):
             main(["doctor", "-w", str(self.root), "--no-model"])
         self.assertIn("Notes: no files Wendao can read.", output.getvalue())
+        self.assertIn("Read more in the course", output.getvalue())  # no [course] website: say what it costs, and how to fix it
         self.assertIn(".md", output.getvalue())
 
     def test_model_fix_reads_the_error(self):
