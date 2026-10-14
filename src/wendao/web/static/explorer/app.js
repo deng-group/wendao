@@ -226,6 +226,7 @@ const VELOCITY_DECAY = 0.4; // calm: nodes glide to a stop
 const HOME_PULL = 0.05; // gentle: it drifts back rather than snapping
 const ALPHA_MIN = 0.001;
 const ALPHA_DECAY = 1 - Math.pow(ALPHA_MIN, 1 / 300);
+const ALPHA_SETTLED = 0.008; // after a drag: about 2.5 s of motion instead of 4
 
 function visualType(node) {
   return node.type === "chapter" ? "chapter" : "concept";
@@ -518,7 +519,9 @@ function startPhysics(alpha) {
     if (state.fitPending && state.alpha < 0.08) { state.fitPending = false; if (state.selectedId) focusOn(state.selectedId); else fitGraph(); }
     if (!state.homesSet && state.alpha < 0.02) rememberHomes();
     render();
-    if (state.alpha > ALPHA_MIN || state.alphaTarget > 0) state.frame = requestAnimationFrame(loop);
+    // After the first layout, stop as soon as the motion is too small to see (keeps the page idle, and cool).
+    const settled = state.homesSet ? ALPHA_SETTLED : ALPHA_MIN;
+    if (state.alpha > settled || state.alphaTarget > 0) state.frame = requestAnimationFrame(loop);
     else state.frame = null;
   };
   state.frame = requestAnimationFrame(loop);
@@ -669,10 +672,14 @@ function render() {
     context.fill();
   }
   const glowing = colours.glow && focus && state.sim.byId.get(focus);
-  if (glowing && isShownNode(glowing)) { // a soft glow around the node in focus (modern style)
-    context.save(); context.globalAlpha = 1; context.shadowColor = colours.glow; context.shadowBlur = 18 * (state.ratio || 1);
-    context.fillStyle = colours[glowing.node.type] || colours.keyword;
-    context.beginPath(); context.arc(glowing.x, glowing.y, glowing.r, 0, Math.PI * 2); context.fill(); context.restore();
+  if (glowing && isShownNode(glowing)) { // a soft halo around the node in focus (modern style): two light rings, not a blur
+    context.fillStyle = colours.glow;
+    for (const [grow, alpha] of [[9, 0.18], [4.5, 0.32]]) {
+      context.globalAlpha = alpha * fade;
+      context.beginPath(); context.arc(glowing.x, glowing.y, glowing.r + grow / k, 0, Math.PI * 2); context.fill();
+    }
+    context.globalAlpha = 1; context.fillStyle = colours[glowing.node.type] || colours.keyword;
+    context.beginPath(); context.arc(glowing.x, glowing.y, glowing.r, 0, Math.PI * 2); context.fill();
   }
   const selected = state.selectedId && state.sim.byId.get(state.selectedId);
   if (selected && isShownNode(selected)) {

@@ -377,3 +377,15 @@ a.ask-node { text-decoration: none; }
 @media (max-width: 590px), (max-height: 560px) {
   .path-card .path-actions { flex-basis: calc(100% + 32px); bottom: -14px; margin-inline: -16px; padding: 8px 16px 10px; }
 }
+
+/* No frosted-glass blur over the graph: the graph changes every frame, so the browser would blur these areas again
+   60-120 times a second, which is slow on high-resolution screens. Nearly solid backgrounds look the same. */
+.graph-header, .legend, .node-card, .search-results, .appearance-menu { -webkit-backdrop-filter: none; backdrop-filter: none; }
+.graph-header { background: rgba(255, 255, 255, 0.97); }
+.legend { background: rgba(255, 255, 255, 0.97); }
+.node-card { background: rgba(255, 255, 255, 0.98); }
+.dark .graph-header { background: rgba(18, 18, 18, 0.97); }
+.dark .legend, .dark .node-card, .dark .search-results { background: rgba(27, 27, 27, 0.98); }
+.style-modern.dark .graph-header { background: rgba(9, 9, 11, 0.97); }
+.style-modern.dark .legend, .style-modern.dark .node-card, .style-modern.dark .search-results { background: rgba(24, 24, 27, 0.98); }
+.path-card, .dark .path-card { background: var(--panel); }
