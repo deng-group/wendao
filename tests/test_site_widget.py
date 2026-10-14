@@ -273,6 +273,7 @@ class ExportTest(unittest.TestCase):
         self.assertNotIn("./style.css", page)
         self.assertNotIn("a long passage", page)  # only what the page needs
         self.assertIn("https://demo.edu/a/intro/", page)  # page nodes link to the course website
+        self.assertIn('"file":"a/intro.md"', page)  # so a chat source can point to its page in the graph
         self.assertEqual(page.count("</script>"), 2)  # a label can't close the script early
         self.assertIn('"online":""', page)
         self.assertIn('"path":', page)  # the guided path works in the file too

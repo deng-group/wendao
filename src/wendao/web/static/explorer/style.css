@@ -389,3 +389,14 @@ a.ask-node { text-decoration: none; }
 .style-modern.dark .graph-header { background: rgba(9, 9, 11, 0.97); }
 .style-modern.dark .legend, .style-modern.dark .node-card, .style-modern.dark .search-results { background: rgba(24, 24, 27, 0.98); }
 .path-card, .dark .path-card { background: var(--panel); }
+
+/* Pages and sources: links to the course website, or buttons that show the page in the graph. */
+.path-pages button { padding: 3px 9px; border: 1px solid var(--line); border-radius: 999px; color: var(--text); background: var(--panel, #fff); cursor: pointer; font: inherit; font-size: .74rem; }
+.path-pages a, .path-pages button { text-decoration: none; }
+.path-pages a { color: var(--accent-strong); border-color: var(--accent-line); }
+.path-pages a:hover, .path-pages button:hover { border-color: var(--accent); text-decoration: underline; }
+.dark .path-pages a { color: var(--accent); }
+button.source-item { display: block; width: 100%; border: 0; border-top: 1px solid var(--line); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+a.source-item strong, button.source-item strong { color: var(--accent-strong); }
+.dark a.source-item strong, .dark button.source-item strong { color: var(--accent); }
+a.source-item:hover strong, button.source-item:hover strong { text-decoration: underline; }

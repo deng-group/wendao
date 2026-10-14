@@ -207,6 +207,8 @@ def browser_graph(graph: dict, link_for=None) -> dict:
     nodes = []
     for node in graph.get("nodes", []):
         item = {key: node[key] for key in NODE_FIELDS if key in node}
+        if node.get("type") == "topic" and node.get("source_files"):
+            item["file"] = node["source_files"][0]  # so a chat source can point to its page in the graph
         # The page to open: a page itself; for a concept, where its introduction comes from; a chapter's index page.
         page = node["source_files"][0] if node.get("type") == "topic" and node.get("source_files") else node.get("summary_file")
         if link_for and page:
