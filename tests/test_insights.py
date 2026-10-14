@@ -30,9 +30,11 @@ class InsightsTest(unittest.TestCase):
     def test_question_text_is_kept_only_when_the_teacher_asks_for_it(self):
         InsightStore(self.db).add("widget", "weak_evidence", [], ["thermo/hull.md"], "my private question")
         InsightStore(self.db, keep_questions=True).add("widget", "weak_evidence", [], [], "What is the Hubbard U?")
-        rows = sqlite3.connect(self.db).execute("SELECT question FROM asks ORDER BY id").fetchall()
+        with contextlib.closing(sqlite3.connect(self.db)) as db:  # closed again, or Windows can't remove the folder
+            rows = db.execute("SELECT question FROM asks ORDER BY id").fetchall()
+            columns = [column[1] for column in db.execute("PRAGMA table_info(asks)")]
         self.assertEqual(rows, [(None,), ("What is the Hubbard U?",)])
-        self.assertNotIn("sender", [column[1] for column in sqlite3.connect(self.db).execute("PRAGMA table_info(asks)")])
+        self.assertNotIn("sender", columns)
 
     def test_concepts_are_found_by_name_and_alias(self):
         self.assertEqual(concepts_in("How are convex hulls built from DFT energies?", GRAPH), ["keyword:convex-hull", "keyword:dft"])
