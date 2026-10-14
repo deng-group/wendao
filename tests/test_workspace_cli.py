@@ -327,6 +327,54 @@ class ExampleWorkspaceTest(unittest.TestCase):
         self.assertEqual(where["keyword:crystal-structure"], "chapter:structures")  # its main chapter, not Orientation
 
 
+class ChapterOutlineTest(unittest.TestCase):
+    """What the guided path shows for a chapter, read from its index page by section."""
+
+    PAGE = """# Structures
+
+```{image} ../figures/title.jpeg
+```
+
+## Slides
+<iframe src="https://docs.example/slides"></iframe>
+
+## Lecture Videos
+This lecture has been recorded using Zoom. **You need to use your university email to login.**
+- [Part I](https://zoom.example/rec) (Passcode: Yu=x3h51)
+
+## Content
+This chapter covers crystal structures, from lattices to defects. We will use `pymatgen` to build structures.
+
+## Learning Objectives
+By the end of this chapter, you should be able to:
+- Understand basics of crystal structures and lattice systems
+- Apply **symmetry** and [space groups](https://example/sg) in materials science
+"""
+
+    def outline(self, text):
+        from wendao.graph import chapter_outline
+
+        return chapter_outline([{"chunk_id": "structures/index.md_0", "file_path": "structures/index.md", "title": "Structures",
+                                 "content": text}])
+
+    def test_overview_and_objectives_without_slides_or_recordings(self):
+        outline = self.outline(self.PAGE)
+        self.assertEqual(outline["title"], "Structures")
+        self.assertEqual(outline["overview"], "This chapter covers crystal structures, from lattices to defects. "
+                                              "We will use pymatgen to build structures.")
+        self.assertEqual(outline["objectives"], ["Understand basics of crystal structures and lattice systems",
+                                                 "Apply symmetry and space groups in materials science"])
+        everything = json.dumps(outline)
+        for private in ("Zoom", "Passcode", "x3h51", "login", "slides"):
+            self.assertNotIn(private, everything)
+
+    def test_without_a_content_heading_the_first_readable_paragraph(self):
+        page = self.PAGE.replace("## Content", "## Practical").replace("## Learning Objectives", "## Notes")
+        outline = self.outline(page)
+        self.assertTrue(outline["overview"].startswith("This chapter covers crystal structures"))
+        self.assertEqual(outline["objectives"], [])
+
+
 class LearningPathTest(unittest.TestCase):
     def test_concepts_come_in_their_main_chapter(self):
         from collections import Counter

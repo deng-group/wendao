@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.2",
+  "schema_version": "1.3",
   "course": {
     "code": "MLE4217/5219",
     "title": "Materials Informatics",
@@ -121,6 +121,15 @@
         "keyword:workflow"
       ],
       "summary": "Hardware, software, version control, and performance.",
+      "overview": "This week, we will explore computer hardware and software, starting with the history and development of computer systems. We will examine computer architectures, focusing on the basic components such as the CPU, GPU, memory, and storage. We will discuss the differences between CPUs and GPUs, their roles, and functionalities. Additionally, we will cover fundamental programming languages and libraries, and assess the performance of your code using Python libraries. Finally, we will demonstrate version control with git and collaboration using GitHub.",
+      "objectives": [
+        "Know the history and development of computer systems",
+        "Understand the basic components of a computer system",
+        "Understand the differences between CPU and GPU",
+        "Understand the differences between different programming languages",
+        "Test the performance of your computer code",
+        "Use git and GitHub to manage your code repository"
+      ],
       "summary_file": "computer/index.md"
     },
     {
@@ -200,6 +209,15 @@
         "keyword:unit-cell"
       ],
       "summary": "Materials databases, data formats, querying, and analysis.",
+      "overview": "This week, we will dive into database for materials informatics. We will discuss the importance of data structures and formats in database design, and explore specialized materials databases to perform tasks like querying properties. We will also use Python to call APIs and access materials data from online databases.",
+      "objectives": [
+        "Understand data structures and their applications in database design.",
+        "Recognize common database formats and select suitable ones for specific needs.",
+        "Explore specialized materials databases to perform tasks like querying properties.",
+        "Identify methods for generating materials data and evaluate their appropriateness.",
+        "Use materials databases effectively to select appropriate materials based on specific criteria.",
+        "Use Pandas to load, manipulate, and analyze materials data from APIs and simulation logs."
+      ],
       "summary_file": "database/index.md"
     },
     {
@@ -267,6 +285,8 @@
         "keyword:regression"
       ],
       "summary": "Supporting figure-generation material.",
+      "overview": "",
+      "objectives": [],
       "summary_file": ""
     },
     {
@@ -347,6 +367,8 @@
         "keyword:workflow"
       ],
       "summary": "Review material connecting the full course.",
+      "overview": "In this week, we focus the review on the main course content that supports the final examination.",
+      "objectives": [],
       "summary_file": "final_review/index.md"
     },
     {
@@ -442,6 +464,13 @@
         "keyword:workflow"
       ],
       "summary": "Automated workflows, thermodynamics, and materials discovery.",
+      "overview": "This week, we will discuss the topic of high-throughput simulations, which are essential for exploring large materials databases and predicting new materials with desired properties. We will cover the workflow of the high-throughput simulations, then discuss the computational codes used in high-throughput simulations, focusing on density functional theory (DFT), molecular dynamics, and Monte Carlo methods. We will also cover the workflow management systems used in high-throughput simulations.",
+      "objectives": [
+        "Understand the workflow of high-throughput simulations.",
+        "Identify the computational codes used in high-throughput simulations, including density functional theory (DFT), molecular dynamics, and Monte Carlo methods.",
+        "Explain the role of workflow management systems in high-throughput simulations.",
+        "Analyze data and calculate thermodynamic properties in high-throughput simulations."
+      ],
       "summary_file": "high_throughput/index.md"
     },
     {
@@ -542,6 +571,15 @@
         "keyword:workflow"
       ],
       "summary": "Machine-learning tasks, features, models, and validation.",
+      "overview": "This week, we will cover basic concepts of machine learning, including types of machine learning, difference between supervised and unsupervised learning, and importance of data preprocessing. We will also discuss different types of models used in machine learning, including linear regression, logistic regression, decision trees, and neural networks. Additionally, we will cover concepts of overfitting and underfitting, as well as importance of model evaluation and validation. In practical, we will use PyTorch to perform some basic machine learning tasks.",
+      "objectives": [
+        "Understand basic concepts and types of machine learning.",
+        "Differentiate between supervised and unsupervised learning.",
+        "Recognize importance of data preprocessing in machine learning.",
+        "Identify various machine learning models such as linear regression, logistic regression, decision trees, and neural networks.",
+        "Explain concepts of overfitting and underfitting.",
+        "Evaluate and validate machine learning models effectively."
+      ],
       "summary_file": "machine_learning_I/index.md"
     },
     {
@@ -623,6 +661,12 @@
         "keyword:unsupervised-learning"
       ],
       "summary": "Graphs, graph neural networks, and generative models.",
+      "overview": "This week, we will go through the advanced topics in machine learning including the graph neural networks (GNNs) and diffusion models. Particularly, we will focus on the applications of GNNs and diffusion models in materials science. In the practical session, we will implement a GNN model to predict the polarizability of molecules.",
+      "objectives": [
+        "Understand the basic concepts of graph neural networks (GNNs) and their applications in materials science.",
+        "Understand the basic concepts of diffusion models and their applications in materials science.",
+        "Understand the basics of implementing a GNN model and apply to the materials science problems."
+      ],
       "summary_file": "machine_learning_II/index.md"
     },
     {
@@ -720,6 +764,15 @@
         "keyword:universal-mlp"
       ],
       "summary": "Interatomic machine-learning models and their training.",
+      "overview": "This week, we will dive into the world of machine learning potentials (MLPs). We will start from why we need MLPs, and then introduce different types of MLPs. Next we will go a bit deeper into the Behler-Parrinello and Multi-Atomic Cluster Expansion (MACE) potentials. We will then introduce the universal MLPs and how to compare their performance. In addition, we will briefly cover the training and validation process of MLPs. Finally, we will discuss the challenges of the current field.",
+      "objectives": [
+        "Understand the need for MLPs and their advantages over traditional methods.",
+        "Understand the features of MLPs and how they are constructed.",
+        "Familiarize with different types of MLPs, including Behler-Parrinello and MACE potentials.",
+        "Learn about universal MLPs and how to compare their performance.",
+        "Understand the training and validation process of MLPs.",
+        "Familiarize with the challenges of MLPs."
+      ],
       "summary_file": "machine_learning_potentials/index.md"
     },
     {
@@ -780,6 +833,8 @@
         "keyword:workflow"
       ],
       "summary": "Review material for the first part of the course.",
+      "overview": "In this week, we will review the Lecture 1-5, do Quiz 1, and walk through the Assignment 1.",
+      "objectives": [],
       "summary_file": "midterm_review/index.md"
     },
     {
@@ -852,6 +907,13 @@
         "keyword:unit-cell"
       ],
       "summary": "Atomistic models, force fields, and electronic structure.",
+      "overview": "This week, we will cover the force fields and first-principles methods used in materials science to model the structure and properties of materials at the atomic scale. We will discuss the principles behind these methods, their advantages and limitations, and their applications in materials science. We will also introduce some ways to speed up the calculations using force fields and first-principles methods. Finally, we will learn how to use atomic simulation environments (ASE) to perform calculations using force fields.",
+      "objectives": [
+        "Understand what is a force field and how it is used to model the structure and properties of materials at the atomic scale.",
+        "Briefly understand the principles behind the first-principles methods and how they are used to model the structure and properties of materials at the atomic scale.",
+        "Understand some ways to speed up the calculations using force fields and first-principles methods.",
+        "Know how to use atomic simulation environments (ASE) to perform calculations using force fields."
+      ],
       "summary_file": "models_and_theories_I/index.md"
     },
     {
@@ -927,6 +989,13 @@
         "keyword:thermodynamics"
       ],
       "summary": "Statistical mechanics, molecular dynamics, and Monte Carlo.",
+      "overview": "This week, we will continue our discussion about models an theories, particularly related to the statistical mechanics. We will start from the principles of the statistical mechanics, then go to the molecular dynamics and Monte Carlo simulations. We will discuss the principles behind these methods, their advantages and limitations, and their applications in materials science. Finally, we will learn how to use atomic simulation environments (ASE) to perform calculations using these methods.",
+      "objectives": [
+        "Understand the principles of the statistical mechanics and how it is used to model the structure and properties of materials at the atomic scale.",
+        "Understand the principles behind the molecular dynamics and Monte Carlo simulations and how they are used to model the structure and properties of materials at the atomic scale.",
+        "Understand the advantages and limitations of the molecular dynamics and Monte Carlo simulations.",
+        "Know how to use atomic simulation environments (ASE) to perform MD and MC calculations."
+      ],
       "summary_file": "models_and_theories_II/index.md"
     },
     {
@@ -1015,6 +1084,14 @@
         "keyword:workflow"
       ],
       "summary": "Energy landscapes and local and global optimization methods.",
+      "overview": "This week, we will study various optimization algorithms and their applications in chemistry and materials science. Optimization is a fundamental tool in computational chemistry and materials science, used to find the minimum or maximum of a function. We will start from some basic concepts and then introduce local and global optimization algorithms. We will also cover how to get the minimum energy path (MEP) using the Nudged Elastic Band (NEB) method. In the practical session, you will learn how to perform optimization using Python and use ASE to perform geometry optimization.",
+      "objectives": [
+        "Understand the importance of optimization in computational chemistry and materials science.",
+        "Describe the difference between local and global optimization algorithms.",
+        "Understand basics of optimization algorithms such as gradient descent, Newton's method, and simulated annealing.",
+        "Choose an appropriate optimization algorithm based on the problem characteristics.",
+        "Explain the Nudged Elastic Band (NEB) method and its application in finding transition states."
+      ],
       "summary_file": "optimization/index.md"
     },
     {
@@ -1096,6 +1173,13 @@
         "keyword:workflow"
       ],
       "summary": "Course introduction, setup, and learning environment.",
+      "overview": "This week, we will discuss the course arrangement and briefly introduce the concept of materials informatics. In the practicals, we will set up the programming environment together and learn how to write a simple Python program using VS Code.",
+      "objectives": [
+        "Understand the course arrangement and the concept of materials informatics.",
+        "Setup the programming environment.",
+        "Write a simple Python programme using VS Code directly.",
+        "Create a Jupyter notebook and run it in VS Code."
+      ],
       "summary_file": "orientation/index.md"
     },
     {
@@ -1172,6 +1256,15 @@
         "keyword:workflow"
       ],
       "summary": "Python and scientific programming foundations.",
+      "overview": "This week covers Python programming fundamentals that you'll use throughout the course. We'll learn Python syntax, data structures, and essential libraries for materials informatics. We will also cover the git version control system and GitHub for collaborative coding.",
+      "objectives": [
+        "Understand the open source software ecosystem and version control with Git and GitHub",
+        "Write and execute Python code in Jupyter notebooks",
+        "Use Python data types (integers, floats, strings, lists, dictionaries)",
+        "Work with NumPy for numerical computing",
+        "Create plots with Matplotlib",
+        "Follow best practices for notebook organization"
+      ],
       "summary_file": "programming/index.md"
     },
     {
@@ -1244,6 +1337,8 @@
         "keyword:vesta"
       ],
       "summary": "Syllabus, calendar, and course-level information.",
+      "overview": "To build this book, you need to have Jupyter Book installed. You can install it using pip in your Python environment: Then you can build the book using: This will build the book in html format. You can view the book by opening the file ./build/html/index.html in a web browser.",
+      "objectives": [],
       "summary_file": "README.md"
     },
     {
@@ -1361,6 +1456,15 @@
         "keyword:vesta"
       ],
       "summary": "Crystal structures, symmetry, defects, interfaces, and representations.",
+      "overview": "This chapter covers structures in materials science, from crystalline materials to molecules, defects, and interfaces. We will discuss the importance of atomic structure in materials science, explore different types of atomic structures, and use pymatgen and ASE to manipulate and visualize structures.",
+      "objectives": [
+        "Understand basics of crystal structures and lattice systems",
+        "Apply symmetry, group theory, point groups, and space groups in materials science",
+        "Distinguish between primitive cells, conventional cells, and Brillouin zones",
+        "Navigate reciprocal space and identify paths within it",
+        "Know common crystal structure prototypes",
+        "Analyze and interpret site properties within a material's structure"
+      ],
       "summary_file": "structures/index.md"
     },
     {
@@ -6784,6 +6888,7 @@
       "module": "computer",
       "section": "git_examples",
       "chapter_id": "chapter:computer",
+      "order": 0,
       "visibility": "primary",
       "chunk_ids": [
         "computer/git_examples.md_0",
@@ -6814,6 +6919,7 @@
       "module": "computer",
       "section": "hardware",
       "chapter_id": "chapter:computer",
+      "order": 1,
       "visibility": "primary",
       "chunk_ids": [
         "computer/hardware.md_0",
@@ -6843,6 +6949,7 @@
       "module": "computer",
       "section": "history",
       "chapter_id": "chapter:computer",
+      "order": 2,
       "visibility": "primary",
       "chunk_ids": [
         "computer/history.md_0",
@@ -6865,6 +6972,7 @@
       "module": "computer",
       "section": "hpc",
       "chapter_id": "chapter:computer",
+      "order": 3,
       "visibility": "primary",
       "chunk_ids": [
         "computer/hpc.md_0",
@@ -6896,6 +7004,7 @@
       "module": "computer",
       "section": "index",
       "chapter_id": "chapter:computer",
+      "order": 7,
       "visibility": "secondary",
       "chunk_ids": [
         "computer/index.md_0"
@@ -6920,6 +7029,7 @@
       "module": "computer",
       "section": "performance",
       "chapter_id": "chapter:computer",
+      "order": 4,
       "visibility": "primary",
       "chunk_ids": [
         "computer/performance.md_0",
@@ -6943,6 +7053,7 @@
       "module": "computer",
       "section": "scaling",
       "chapter_id": "chapter:computer",
+      "order": 5,
       "visibility": "primary",
       "chunk_ids": [
         "computer/scaling.ipynb_0",
@@ -6966,6 +7077,7 @@
       "module": "computer",
       "section": "software",
       "chapter_id": "chapter:computer",
+      "order": 6,
       "visibility": "primary",
       "chunk_ids": [
         "computer/software.md_0",
@@ -6995,6 +7107,7 @@
       "module": "database",
       "section": "bulk_modulus",
       "chapter_id": "chapter:database",
+      "order": 0,
       "visibility": "primary",
       "chunk_ids": [
         "database/bulk_modulus.ipynb_0",
@@ -7026,6 +7139,7 @@
       "module": "database",
       "section": "concepts",
       "chapter_id": "chapter:database",
+      "order": 1,
       "visibility": "primary",
       "chunk_ids": [
         "database/concepts.md_0",
@@ -7048,6 +7162,7 @@
       "module": "database",
       "section": "database",
       "chapter_id": "chapter:database",
+      "order": 2,
       "visibility": "primary",
       "chunk_ids": [
         "database/database.md_0",
@@ -7071,6 +7186,7 @@
       "module": "database",
       "section": "formats",
       "chapter_id": "chapter:database",
+      "order": 3,
       "visibility": "primary",
       "chunk_ids": [
         "database/formats.md_0",
@@ -7099,6 +7215,7 @@
       "module": "database",
       "section": "index",
       "chapter_id": "chapter:database",
+      "order": 7,
       "visibility": "secondary",
       "chunk_ids": [
         "database/index.md_0"
@@ -7123,6 +7240,7 @@
       "module": "database",
       "section": "materials_database",
       "chapter_id": "chapter:database",
+      "order": 4,
       "visibility": "primary",
       "chunk_ids": [
         "database/materials_database.md_0",
@@ -7153,6 +7271,7 @@
       "module": "database",
       "section": "materials_project",
       "chapter_id": "chapter:database",
+      "order": 5,
       "visibility": "primary",
       "chunk_ids": [
         "database/materials_project.ipynb_0",
@@ -7187,6 +7306,7 @@
       "module": "database",
       "section": "pandas",
       "chapter_id": "chapter:database",
+      "order": 6,
       "visibility": "primary",
       "chunk_ids": [
         "database/pandas.ipynb_0",
@@ -7218,6 +7338,7 @@
       "module": "figures",
       "section": "original_figs",
       "chapter_id": "chapter:figures",
+      "order": 0,
       "visibility": "hidden",
       "chunk_ids": [
         "figures/original_figs/make_figures.ipynb_0",
@@ -7284,6 +7405,7 @@
       "module": "final_review",
       "section": "data_and_structures",
       "chapter_id": "chapter:final_review",
+      "order": 0,
       "visibility": "secondary",
       "chunk_ids": [
         "final_review/data_and_structures.md_0"
@@ -7317,6 +7439,7 @@
       "module": "final_review",
       "section": "foundations",
       "chapter_id": "chapter:final_review",
+      "order": 1,
       "visibility": "secondary",
       "chunk_ids": [
         "final_review/foundations.md_0"
@@ -7345,6 +7468,7 @@
       "module": "final_review",
       "section": "high_throughput",
       "chapter_id": "chapter:final_review",
+      "order": 2,
       "visibility": "secondary",
       "chunk_ids": [
         "final_review/high_throughput.md_0"
@@ -7372,6 +7496,7 @@
       "module": "final_review",
       "section": "index",
       "chapter_id": "chapter:final_review",
+      "order": 5,
       "visibility": "secondary",
       "chunk_ids": [
         "final_review/index.md_0",
@@ -7410,6 +7535,7 @@
       "module": "final_review",
       "section": "models_and_theories",
       "chapter_id": "chapter:final_review",
+      "order": 3,
       "visibility": "secondary",
       "chunk_ids": [
         "final_review/models_and_theories.md_0"
@@ -7439,6 +7565,7 @@
       "module": "final_review",
       "section": "optimization",
       "chapter_id": "chapter:final_review",
+      "order": 4,
       "visibility": "secondary",
       "chunk_ids": [
         "final_review/optimization.md_0"
@@ -7462,6 +7589,7 @@
       "module": "high_throughput",
       "section": "codes",
       "chapter_id": "chapter:high_throughput",
+      "order": 0,
       "visibility": "primary",
       "chunk_ids": [
         "high_throughput/codes.md_0",
@@ -7500,6 +7628,7 @@
       "module": "high_throughput",
       "section": "data_mining",
       "chapter_id": "chapter:high_throughput",
+      "order": 1,
       "visibility": "primary",
       "chunk_ids": [
         "high_throughput/data_mining.md_0",
@@ -7535,6 +7664,7 @@
       "module": "high_throughput",
       "section": "high_throughput",
       "chapter_id": "chapter:high_throughput",
+      "order": 2,
       "visibility": "primary",
       "chunk_ids": [
         "high_throughput/high_throughput.ipynb_0",
@@ -7573,6 +7703,7 @@
       "module": "high_throughput",
       "section": "index",
       "chapter_id": "chapter:high_throughput",
+      "order": 6,
       "visibility": "secondary",
       "chunk_ids": [
         "high_throughput/index.md_0"
@@ -7599,6 +7730,7 @@
       "module": "high_throughput",
       "section": "introduction",
       "chapter_id": "chapter:high_throughput",
+      "order": 3,
       "visibility": "primary",
       "chunk_ids": [
         "high_throughput/introduction.md_0",
@@ -7626,6 +7758,7 @@
       "module": "high_throughput",
       "section": "thermodynamics",
       "chapter_id": "chapter:high_throughput",
+      "order": 4,
       "visibility": "primary",
       "chunk_ids": [
         "high_throughput/thermodynamics.md_0",
@@ -7662,6 +7795,7 @@
       "module": "high_throughput",
       "section": "workflow",
       "chapter_id": "chapter:high_throughput",
+      "order": 5,
       "visibility": "primary",
       "chunk_ids": [
         "high_throughput/workflow.md_0",
@@ -7718,6 +7852,7 @@
       "module": "machine_learning_I",
       "section": "features",
       "chapter_id": "chapter:machine_learning_i",
+      "order": 0,
       "visibility": "primary",
       "chunk_ids": [
         "machine_learning_I/features.md_0",
@@ -7755,6 +7890,7 @@
       "module": "machine_learning_I",
       "section": "index",
       "chapter_id": "chapter:machine_learning_i",
+      "order": 6,
       "visibility": "secondary",
       "chunk_ids": [
         "machine_learning_I/index.md_0",
@@ -7782,6 +7918,7 @@
       "module": "machine_learning_I",
       "section": "introduction",
       "chapter_id": "chapter:machine_learning_i",
+      "order": 1,
       "visibility": "primary",
       "chunk_ids": [
         "machine_learning_I/introduction.md_0",
@@ -7826,6 +7963,7 @@
       "module": "machine_learning_I",
       "section": "models",
       "chapter_id": "chapter:machine_learning_i",
+      "order": 2,
       "visibility": "primary",
       "chunk_ids": [
         "machine_learning_I/models.md_0",
@@ -7860,6 +7998,7 @@
       "module": "machine_learning_I",
       "section": "pytorch",
       "chapter_id": "chapter:machine_learning_i",
+      "order": 3,
       "visibility": "primary",
       "chunk_ids": [
         "machine_learning_I/pytorch.ipynb_0",
@@ -7900,6 +8039,7 @@
       "module": "machine_learning_I",
       "section": "task_algorithm",
       "chapter_id": "chapter:machine_learning_i",
+      "order": 4,
       "visibility": "primary",
       "chunk_ids": [
         "machine_learning_I/task_algorithm.md_0",
@@ -7939,6 +8079,7 @@
       "module": "machine_learning_I",
       "section": "validation",
       "chapter_id": "chapter:machine_learning_i",
+      "order": 5,
       "visibility": "primary",
       "chunk_ids": [
         "machine_learning_I/validation.md_0",
@@ -7964,6 +8105,7 @@
       "module": "machine_learning_II",
       "section": "adv_ml",
       "chapter_id": "chapter:machine_learning_ii",
+      "order": 0,
       "visibility": "primary",
       "chunk_ids": [
         "machine_learning_II/adv_ml.ipynb_0",
@@ -7999,6 +8141,7 @@
       "module": "machine_learning_II",
       "section": "diffusion_model",
       "chapter_id": "chapter:machine_learning_ii",
+      "order": 1,
       "visibility": "primary",
       "chunk_ids": [
         "machine_learning_II/diffusion_model.md_0",
@@ -8035,6 +8178,7 @@
       "module": "machine_learning_II",
       "section": "gnn",
       "chapter_id": "chapter:machine_learning_ii",
+      "order": 2,
       "visibility": "primary",
       "chunk_ids": [
         "machine_learning_II/gnn.md_0",
@@ -8068,6 +8212,7 @@
       "module": "machine_learning_II",
       "section": "graph",
       "chapter_id": "chapter:machine_learning_ii",
+      "order": 3,
       "visibility": "primary",
       "chunk_ids": [
         "machine_learning_II/graph.md_0",
@@ -8094,6 +8239,7 @@
       "module": "machine_learning_II",
       "section": "index",
       "chapter_id": "chapter:machine_learning_ii",
+      "order": 6,
       "visibility": "secondary",
       "chunk_ids": [
         "machine_learning_II/index.md_0"
@@ -8117,6 +8263,7 @@
       "module": "machine_learning_II",
       "section": "introduction",
       "chapter_id": "chapter:machine_learning_ii",
+      "order": 4,
       "visibility": "primary",
       "chunk_ids": [
         "machine_learning_II/introduction.md_0",
@@ -8147,6 +8294,7 @@
       "module": "machine_learning_II",
       "section": "summary",
       "chapter_id": "chapter:machine_learning_ii",
+      "order": 5,
       "visibility": "primary",
       "chunk_ids": [
         "machine_learning_II/summary.md_0"
@@ -8169,6 +8317,7 @@
       "module": "machine_learning_potentials",
       "section": "bp_nn",
       "chapter_id": "chapter:machine_learning_potentials",
+      "order": 0,
       "visibility": "primary",
       "chunk_ids": [
         "machine_learning_potentials/bp_nn.md_0",
@@ -8197,6 +8346,7 @@
       "module": "machine_learning_potentials",
       "section": "challenges",
       "chapter_id": "chapter:machine_learning_potentials",
+      "order": 1,
       "visibility": "primary",
       "chunk_ids": [
         "machine_learning_potentials/challenges.md_0",
@@ -8222,6 +8372,7 @@
       "module": "machine_learning_potentials",
       "section": "explicit",
       "chapter_id": "chapter:machine_learning_potentials",
+      "order": 2,
       "visibility": "primary",
       "chunk_ids": [
         "machine_learning_potentials/explicit.md_0",
@@ -8252,6 +8403,7 @@
       "module": "machine_learning_potentials",
       "section": "implicit",
       "chapter_id": "chapter:machine_learning_potentials",
+      "order": 3,
       "visibility": "primary",
       "chunk_ids": [
         "machine_learning_potentials/implicit.md_0"
@@ -8276,6 +8428,7 @@
       "module": "machine_learning_potentials",
       "section": "index",
       "chapter_id": "chapter:machine_learning_potentials",
+      "order": 9,
       "visibility": "secondary",
       "chunk_ids": [
         "machine_learning_potentials/index.md_0"
@@ -8300,6 +8453,7 @@
       "module": "machine_learning_potentials",
       "section": "introduction",
       "chapter_id": "chapter:machine_learning_potentials",
+      "order": 4,
       "visibility": "primary",
       "chunk_ids": [
         "machine_learning_potentials/introduction.md_0",
@@ -8336,6 +8490,7 @@
       "module": "machine_learning_potentials",
       "section": "mace",
       "chapter_id": "chapter:machine_learning_potentials",
+      "order": 5,
       "visibility": "primary",
       "chunk_ids": [
         "machine_learning_potentials/mace.md_0",
@@ -8366,6 +8521,7 @@
       "module": "machine_learning_potentials",
       "section": "mlp",
       "chapter_id": "chapter:machine_learning_potentials",
+      "order": 6,
       "visibility": "primary",
       "chunk_ids": [
         "machine_learning_potentials/mlp.ipynb_0",
@@ -8402,6 +8558,7 @@
       "module": "machine_learning_potentials",
       "section": "training_validation",
       "chapter_id": "chapter:machine_learning_potentials",
+      "order": 7,
       "visibility": "primary",
       "chunk_ids": [
         "machine_learning_potentials/training_validation.md_0",
@@ -8431,6 +8588,7 @@
       "module": "machine_learning_potentials",
       "section": "umlp",
       "chapter_id": "chapter:machine_learning_potentials",
+      "order": 8,
       "visibility": "primary",
       "chunk_ids": [
         "machine_learning_potentials/umlp.md_0",
@@ -8463,6 +8621,7 @@
       "module": "midterm_review",
       "section": "computer",
       "chapter_id": "chapter:midterm_review",
+      "order": 0,
       "visibility": "secondary",
       "chunk_ids": [
         "midterm_review/computer.md_0"
@@ -8487,6 +8646,7 @@
       "module": "midterm_review",
       "section": "database",
       "chapter_id": "chapter:midterm_review",
+      "order": 1,
       "visibility": "secondary",
       "chunk_ids": [
         "midterm_review/database.md_0"
@@ -8513,6 +8673,7 @@
       "module": "midterm_review",
       "section": "index",
       "chapter_id": "chapter:midterm_review",
+      "order": 5,
       "visibility": "secondary",
       "chunk_ids": [
         "midterm_review/index.md_0",
@@ -8548,6 +8709,7 @@
       "module": "midterm_review",
       "section": "orientation",
       "chapter_id": "chapter:midterm_review",
+      "order": 2,
       "visibility": "secondary",
       "chunk_ids": [
         "midterm_review/orientation.md_0"
@@ -8569,6 +8731,7 @@
       "module": "midterm_review",
       "section": "programming",
       "chapter_id": "chapter:midterm_review",
+      "order": 3,
       "visibility": "secondary",
       "chunk_ids": [
         "midterm_review/programming.md_0"
@@ -8594,6 +8757,7 @@
       "module": "midterm_review",
       "section": "structure",
       "chapter_id": "chapter:midterm_review",
+      "order": 4,
       "visibility": "secondary",
       "chunk_ids": [
         "midterm_review/structure.md_0"
@@ -8625,6 +8789,7 @@
       "module": "models_and_theories_I",
       "section": "ase",
       "chapter_id": "chapter:models_and_theories_i",
+      "order": 0,
       "visibility": "primary",
       "chunk_ids": [
         "models_and_theories_I/ase.ipynb_0",
@@ -8659,6 +8824,7 @@
       "module": "models_and_theories_I",
       "section": "dft",
       "chapter_id": "chapter:models_and_theories_i",
+      "order": 1,
       "visibility": "primary",
       "chunk_ids": [
         "models_and_theories_I/dft.md_0",
@@ -8693,6 +8859,7 @@
       "module": "models_and_theories_I",
       "section": "force_fields",
       "chapter_id": "chapter:models_and_theories_i",
+      "order": 2,
       "visibility": "primary",
       "chunk_ids": [
         "models_and_theories_I/force_fields.md_0",
@@ -8733,6 +8900,7 @@
       "module": "models_and_theories_I",
       "section": "index",
       "chapter_id": "chapter:models_and_theories_i",
+      "order": 4,
       "visibility": "secondary",
       "chunk_ids": [
         "models_and_theories_I/index.md_0"
@@ -8754,6 +8922,7 @@
       "module": "models_and_theories_I",
       "section": "modelling",
       "chapter_id": "chapter:models_and_theories_i",
+      "order": 3,
       "visibility": "primary",
       "chunk_ids": [
         "models_and_theories_I/modelling.md_0",
@@ -8781,6 +8950,7 @@
       "module": "models_and_theories_II",
       "section": "index",
       "chapter_id": "chapter:models_and_theories_ii",
+      "order": 5,
       "visibility": "secondary",
       "chunk_ids": [
         "models_and_theories_II/index.md_0"
@@ -8804,6 +8974,7 @@
       "module": "models_and_theories_II",
       "section": "kmc",
       "chapter_id": "chapter:models_and_theories_ii",
+      "order": 0,
       "visibility": "primary",
       "chunk_ids": [
         "models_and_theories_II/kmc.md_0",
@@ -8832,6 +9003,7 @@
       "module": "models_and_theories_II",
       "section": "md_mc",
       "chapter_id": "chapter:models_and_theories_ii",
+      "order": 1,
       "visibility": "primary",
       "chunk_ids": [
         "models_and_theories_II/md_mc.ipynb_0",
@@ -8870,6 +9042,7 @@
       "module": "models_and_theories_II",
       "section": "molecular_dynamics",
       "chapter_id": "chapter:models_and_theories_ii",
+      "order": 2,
       "visibility": "primary",
       "chunk_ids": [
         "models_and_theories_II/molecular_dynamics.md_0",
@@ -8901,6 +9074,7 @@
       "module": "models_and_theories_II",
       "section": "monte_carlo",
       "chapter_id": "chapter:models_and_theories_ii",
+      "order": 3,
       "visibility": "primary",
       "chunk_ids": [
         "models_and_theories_II/monte_carlo.md_0",
@@ -8928,6 +9102,7 @@
       "module": "models_and_theories_II",
       "section": "statistical_mech",
       "chapter_id": "chapter:models_and_theories_ii",
+      "order": 4,
       "visibility": "primary",
       "chunk_ids": [
         "models_and_theories_II/statistical_mech.md_0",
@@ -8956,6 +9131,7 @@
       "module": "optimization",
       "section": "airss",
       "chapter_id": "chapter:optimization",
+      "order": 0,
       "visibility": "primary",
       "chunk_ids": [
         "optimization/airss.md_0",
@@ -8996,6 +9172,7 @@
       "module": "optimization",
       "section": "choose_opt",
       "chapter_id": "chapter:optimization",
+      "order": 1,
       "visibility": "primary",
       "chunk_ids": [
         "optimization/choose_opt.md_0"
@@ -9017,6 +9194,7 @@
       "module": "optimization",
       "section": "global_optimization",
       "chapter_id": "chapter:optimization",
+      "order": 2,
       "visibility": "primary",
       "chunk_ids": [
         "optimization/global_optimization.md_0",
@@ -9040,6 +9218,7 @@
       "module": "optimization",
       "section": "index",
       "chapter_id": "chapter:optimization",
+      "order": 7,
       "visibility": "secondary",
       "chunk_ids": [
         "optimization/index.md_0"
@@ -9065,6 +9244,7 @@
       "module": "optimization",
       "section": "introduction",
       "chapter_id": "chapter:optimization",
+      "order": 3,
       "visibility": "primary",
       "chunk_ids": [
         "optimization/introduction.md_0",
@@ -9093,6 +9273,7 @@
       "module": "optimization",
       "section": "local_optimization",
       "chapter_id": "chapter:optimization",
+      "order": 4,
       "visibility": "primary",
       "chunk_ids": [
         "optimization/local_optimization.md_0",
@@ -9118,6 +9299,7 @@
       "module": "optimization",
       "section": "optimization",
       "chapter_id": "chapter:optimization",
+      "order": 5,
       "visibility": "primary",
       "chunk_ids": [
         "optimization/optimization.ipynb_0",
@@ -9160,6 +9342,7 @@
       "module": "optimization",
       "section": "transition_state",
       "chapter_id": "chapter:optimization",
+      "order": 6,
       "visibility": "primary",
       "chunk_ids": [
         "optimization/transition_state.md_0",
@@ -9188,6 +9371,7 @@
       "module": "orientation",
       "section": "index",
       "chapter_id": "chapter:orientation",
+      "order": 6,
       "visibility": "secondary",
       "chunk_ids": [
         "orientation/index.md_0"
@@ -9208,6 +9392,7 @@
       "module": "orientation",
       "section": "introduction",
       "chapter_id": "chapter:orientation",
+      "order": 0,
       "visibility": "primary",
       "chunk_ids": [
         "orientation/introduction.md_0",
@@ -9239,6 +9424,7 @@
       "module": "orientation",
       "section": "jupyter",
       "chapter_id": "chapter:orientation",
+      "order": 1,
       "visibility": "primary",
       "chunk_ids": [
         "orientation/jupyter.ipynb_0",
@@ -9264,6 +9450,7 @@
       "module": "orientation",
       "section": "orientation",
       "chapter_id": "chapter:orientation",
+      "order": 2,
       "visibility": "primary",
       "chunk_ids": [
         "orientation/orientation.md_0",
@@ -9290,6 +9477,7 @@
       "module": "orientation",
       "section": "setup",
       "chapter_id": "chapter:orientation",
+      "order": 3,
       "visibility": "primary",
       "chunk_ids": [
         "orientation/setup.md_0",
@@ -9328,6 +9516,7 @@
       "module": "orientation",
       "section": "setup_local",
       "chapter_id": "chapter:orientation",
+      "order": 4,
       "visibility": "primary",
       "chunk_ids": [
         "orientation/setup_local.md_0",
@@ -9358,6 +9547,7 @@
       "module": "orientation",
       "section": "vanda",
       "chapter_id": "chapter:orientation",
+      "order": 5,
       "visibility": "primary",
       "chunk_ids": [
         "orientation/vanda.md_0",
@@ -9385,6 +9575,7 @@
       "module": "programming",
       "section": "ai",
       "chapter_id": "chapter:programming",
+      "order": 0,
       "visibility": "primary",
       "chunk_ids": [
         "programming/ai.md_0",
@@ -9418,6 +9609,7 @@
       "module": "programming",
       "section": "github",
       "chapter_id": "chapter:programming",
+      "order": 1,
       "visibility": "primary",
       "chunk_ids": [
         "programming/github.md_0",
@@ -9447,6 +9639,7 @@
       "module": "programming",
       "section": "index",
       "chapter_id": "chapter:programming",
+      "order": 5,
       "visibility": "secondary",
       "chunk_ids": [
         "programming/index.md_0"
@@ -9473,6 +9666,7 @@
       "module": "programming",
       "section": "matplotlib",
       "chapter_id": "chapter:programming",
+      "order": 2,
       "visibility": "primary",
       "chunk_ids": [
         "programming/matplotlib.ipynb_0",
@@ -9499,6 +9693,7 @@
       "module": "programming",
       "section": "numpy",
       "chapter_id": "chapter:programming",
+      "order": 3,
       "visibility": "primary",
       "chunk_ids": [
         "programming/numpy.ipynb_0",
@@ -9528,6 +9723,7 @@
       "module": "programming",
       "section": "python_introduction",
       "chapter_id": "chapter:programming",
+      "order": 4,
       "visibility": "primary",
       "chunk_ids": [
         "programming/python_introduction.ipynb_0",
@@ -9564,6 +9760,7 @@
       "module": "root",
       "section": "calendar",
       "chapter_id": "chapter:root",
+      "order": 1,
       "visibility": "hidden",
       "chunk_ids": [
         "calendar.md_0",
@@ -9626,6 +9823,7 @@
       "module": "root",
       "section": "index",
       "chapter_id": "chapter:root",
+      "order": 3,
       "visibility": "hidden",
       "chunk_ids": [
         "index.md_0",
@@ -9650,6 +9848,7 @@
       "module": "root",
       "section": "README",
       "chapter_id": "chapter:root",
+      "order": 0,
       "visibility": "hidden",
       "chunk_ids": [
         "README.md_0"
@@ -9669,6 +9868,7 @@
       "module": "root",
       "section": "syllabus",
       "chapter_id": "chapter:root",
+      "order": 2,
       "visibility": "hidden",
       "chunk_ids": [
         "syllabus.md_0",
@@ -9703,6 +9903,7 @@
       "module": "structures",
       "section": "advanced_structure",
       "chapter_id": "chapter:structures",
+      "order": 0,
       "visibility": "primary",
       "chunk_ids": [
         "structures/advanced_structure.ipynb_0",
@@ -9731,6 +9932,7 @@
       "module": "structures",
       "section": "crystal_structure",
       "chapter_id": "chapter:structures",
+      "order": 1,
       "visibility": "primary",
       "chunk_ids": [
         "structures/crystal_structure.ipynb_0",
@@ -9767,6 +9969,7 @@
       "module": "structures",
       "section": "defect",
       "chapter_id": "chapter:structures",
+      "order": 2,
       "visibility": "primary",
       "chunk_ids": [
         "structures/defect.md_0",
@@ -9795,6 +9998,7 @@
       "module": "structures",
       "section": "index",
       "chapter_id": "chapter:structures",
+      "order": 13,
       "visibility": "secondary",
       "chunk_ids": [
         "structures/index.md_0"
@@ -9828,6 +10032,7 @@
       "module": "structures",
       "section": "interface",
       "chapter_id": "chapter:structures",
+      "order": 3,
       "visibility": "primary",
       "chunk_ids": [
         "structures/interface.md_0",
@@ -9853,6 +10058,7 @@
       "module": "structures",
       "section": "molecule",
       "chapter_id": "chapter:structures",
+      "order": 4,
       "visibility": "primary",
       "chunk_ids": [
         "structures/molecule.md_0",
@@ -9878,6 +10084,7 @@
       "module": "structures",
       "section": "noncrystalline_materials",
       "chapter_id": "chapter:structures",
+      "order": 5,
       "visibility": "primary",
       "chunk_ids": [
         "structures/noncrystalline_materials.md_0"
@@ -9900,6 +10107,7 @@
       "module": "structures",
       "section": "prototypes",
       "chapter_id": "chapter:structures",
+      "order": 6,
       "visibility": "primary",
       "chunk_ids": [
         "structures/prototypes.md_0",
@@ -9927,6 +10135,7 @@
       "module": "structures",
       "section": "reciprocal_space",
       "chapter_id": "chapter:structures",
+      "order": 7,
       "visibility": "primary",
       "chunk_ids": [
         "structures/reciprocal_space.md_0",
@@ -9950,6 +10159,7 @@
       "module": "structures",
       "section": "site",
       "chapter_id": "chapter:structures",
+      "order": 8,
       "visibility": "primary",
       "chunk_ids": [
         "structures/site.md_0",
@@ -9983,6 +10193,7 @@
       "module": "structures",
       "section": "structure_formats",
       "chapter_id": "chapter:structures",
+      "order": 9,
       "visibility": "primary",
       "chunk_ids": [
         "structures/structure_formats.md_0",
@@ -10022,6 +10233,7 @@
       "module": "structures",
       "section": "symmetry",
       "chapter_id": "chapter:structures",
+      "order": 10,
       "visibility": "primary",
       "chunk_ids": [
         "structures/symmetry.md_0",
@@ -10048,6 +10260,7 @@
       "module": "structures",
       "section": "unit_cell",
       "chapter_id": "chapter:structures",
+      "order": 11,
       "visibility": "primary",
       "chunk_ids": [
         "structures/unit_cell.md_0",
@@ -10073,6 +10286,7 @@
       "module": "structures",
       "section": "vesta",
       "chapter_id": "chapter:structures",
+      "order": 12,
       "visibility": "primary",
       "chunk_ids": [
         "structures/vesta.md_0",
@@ -77286,5 +77500,6 @@
       "chapter": "chapter:machine_learning_potentials",
       "also_in": []
     }
-  ]
+  ],
+  "built_from": "c371586b27543a4e13f1"
 }

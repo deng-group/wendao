@@ -194,7 +194,8 @@ def graph_response(graph_file: GraphFile, link_for):
     return Response(body, mimetype="application/json", headers=headers)
 
 
-NODE_FIELDS = ("id", "type", "label", "visibility", "order", "chapter_id", "chapter_ids", "aliases", "mention_count", "summary")
+NODE_FIELDS = ("id", "type", "label", "visibility", "order", "chapter_id", "chapter_ids", "aliases", "mention_count", "summary",
+               "overview", "objectives")
 EDGE_FIELDS = ("source", "target", "type", "weight")
 
 
