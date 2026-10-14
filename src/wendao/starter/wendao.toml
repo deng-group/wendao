@@ -39,6 +39,7 @@ ai = "teacher"                # "teacher" (your key, kept on your server), "stud
                               # course AI, after signing in with their email. See `wendao students`.
 # allowed_origins = []        # other websites allowed to embed the chat widget
 # insights = "counts"         # `wendao insights`: "counts" (no question text), "questions" (also the text), or "off"
+assignment_help = "hints"     # graded work: "hints" (explain and hint, don't solve assignments or exams) or "full"
 
 [widget]
 # The chat widget on your course website (`wendao widget install`). When students highlight text,

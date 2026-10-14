@@ -45,10 +45,13 @@ class QueryPipeline:
             device=workspace.search_device,
             model_path=getattr(workspace, "model_path", None),
         )
+        neural = retriever.embedding.backend != "tfidf"
         gate = AnswerabilityGate(
             logistics_terms=workspace.logistics_terms,
             out_of_scope_terms=workspace.out_of_scope_terms,
             aliases=workspace.aliases,
+            vocabulary=set(retriever.bm25.doc_freqs),
+            meaning_floor=0.20 if neural else None,  # off-topic check: only meaning scores from the search model compare
         )
         return cls(retriever, gate, top_k=top_k)
 

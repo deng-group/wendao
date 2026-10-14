@@ -120,6 +120,8 @@ class Workspace:
     search_device: str = "auto"
     model: dict = field(default_factory=dict)
     student_ai: str = "teacher"
+    # Graded work: "full" answers as usual; "hints" explains and hints but doesn't solve assignments, quizzes, exams.
+    assignment_help: str = "full"
     questions_per_day: int = 0
     # Teacher insights (`wendao insights`): "counts" (no question text), "questions" (also the text), or "off".
     insights: str = "counts"
@@ -171,6 +173,11 @@ class Workspace:
         if not self.file_types:
             return None
         return {"." + kind.lower().lstrip(".") for kind in self.file_types}
+
+    @property
+    def instructions_path(self) -> Path:
+        """The teacher's instructions for answers: AGENTS.md next to wendao.toml, or the file under [model] instructions."""
+        return self.root / str(self.model.get("instructions") or "AGENTS.md")
 
     @property
     def roster_path(self) -> Path | None:
@@ -277,6 +284,9 @@ def load(start: Path | None = None) -> Workspace:
     insights = str(student.get("insights", "counts")).strip().lower()
     if insights not in {"counts", "questions", "off"}:
         raise WorkspaceError(f'[student] insights in {CONFIG_NAME} must be "counts", "questions", or "off", not "{insights}".')
+    assignment_help = str(student.get("assignment_help", "full")).strip().lower()
+    if assignment_help not in {"full", "hints"}:
+        raise WorkspaceError(f'[student] assignment_help in {CONFIG_NAME} must be "full" or "hints", not "{assignment_help}".')
     if student.get("ai", "teacher") not in {"teacher", "student", "either"}:
         raise WorkspaceError(f"[student] ai in {CONFIG_NAME} must be \"teacher\", \"student\", or \"either\".")
 
@@ -326,6 +336,7 @@ def load(start: Path | None = None) -> Workspace:
         search_device=str(search.get("device", "auto")),
         model=dict(config.get("model", {})),
         student_ai=str(student.get("ai", "teacher")),
+        assignment_help=assignment_help,
         questions_per_day=int(student.get("questions_per_day", 0) or 0),
         insights=insights,
         allowed_origins=[str(item) for item in student.get("allowed_origins", [])],

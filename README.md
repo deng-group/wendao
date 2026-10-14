@@ -110,7 +110,8 @@ The [teacher guide](https://github.com/deng-group/wendao/blob/main/docs/GUIDE.md
 | Website | put Wendao on a server ([server setup](https://github.com/deng-group/wendao/blob/main/deploy/DEPLOYMENT.md)) and share the link | yes |
 | Chat widget | `wendao widget install _build/html --api https://...` on your built course website | yes |
 
-You decide who pays for AI answers: your key (with a daily limit per student and optional sign-in), each student's
+You decide how the AI answers: write your own instructions in `AGENTS.md`, and with `assignment_help = "hints"` it
+helps with graded work without solving it. You decide who pays for AI answers: your key (with a daily limit per student and optional sign-in), each student's
 own key, or either. See [How students use AI](https://github.com/deng-group/wendao/blob/main/docs/GUIDE.md#7-how-students-use-ai).
 
 ## Commands

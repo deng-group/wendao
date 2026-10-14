@@ -62,6 +62,7 @@ def cmd_init(args: argparse.Namespace) -> None:
         "questions.json": (STARTER_DIR / "questions.json").read_text(encoding="utf-8"),
         ".env": (STARTER_DIR / "env.example").read_text(encoding="utf-8"),
         ".gitignore": (STARTER_DIR / "gitignore").read_text(encoding="utf-8"),
+        "AGENTS.md": (STARTER_DIR / "AGENTS.md").read_text(encoding="utf-8"),
     }
     for name, content in files.items():
         path = root / name
@@ -273,7 +274,7 @@ def cmd_ask(args: argparse.Namespace) -> None:
     model = args.model or default_model_name(provider_name)
     generator = AnswerGenerator(
         pipeline=pipeline,
-        prompt_builder=PromptBuilder(course_name=workspace.display_name),
+        prompt_builder=PromptBuilder.for_workspace(workspace),
         provider=provider_from_name(provider_name, model=model),
         course_name=workspace.display_name,
     )
@@ -388,6 +389,14 @@ def cmd_doctor(args: argparse.Namespace) -> None:
     if not concepts and built:  # before the first build, building comes first
         problems.append(("Concepts: none yet, so the graph only shows chapters and pages.",
                          "Run `wendao build --concepts` (your AI model finds them in your notes)."))
+
+    from wendao.rag.prompts import read_teacher_instructions
+
+    teacher = read_teacher_instructions(workspace.instructions_path)
+    shown = relative(workspace, workspace.instructions_path)
+    graded = "hints only for graded work" if workspace.assignment_help == "hints" else "full answers, also for graded work"
+    line("Answers", f"{graded}; " + (f"your instructions from {shown} ({len(teacher.splitlines())} lines)" if teacher
+                                      else f"no instructions of your own (write them in {shown})"))
 
     if workspace.roster_path and not workspace.roster_path.exists():
         problems.append((f"Class list: {relative(workspace, workspace.roster_path)} not found.",

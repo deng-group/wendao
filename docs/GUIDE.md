@@ -203,6 +203,26 @@ A student's own key is saved only in their browser and sent with each question. 
 Students can also point to their own model server (for example DeepSeek, OpenRouter, or a university server). This
 must be a public `https://` address, so nobody can use your server to reach private machines.
 
+**Graded work.** With
+
+```toml
+[student]
+assignment_help = "hints"   # or "full"
+```
+
+the AI helps with assignments, quizzes, homework, and exam questions without solving them: when a question asks for
+the final answer, complete code, or a full derivation for a specific task, it explains the concepts, gives hints and the
+first step, and points to the pages that help. Explaining concepts, and examples already in your notes, stay fully
+answered. New workspaces start with `"hints"`; without the line, answers are `"full"`.
+
+**Your own instructions (`AGENTS.md`).** Write how the AI should answer in `AGENTS.md`, next to `wendao.toml`
+(`wendao init` creates it, with examples): for example "end with one check question", "keep answers short", or "students
+may write in Chinese; answer in their language". Wendao adds it to every answer, and edits work from the next question
+without a restart. Your instructions can't switch off the safety rules: answers still come only from your notes, cite
+pages, and say when the notes don't cover a question. To use another file, set `instructions = "my-file.md"` under
+`[model]`. `wendao doctor` shows what is in use, and `wendao doctor --real` lets you read the answers to your test
+questions with it.
+
 **Sign-in and daily limits per student.** To limit questions per student (not per network), give Wendao your class
 list. Save it as `students.csv` with an `email` column (export it from your learning platform; optional columns: `name`,
 and `limit` for a personal daily limit), then add it under `[student]`:
