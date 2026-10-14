@@ -34,6 +34,14 @@ class AnswerabilityDecision:
     top_results: list[dict]
 
 
+# Everyday words that say nothing about whether a question is about the course.
+COMMON_WORDS = {
+    "the", "and", "for", "are", "how", "what", "when", "why", "who", "which", "where", "does", "can", "could", "would",
+    "should", "you", "your", "this", "that", "these", "those", "with", "from", "about", "into", "there", "their", "have",
+    "has", "was", "were", "will", "tell", "explain", "give", "show", "please", "some", "any", "use", "used", "get",
+}
+
+
 class AnswerabilityGate:
     """Conservative rule-based gate over retrieval results."""
 
@@ -45,13 +53,33 @@ class AnswerabilityGate:
         logistics_terms: Iterable[str] = (),
         out_of_scope_terms: Iterable[str] = (),
         aliases: dict[str, str] | None = None,
+        vocabulary: set[str] | None = None,
+        meaning_floor: float | None = None,
     ):
+        # Off-topic check (only with the neural search model, whose meaning scores are comparable): the words in the
+        # notes, and the meaning score below which a question is not about the course. See `_off_topic`.
+        self.vocabulary = vocabulary or set()
+        self.meaning_floor = meaning_floor
         self.logistics_terms = set(logistics_terms)
         self.out_of_scope_terms = set(out_of_scope_terms)
         self.aliases = aliases or {}
         self.strong_score = strong_score
         self.weak_score = weak_score
         self.min_embedding_score = min_embedding_score
+
+    def _off_topic(self, tokens: set[str], results: list[SearchResult]) -> bool:
+        """A question unlike anything in the notes. Keyword search always finds *something* (common words like "best"
+        or "fix"), and scores are scaled so the top one looks strong, so this looks at the meaning score itself:
+        clearly low, or a little low while most of the question's words never appear in the notes ("bake sourdough
+        bread with a lattice crust"). Skipped without English words (the search model is English-only)."""
+        if self.meaning_floor is None or not self.vocabulary:
+            return False
+        words = [word for word in tokens if len(word) > 2 and not word.isdigit() and word not in COMMON_WORDS]
+        if not words:
+            return False
+        meaning = max(result.embedding_score for result in results[:5])
+        known = sum(word in self.vocabulary for word in words) / len(words)
+        return meaning < self.meaning_floor or (meaning < self.meaning_floor + 0.10 and known < 0.5)
 
     def decide(self, query: str, results: list[SearchResult], focused: bool = False) -> AnswerabilityDecision:
         """`focused`: the student highlighted text on the page, so a short question like "summarize this" is not broad."""
@@ -105,6 +133,19 @@ class AnswerabilityGate:
                 query,
                 "needs_clarification",
                 "The query is broad and should be narrowed to a concept, module, or task.",
+                needs_temporal_context,
+                temporal_context,
+                multi_source,
+                top.score,
+                results,
+            )
+
+        # After the vague-question check: "summarize this" should be asked to narrow down, not turned away.
+        if not focused and self._off_topic(tokens, results):
+            return self._decision(
+                query,
+                "out_of_scope",
+                "The question doesn't seem to be about this course: it means little like the notes and uses few of their words.",
                 needs_temporal_context,
                 temporal_context,
                 multi_source,

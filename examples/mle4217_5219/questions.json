@@ -277,5 +277,15 @@
       "high_throughput/thermodynamics.md"
     ],
     "category": "short_memory"
+  },
+  {
+    "id": "off_topic_lattice_word",
+    "query": "How do I bake sourdough bread with a lattice crust?",
+    "expected_status": "out_of_scope"
+  },
+  {
+    "id": "off_topic_common_words",
+    "query": "What is the best pizza topping?",
+    "expected_status": "out_of_scope"
   }
 ]
