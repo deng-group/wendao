@@ -393,7 +393,10 @@ def cmd_doctor(args: argparse.Namespace) -> None:
         problems.append((f"Class list: {relative(workspace, workspace.roster_path)} not found.",
                          "Add the file (one column, \"email\"), or remove `roster` under [student] in wendao.toml."))
     if not workspace.website:
-        say(f"{'Website:':<11}not set (answers show sources without links; set [course] website to add them)")
+        line("Website", "not set")
+        problems.append(("Website: not set, so \"Read more in the course\", \"Open page\" and the links under answers are hidden.",
+                         "Put your course website's address under [course] in wendao.toml, for example\n"
+                         "website = \"https://my-course.example.edu/\"\nthen restart `wendao serve` (no rebuild needed)."))
 
     if args.add_questions:
         step_questions(workspace)

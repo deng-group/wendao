@@ -4,7 +4,7 @@
 [course]
 name = "{name}"
 code = ""                     # e.g. "CS1010"
-website = ""                  # published course site, so answers can link to the right page
+website = ""                  # your published course site: needed for "Read more in the course" and links in answers
 # term = "AY2025/2026 Semester 2"   # otherwise read from a "- Year: ..." line in syllabus.md
 # style = "modern"            # look of the graph website and chat widget: "modern" or "economist"
 
