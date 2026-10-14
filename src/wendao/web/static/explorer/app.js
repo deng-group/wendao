@@ -226,6 +226,7 @@ const VELOCITY_DECAY = 0.4; // calm: nodes glide to a stop
 const HOME_PULL = 0.05; // gentle: it drifts back rather than snapping
 const ALPHA_MIN = 0.001;
 const ALPHA_DECAY = 1 - Math.pow(ALPHA_MIN, 1 / 300);
+const ALPHA_SETTLED = 0.008; // after a drag: about 2.5 s of motion instead of 4
 
 function visualType(node) {
   return node.type === "chapter" ? "chapter" : "concept";
@@ -518,7 +519,9 @@ function startPhysics(alpha) {
     if (state.fitPending && state.alpha < 0.08) { state.fitPending = false; if (state.selectedId) focusOn(state.selectedId); else fitGraph(); }
     if (!state.homesSet && state.alpha < 0.02) rememberHomes();
     render();
-    if (state.alpha > ALPHA_MIN || state.alphaTarget > 0) state.frame = requestAnimationFrame(loop);
+    // After the first layout, stop as soon as the motion is too small to see (keeps the page idle, and cool).
+    const settled = state.homesSet ? ALPHA_SETTLED : ALPHA_MIN;
+    if (state.alpha > settled || state.alphaTarget > 0) state.frame = requestAnimationFrame(loop);
     else state.frame = null;
   };
   state.frame = requestAnimationFrame(loop);
@@ -669,10 +672,14 @@ function render() {
     context.fill();
   }
   const glowing = colours.glow && focus && state.sim.byId.get(focus);
-  if (glowing && isShownNode(glowing)) { // a soft glow around the node in focus (modern style)
-    context.save(); context.globalAlpha = 1; context.shadowColor = colours.glow; context.shadowBlur = 18 * (state.ratio || 1);
-    context.fillStyle = colours[glowing.node.type] || colours.keyword;
-    context.beginPath(); context.arc(glowing.x, glowing.y, glowing.r, 0, Math.PI * 2); context.fill(); context.restore();
+  if (glowing && isShownNode(glowing)) { // a soft halo around the node in focus (modern style): two light rings, not a blur
+    context.fillStyle = colours.glow;
+    for (const [grow, alpha] of [[9, 0.18], [4.5, 0.32]]) {
+      context.globalAlpha = alpha * fade;
+      context.beginPath(); context.arc(glowing.x, glowing.y, glowing.r + grow / k, 0, Math.PI * 2); context.fill();
+    }
+    context.globalAlpha = 1; context.fillStyle = colours[glowing.node.type] || colours.keyword;
+    context.beginPath(); context.arc(glowing.x, glowing.y, glowing.r, 0, Math.PI * 2); context.fill();
   }
   const selected = state.selectedId && state.sim.byId.get(state.selectedId);
   if (selected && isShownNode(selected)) {
@@ -711,8 +718,11 @@ function drawLabels(context, nodes, near, focus, onScreen) {
     if (near) alpha = isNear ? 1 : Math.min(alpha, 0.12);
     if (alpha >= 0.05 && onScreen(item)) candidates.push({ item, alpha, isNear });
   }
-  if (!candidates.length) return;
-  const rank = ({ item, isNear }) => (item.id === focus ? 4 : isNear ? 3 : item.node.type === "chapter" ? 2 : 1) * 1000 + item.degree;
+  if (!candidates.length) { state.labelled = new Set(); return; }
+  // A label that was showing keeps priority (within its group) and its place, so labels don't flicker while nodes move.
+  const shownBefore = state.labelled || new Set(); const shownNow = new Set();
+  const rank = ({ item, isNear }) => (item.id === focus ? 4 : isNear ? 3 : item.node.type === "chapter" ? 2 : 1) * 1000
+    + (shownBefore.has(item.id) ? 500 : 0) + Math.min(item.degree, 499);
   candidates.sort((a, b) => rank(b) - rank(a));
   context.textAlign = "center"; context.textBaseline = "top"; context.lineJoin = "round";
   const cell = 80 / k; const taken = new Map();
@@ -741,16 +751,20 @@ function drawLabels(context, nodes, near, focus, onScreen) {
         [item.x - item.r - gap * 2 - width, item.y - height / 2]);
     }
     let box = null; let keys = null;
-    for (const [left, top] of spots) {
+    const order = spots.map((_, at) => at);
+    if (item.labelSpot > 0 && item.labelSpot < spots.length) order.unshift(...order.splice(item.labelSpot, 1)); // last place first
+    for (const at of order) {
+      const [left, top] = spots[at];
       const candidate = { left: left - 2 / k, right: left + width + 2 / k, top, bottom: top + height };
       const candidateKeys = cellsOf(candidate);
-      if (!overlaps(candidate, candidateKeys)) { box = candidate; keys = candidateKeys; break; }
+      if (!overlaps(candidate, candidateKeys)) { box = candidate; keys = candidateKeys; item.labelSpot = at; break; }
     }
     if (!box) {
       if (!isNear && item.node.type !== "chapter") continue; // no room: leave it out (zoom in to see it)
       box = { left: spots[0][0] - 2 / k, right: spots[0][0] + width + 2 / k, top: spots[0][1], bottom: spots[0][1] + height };
       keys = cellsOf(box);
     }
+    shownNow.add(item.id);
     const top = box.top; const centre = (box.left + box.right) / 2;
     for (const key of keys) { if (!taken.has(key)) taken.set(key, []); taken.get(key).push(box); }
     const wanted = `${weight} ${size}px Inter, ui-sans-serif, system-ui, sans-serif`;
@@ -759,6 +773,7 @@ function drawLabels(context, nodes, near, focus, onScreen) {
     context.lineWidth = 3 / k; context.strokeStyle = state.colours.halo; context.strokeText(item.labelText, centre, top);
     context.fillStyle = state.colours.text; context.fillText(item.labelText, centre, top);
   }
+  state.labelled = shownNow;
 }
 
 // ---------- views ----------
@@ -898,9 +913,7 @@ elements.canvas.addEventListener("pointerdown", (event) => {
   }
   if (touches.size > 2) return;
   const point = graphPoint(event); const item = nodeAt(point);
-  if (item) {
-    item.fx = item.x; item.fy = item.y;
-    state.alphaTarget = 0.2; startPhysics(0.2); // dragging stirs the graph a little, not a lot
+  if (item) { // the physics starts only once this becomes a drag: a click just selects, without stirring the graph
     state.pointer = { kind: "node", item, startX: event.clientX, startY: event.clientY, moved: false };
   } else {
     state.pointer = { kind: "pan", startX: event.clientX, startY: event.clientY, originX: state.transform.x, originY: state.transform.y, moved: false };
@@ -931,7 +944,8 @@ elements.canvas.addEventListener("pointermove", (event) => {
   if (pointer.kind === "pan") {
     state.viewTouched = true;
     state.transform.x = pointer.originX + dx; state.transform.y = pointer.originY + dy; draw();
-  } else {
+  } else if (pointer.moved) {
+    if (!pointer.dragging) { pointer.dragging = true; state.alphaTarget = 0.2; startPhysics(0.2); } // a little, not a lot
     const point = graphPoint(event); pointer.item.fx = point.x; pointer.item.fy = point.y;
   }
 });
@@ -944,9 +958,11 @@ function endPointer(event) {
   state.pointer = null;
   if (!pointer || pointer.kind === "pinch") return;
   if (pointer.kind === "node") {
-    pointer.item.fx = null; pointer.item.fy = null; // let go: it springs back into place
-    state.alphaTarget = 0;
-    startPhysics(0.3); // enough to drift back into place
+    if (pointer.dragging) {
+      pointer.item.fx = null; pointer.item.fy = null; // let go: it springs back into place
+      state.alphaTarget = 0;
+      startPhysics(0.3); // enough to drift back into place
+    }
     if (!pointer.moved && event.type === "pointerup") selectNode(pointer.item.id, { fit: true }); // a click centres and zooms
   } else if (!pointer.moved && event.type === "pointerup") {
     clearSelection();
