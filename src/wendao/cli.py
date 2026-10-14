@@ -592,6 +592,38 @@ def cmd_feedback(args: argparse.Namespace) -> None:
         say("\n(Only answers marked not helpful are listed. Add --all to see every rating.)")
 
 
+# insights -------------------------------------------------------------------------------------
+
+
+def cmd_insights(args: argparse.Namespace) -> None:
+    import sqlite3
+    from contextlib import closing
+    from datetime import date, timedelta
+
+    from wendao.web.insights import InsightStore, report
+
+    workspace = load_workspace(args)
+    db = workspace.root / "usage.db"
+    span = "today" if args.days == 1 else f"the last {args.days} days"
+    if workspace.insights == "off":
+        say('Insights are off ([student] insights = "off" in wendao.toml), so questions are not counted.')
+        return
+    if not db.exists():
+        say("No questions yet. They are counted when students ask on the graph website or in the chat widget.")
+        return
+    items = InsightStore(db).recent(args.days)
+    down = 0
+    with closing(sqlite3.connect(db)) as connection:
+        if connection.execute("SELECT name FROM sqlite_master WHERE name = 'feedback'").fetchone():
+            since = (date.today() - timedelta(days=args.days - 1)).isoformat()
+            (down,) = connection.execute("SELECT COUNT(*) FROM feedback WHERE day >= ? AND rating = 'down'", (since,)).fetchone()
+    graph = json.loads(workspace.graph_path.read_text(encoding="utf-8")) if workspace.graph_path.exists() else None
+    say(f"What students asked in {span} (anonymous: no names, emails, or addresses).")
+    say()
+    for text in report(items, graph, down, limit=args.limit):
+        say(text)
+
+
 # students -------------------------------------------------------------------------------------
 
 
@@ -698,6 +730,11 @@ def build_parser() -> argparse.ArgumentParser:
     found.add_argument("--no-concepts", action="store_true", help="don't look for concepts, even if there are none yet")
     build.add_argument("--force", action="store_true", help="redo every step, even the ones that are up to date")
     build.set_defaults(func=cmd_build)
+    insights = commands.add_parser("insights", parents=[common],
+                                   help="see what students ask about, and which questions your notes couldn't answer")
+    insights.add_argument("--days", type=int, default=7, help="how many days to look back (default: 7)")
+    insights.add_argument("--limit", type=int, default=8, help="how many concepts, pages, and questions to list")
+    insights.set_defaults(func=cmd_insights)
     commands.add_parser("extract", parents=[common], help="only extract notes into chunks").set_defaults(func=cmd_extract)
     commands.add_parser("graph", parents=[common], help="only rebuild the knowledge graph").set_defaults(func=cmd_graph)
     commands.add_parser("index", parents=[common], help="only rebuild the search index").set_defaults(func=cmd_index)

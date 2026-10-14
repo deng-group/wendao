@@ -10,6 +10,7 @@ Everything you need to run Wendao for your own course. For a short overview, see
 - [6. Share it with your students](#6-share-it-with-your-students)
 - [7. How students use AI](#7-how-students-use-ai)
 - [8. Chat widget on your course website](#8-chat-widget-on-your-course-website)
+- [9. See what students ask](#9-see-what-students-ask)
 
 ## 1. Create a workspace
 
@@ -249,3 +250,24 @@ The widget needs a Wendao server behind it (`wendao serve --widget`, or the serv
 [`deploy/DEPLOYMENT.md`](../deploy/DEPLOYMENT.md)). Without `--api`, it uses the same website address under `/api`.
 Try it on your computer with `wendao serve --widget --site _build/html`. `wendao widget remove _build/html` takes it
 out again.
+
+## 9. See what students ask
+
+```bash
+wendao insights              # the last 7 days; --days 30 for a month
+```
+
+This shows how many questions students asked on your Wendao website and in the chat widget, and how many were
+answered, too broad, outside the course, or **not in your notes**. It also lists the concepts, pages, and chapters
+students ask about most, and how many answers they rated not helpful (details with `wendao feedback`).
+
+Questions your notes couldn't answer are the most useful part: they show where the notes may need more. By default
+Wendao keeps only counts (the outcome, the concepts a question mentions, and the pages search found), never the
+question's words, names, emails, or addresses. To see the unanswered questions themselves, set:
+
+```toml
+[student]
+insights = "questions"     # "counts" (the default), "questions", or "off"
+```
+
+The counts are kept in `usage.db` next to `wendao.toml`, like the feedback. Keep it out of git.

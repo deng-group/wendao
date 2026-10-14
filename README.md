@@ -124,6 +124,7 @@ own key, or either. See [How students use AI](https://github.com/deng-group/wend
 | `wendao serve` | Run the course website (`--widget`: the API for the chat widget) |
 | `wendao export` | Put the knowledge graph in one HTML file |
 | `wendao widget install _build/html` | Add the chat widget to every page of a built course website |
+| `wendao insights` | See what students ask about, and which questions your notes couldn't answer |
 | `wendao feedback` | See which answers students marked as not helpful, and why |
 | `wendao students` | See your class list and how many questions each student asked |
 

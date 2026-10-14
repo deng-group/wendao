@@ -121,6 +121,8 @@ class Workspace:
     model: dict = field(default_factory=dict)
     student_ai: str = "teacher"
     questions_per_day: int = 0
+    # Teacher insights (`wendao insights`): "counts" (no question text), "questions" (also the text), or "off".
+    insights: str = "counts"
     allowed_origins: list[str] = field(default_factory=list)
     roster: str = ""
     web_search: dict | None = field(default_factory=lambda: web_search_engine(DEFAULT_WEB_SEARCH))
@@ -272,6 +274,9 @@ def load(start: Path | None = None) -> Workspace:
     style = str(course.get("style", "modern")).strip().lower()
     if style not in STYLES:
         raise WorkspaceError(f"[course] style in {CONFIG_NAME} must be \"modern\" or \"economist\", not \"{style}\".")
+    insights = str(student.get("insights", "counts")).strip().lower()
+    if insights not in {"counts", "questions", "off"}:
+        raise WorkspaceError(f'[student] insights in {CONFIG_NAME} must be "counts", "questions", or "off", not "{insights}".')
     if student.get("ai", "teacher") not in {"teacher", "student", "either"}:
         raise WorkspaceError(f"[student] ai in {CONFIG_NAME} must be \"teacher\", \"student\", or \"either\".")
 
@@ -322,6 +327,7 @@ def load(start: Path | None = None) -> Workspace:
         model=dict(config.get("model", {})),
         student_ai=str(student.get("ai", "teacher")),
         questions_per_day=int(student.get("questions_per_day", 0) or 0),
+        insights=insights,
         allowed_origins=[str(item) for item in student.get("allowed_origins", [])],
         roster=str(student.get("roster", "")),
         web_search=web_search_engine(widget.get("web_search", DEFAULT_WEB_SEARCH)),
