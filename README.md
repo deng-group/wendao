@@ -35,7 +35,7 @@ Guides: [teacher guide](https://github.com/deng-group/wendao/blob/main/docs/GUID
 ### Knowledge graph
 
 Chapters, pages, and concepts, linked where the course connects them. Drag, zoom, and search; click a concept to read
-a short introduction from the notes and jump to the course page. New to the course? **Guided path** walks through it
+a short introduction from the notes and jump to the course page. New to the course? The guided path (route icon) walks through it
 chapter by chapter, with the key concepts each chapter introduces ([try it](https://deng-group.github.io/wendao/?path)).
 
 <p align="center">
