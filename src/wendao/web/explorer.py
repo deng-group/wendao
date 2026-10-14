@@ -89,11 +89,7 @@ def create_app(workspace=None) -> Flask:
     workspace.apply_model_settings()
     graph_file = GraphFile(workspace.require(workspace.graph_path, "Run `wendao build` first."))
     pipeline = QueryPipeline.for_workspace(workspace, top_k=5)
-    prompt_builder = PromptBuilder(
-        evidence_score_threshold=0.60,
-        presentation_mode="direct",
-        course_name=workspace.display_name,
-    )
+    prompt_builder = PromptBuilder.for_workspace(workspace, evidence_score_threshold=0.60, presentation_mode="direct")
     index_page = render_index(workspace)
     policy = AiPolicy.from_settings(
         workspace.student_ai, workspace.questions_per_day, accounts=workspace.accounts(), limit=workspace.daily_limit()
