@@ -38,7 +38,7 @@ Chapters, pages, and concepts, linked where the course connects them. Drag, zoom
 a short introduction from the notes and jump to the course page.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/deng-group/wendao/main/docs/assets/demo/knowledge_graph_demo.gif" width="100%" alt="Screen recording: hovering and dragging nodes in the Wendao knowledge graph, searching for a concept and reading its introduction, filtering with the legend, and switching to dark mode and The Economist style">
+  <img src="https://raw.githubusercontent.com/deng-group/wendao/main/docs/assets/demo/knowledge_graph_demo.webp" width="100%" alt="Screen recording: hovering and dragging nodes in the Wendao knowledge graph, searching for a concept and reading its introduction, filtering with the legend, and switching to dark mode and The Economist style">
 </p>
 
 <p align="center"><sub>Full video: <a href="https://github.com/deng-group/wendao/blob/main/docs/assets/demo/knowledge_graph_demo.mp4">knowledge_graph_demo.mp4</a></sub></p>
@@ -50,7 +50,7 @@ objectives from the course pages, then the key concepts it introduces, with wher
 and continue later. [Try it](https://deng-group.github.io/wendao/?path).
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/deng-group/wendao/main/docs/assets/demo/guided_path_demo.gif" width="100%" alt="Screen recording: the guided path through the example course, showing chapter overviews and learning objectives, key concepts with the pages to read, and Back, Next and Next chapter">
+  <img src="https://raw.githubusercontent.com/deng-group/wendao/main/docs/assets/demo/guided_path_demo.webp" width="100%" alt="Screen recording: the guided path through the example course, showing chapter overviews and learning objectives, key concepts with the pages to read, and Back, Next and Next chapter">
 </p>
 
 <p align="center"><sub>Full video: <a href="https://github.com/deng-group/wendao/blob/main/docs/assets/demo/guided_path_demo.mp4">guided_path_demo.mp4</a></sub></p>
@@ -61,7 +61,7 @@ Select a node and press **Explain**, or ask your own question. Answers come only
 they used. If the course doesn't cover a question, the agent says so.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/deng-group/wendao/main/docs/assets/demo/ai_learning_agent_demo.gif" width="100%" alt="Screen recording: selecting Convex Hull, asking the Wendao AI learning agent to explain it, asking a follow-up, and opening the course sources">
+  <img src="https://raw.githubusercontent.com/deng-group/wendao/main/docs/assets/demo/ai_learning_agent_demo.webp" width="100%" alt="Screen recording: selecting Convex Hull, asking the Wendao AI learning agent to explain it, asking a follow-up, and opening the course sources">
 </p>
 
 <p align="center"><sub>Full video: <a href="https://github.com/deng-group/wendao/blob/main/docs/assets/demo/ai_learning_agent_demo.mp4">ai_learning_agent_demo.mp4</a></sub></p>
