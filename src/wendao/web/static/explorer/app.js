@@ -850,10 +850,11 @@ function fitGraph() {
 
 function animateTo(target) {
   state.viewTouched = false;
+  if (wheelZoom.frame) { cancelAnimationFrame(wheelZoom.frame); wheelZoom.frame = 0; wheelZoom.target = 0; }
   const start = { ...state.transform }; const began = performance.now();
   cancelAnimationFrame(state.viewFrame);
   const step = (now) => {
-    const t = Math.min(1, (now - began) / 380); const ease = 1 - Math.pow(1 - t, 3);
+    const t = Math.min(1, (now - began) / 300); const ease = 1 - Math.pow(1 - t, 3);
     for (const key of ["x", "y", "k"]) state.transform[key] = start[key] + (target[key] - start[key]) * ease;
     draw();
     if (t < 1) state.viewFrame = requestAnimationFrame(step);
@@ -955,17 +956,44 @@ elements.canvas.addEventListener("pointerup", endPointer);
 elements.canvas.addEventListener("pointercancel", endPointer);
 elements.canvas.addEventListener("pointerleave", () => { if (!state.pointer && state.hoverId) { state.hoverId = null; draw(); } });
 
-elements.canvas.addEventListener("wheel", (event) => {
-  event.preventDefault();
-  cancelAnimationFrame(state.viewFrame);
-  state.viewTouched = true;
-  const rect = elements.canvas.getBoundingClientRect(); const old = state.transform.k;
-  const next = Math.min(4, Math.max(0.1, old * Math.exp(-event.deltaY * (event.ctrlKey ? 0.01 : 0.0015))));
-  const px = event.clientX - rect.left; const py = event.clientY - rect.top;
+// Zoom around the pointer. A trackpad or pinch (many small steps) follows the fingers directly; a mouse wheel's
+// notches ease to their zoom in about a tenth of a second, and quick notches add up instead of queueing.
+const ZOOM_MIN = 0.1; const ZOOM_MAX = 4;
+const wheelZoom = { target: 0, px: 0, py: 0, frame: 0 };
+
+function zoomAround(px, py, next) {
+  const old = state.transform.k;
   state.transform.x = px - ((px - state.transform.x) / old) * next;
   state.transform.y = py - ((py - state.transform.y) / old) * next;
   state.transform.k = next;
   draw();
+}
+
+function easeWheelZoom() {
+  const k = state.transform.k; const target = wheelZoom.target;
+  const next = Math.abs(target - k) < target * 0.002 ? target : k + (target - k) * 0.38;
+  zoomAround(wheelZoom.px, wheelZoom.py, next);
+  wheelZoom.frame = next === target ? 0 : requestAnimationFrame(easeWheelZoom);
+  if (!wheelZoom.frame) wheelZoom.target = 0;
+}
+
+elements.canvas.addEventListener("wheel", (event) => {
+  event.preventDefault();
+  cancelAnimationFrame(state.viewFrame);
+  state.viewTouched = true;
+  const rect = elements.canvas.getBoundingClientRect();
+  const px = event.clientX - rect.left; const py = event.clientY - rect.top;
+  const delta = event.deltaY * (event.deltaMode === 1 ? 33 : event.deltaMode === 2 ? 400 : 1); // lines or pages -> pixels
+  const factor = Math.exp(-delta * (event.ctrlKey ? 0.01 : 0.0015));
+  const clamp = (k) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, k));
+  if (event.ctrlKey || Math.abs(delta) < 40) { // trackpad scroll or pinch: direct
+    if (wheelZoom.frame) { cancelAnimationFrame(wheelZoom.frame); wheelZoom.frame = 0; wheelZoom.target = 0; }
+    zoomAround(px, py, clamp(state.transform.k * factor));
+    return;
+  }
+  wheelZoom.target = clamp((wheelZoom.target || state.transform.k) * factor);
+  wheelZoom.px = px; wheelZoom.py = py;
+  if (!wheelZoom.frame) wheelZoom.frame = requestAnimationFrame(easeWheelZoom);
 }, { passive: false });
 
 function showNodeCard(node) {
