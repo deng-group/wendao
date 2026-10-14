@@ -897,7 +897,7 @@ elements.canvas.addEventListener("pointermove", (event) => {
   if (!pointer) {
     const item = nodeAt(graphPoint(event));
     const id = item ? item.id : null;
-    if (id !== state.hoverId) { state.hoverId = id; elements.canvas.style.cursor = id ? "pointer" : "grab"; draw(); }
+    if (id !== state.hoverId) { state.hoverId = id; elements.canvas.style.cursor = id ? "pointer" : ""; draw(); }
     return;
   }
   if (touches.has(event.pointerId)) touches.set(event.pointerId, { x: event.clientX, y: event.clientY });
