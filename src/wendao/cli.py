@@ -116,9 +116,13 @@ def require_teacher_tools() -> None:
 
 
 
-def step_extract(workspace: Workspace) -> None:
-    from wendao.ingest import extract
+def step_extract(workspace: Workspace, force: bool = True) -> bool:
+    """Extract the notes into chunks. Returns False when they were up to date and kept."""
+    from wendao.ingest import extract, notes_up_to_date
 
+    if not force and notes_up_to_date(workspace):
+        say(f"Notes: unchanged since the last build (kept {relative(workspace, workspace.chunks_path)}).")
+        return False
     say(f"Extracting notes from {relative(workspace, workspace.require_source())} ...")
     summary = extract(workspace)
     term = f" Term: {summary['term']}." if summary["term"] else ""
@@ -131,11 +135,15 @@ def step_extract(workspace: Workspace) -> None:
             "No text was found in your notes. Supported files: Markdown, Jupyter notebooks, PDF, PowerPoint (.pptx), "
             "Word (.docx), LaTeX (.tex), HTML, and plain text."
         )
+    return True
 
 
-def step_graph(workspace: Workspace) -> None:
-    from wendao.graph import build
+def step_graph(workspace: Workspace, force: bool = True) -> None:
+    from wendao.graph import build, graph_up_to_date
 
+    if not force and graph_up_to_date(workspace):
+        say(f"Knowledge graph: up to date (kept {relative(workspace, workspace.graph_path)}).")
+        return
     say("Building the knowledge graph ...")
     graph = build(workspace)
     types = graph["stats"]["node_types"]
@@ -181,23 +189,33 @@ def step_concepts(workspace: Workspace) -> None:
 
 def step_index(workspace: Workspace, rebuild: bool = True) -> None:
     from wendao.rag.pipeline import QueryPipeline
+    from wendao.rag.retriever import EmbeddingIndex, load_chunks
 
+    if not rebuild and workspace.chunks_path.exists():
+        chunks = load_chunks(workspace.chunks_path)
+        if EmbeddingIndex.is_current(chunks, workspace.index_dir, workspace.embedding_model):
+            say(f"Search index: up to date ({len(chunks)} chunks, kept {relative(workspace, workspace.index_dir)}).")
+            return
     say("Building the search index (the first run downloads the search model) ...")
     pipeline = QueryPipeline.for_workspace(workspace, rebuild_index=rebuild)
-    say(f"  {len(pipeline.retriever.chunks)} chunks indexed with {pipeline.retriever.embedding.description} → {relative(workspace, workspace.index_dir)}")
+    embedding = pipeline.retriever.embedding
+    reused = f" ({embedding.reused} unchanged, kept)" if embedding.reused else ""
+    say(f"  {len(pipeline.retriever.chunks)} chunks indexed{reused} with {embedding.description} → {relative(workspace, workspace.index_dir)}")
 
 
 def cmd_build(args: argparse.Namespace) -> None:
     require_teacher_tools()
     workspace = load_workspace(args)
     started = time.monotonic()
-    step_extract(workspace)
+    # Each step is skipped when what it is made from hasn't changed (--force redoes everything).
+    notes_changed = step_extract(workspace, force=args.force)
     if args.concepts or (not args.no_concepts and needs_concepts(workspace)):
         step_concepts(workspace)
-    step_graph(workspace)
-    step_index(workspace, rebuild=False)
+    step_graph(workspace, force=args.force)
+    step_index(workspace, rebuild=args.force)
     say(f"Done in {time.monotonic() - started:.0f}s. Try: wendao ask \"<a question about your course>\"")
-    say(RESTART_NOTE)
+    if notes_changed:
+        say(RESTART_NOTE)
 
 
 # A running server shows a new graph by itself, but answers use the notes it loaded when it started.
@@ -669,12 +687,13 @@ def build_parser() -> argparse.ArgumentParser:
     init.add_argument("--source", help="folder with your existing notes (default: a new notes/ folder)")
     init.set_defaults(func=cmd_init)
 
-    build = commands.add_parser("build", parents=[common], help="extract notes, build the graph and the search index")
+    build = commands.add_parser("build", parents=[common], help="extract notes, build the graph and the search index (only what changed)")
     found = build.add_mutually_exclusive_group()
     found.add_argument("--concepts", action="store_true",
                        help="let your AI model look for new concepts in your notes and add them to concepts.json "
                             "(done on its own the first time, when there are none yet)")
     found.add_argument("--no-concepts", action="store_true", help="don't look for concepts, even if there are none yet")
+    build.add_argument("--force", action="store_true", help="redo every step, even the ones that are up to date")
     build.set_defaults(func=cmd_build)
     commands.add_parser("extract", parents=[common], help="only extract notes into chunks").set_defaults(func=cmd_extract)
     commands.add_parser("graph", parents=[common], help="only rebuild the knowledge graph").set_defaults(func=cmd_graph)

@@ -106,7 +106,7 @@ own key, or either. See [How students use AI](https://github.com/deng-group/wend
 | Command | What it does |
 | --- | --- |
 | `wendao init my-course` | Create a new workspace with starter files |
-| `wendao build` | Read your notes; build the knowledge graph, concepts, and search index |
+| `wendao build` | Read your notes; build the knowledge graph, concepts, and search index (only what changed) |
 | `wendao doctor` | Check settings, notes, build, test questions, and model, and say how to fix problems |
 | `wendao ask "question"` | Ask a question (`--search-only`: see what search finds, without a model) |
 | `wendao serve` | Run the course website (`--widget`: the API for the chat widget) |

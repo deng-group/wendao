@@ -150,6 +150,22 @@ class BM25Index:
         return scores
 
 
+def chunk_hash(chunk: dict) -> str:
+    """One chunk's id and text, so an unchanged chunk keeps its embedding (the cache file is per model)."""
+    return hashlib.sha256(f"{chunk['chunk_id']}\0{chunk['content']}".encode("utf-8")).hexdigest()[:24]
+
+
+def index_hash(chunks: list[dict], model_name: str) -> str:
+    """What the search index was made from: the model and every chunk's id and text."""
+    digest = hashlib.sha256(model_name.encode("utf-8"))
+    for chunk in chunks:
+        digest.update(chunk["chunk_id"].encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(chunk["content"].encode("utf-8"))
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
 class EmbeddingIndex:
     """Meaning-based search over chunk embeddings, with a TF-IDF fallback.
 
@@ -185,6 +201,7 @@ class EmbeddingIndex:
         self.tfidf = None
         self.chunk_embeddings = None
         self.backend = "embedding"
+        self.reused = 0  # chunks whose embedding came from the saved index
         self._load_or_build()
 
     @property
@@ -200,13 +217,23 @@ class EmbeddingIndex:
         return f"{self.model_name} via {self.encoder.name} on {device}"
 
     def content_hash(self) -> str:
-        digest = hashlib.sha256(self.model_name.encode("utf-8"))
-        for chunk in self.chunks:
-            digest.update(chunk["chunk_id"].encode("utf-8"))
-            digest.update(b"\0")
-            digest.update(chunk["content"].encode("utf-8"))
-            digest.update(b"\0")
-        return digest.hexdigest()
+        return index_hash(self.chunks, self.model_name)
+
+    @classmethod
+    def is_current(cls, chunks: list[dict], cache_dir: Path, model_name: str) -> bool:
+        """The saved index matches these chunks and this model, so nothing needs computing (checked without
+        loading the model, which takes a while)."""
+        if model_name == "tfidf":
+            return False  # made in memory each time; there is no cache
+        path = cache_dir / f"embeddings_{re.sub(r'[^a-zA-Z0-9_.-]+', '_', model_name)}.npz"
+        if not path.exists():
+            return False
+        try:
+            with np.load(path, allow_pickle=False) as cached:
+                return ("content_hash" in cached.files and str(cached["content_hash"]) == index_hash(chunks, model_name)
+                        and str(cached["backend"]) in cls.NEURAL)
+        except (OSError, ValueError, KeyError):
+            return False
 
     def _load_or_build(self) -> None:
         if self.model_name == "tfidf":
@@ -230,9 +257,13 @@ class EmbeddingIndex:
                 self.encoder = make_encoder(self.model_name, self.engine, self.device, self.model_path)
                 return
 
+        # Chunks whose text hasn't changed keep their saved embedding; only new or edited chunks are computed.
+        chunk_hashes = np.array([chunk_hash(chunk) for chunk in self.chunks])
+        saved = {} if self.rebuild else self._saved_embeddings()
+        missing = [index for index, key in enumerate(chunk_hashes) if key not in saved]
         try:
             self.encoder = make_encoder(self.model_name, self.engine, self.device, self.model_path)
-            self.chunk_embeddings = self.encoder.encode([chunk["content"] for chunk in self.chunks])
+            computed = self.encoder.encode([self.chunks[index]["content"] for index in missing]) if missing else []
         except (ImportError, RuntimeError, OSError) as exc:
             if self.engine != "auto":
                 raise RuntimeError(f"The `{self.engine}` search engine could not be loaded: {exc}") from exc
@@ -241,13 +272,30 @@ class EmbeddingIndex:
             self.backend = "tfidf"
             return
 
+        fresh = dict(zip(missing, computed))
+        rows = [fresh[index] if index in fresh else saved[key] for index, key in enumerate(chunk_hashes)]
+        self.chunk_embeddings = np.stack(rows).astype(np.float32) if rows else np.zeros((0, 0), dtype=np.float32)
+        self.reused = len(self.chunks) - len(missing)
         np.savez_compressed(
             self.cache_path,
             chunk_ids=chunk_ids,
+            chunk_hashes=chunk_hashes,
             embeddings=self.chunk_embeddings,
             backend=np.array("embedding"),
             content_hash=np.array(content_hash),
         )
+
+    def _saved_embeddings(self) -> dict[str, np.ndarray]:
+        """The last index's embeddings by chunk (id + text), from this model; empty if there is none or it is old."""
+        if not self.cache_path.exists():
+            return {}
+        try:
+            with np.load(self.cache_path, allow_pickle=False) as cached:
+                if "chunk_hashes" not in cached.files or str(cached["backend"]) not in self.NEURAL:
+                    return {}
+                return dict(zip((str(key) for key in cached["chunk_hashes"]), cached["embeddings"].astype(np.float32)))
+        except (OSError, ValueError, KeyError):
+            return {}
 
     def _build_tfidf(self) -> None:
         self.tfidf = TfidfIndex([chunk["content"] for chunk in self.chunks], self.aliases)
