@@ -9,8 +9,8 @@ authors:
   - family-names: Deng
     given-names: Zeyu
     affiliation: "Department of Materials Science and Engineering, National University of Singapore"
-version: 0.3.4
-date-released: 2026-10-15
+version: 0.4.0
+date-released: 2026-10-18
 license: GPL-3.0-or-later
 repository-code: "https://github.com/deng-group/wendao"
 url: "https://github.com/deng-group/wendao"
