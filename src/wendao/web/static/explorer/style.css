@@ -149,7 +149,7 @@ kbd { padding: 3px 6px; border: 1px solid var(--line); border-radius: 5px; color
 .source-item { display: block; padding: 7px 4px; border-top: 1px solid var(--line); border-radius: 5px; text-decoration: none; }
 .source-item:hover { background: #f1f5f9; }
 .source-item strong { display: block; color: #31506f; font-size: .7rem; }
-.source-item strong::after { content: " ↗"; color: #7a8ba3; font-weight: 500; }
+a.source-item strong::after { content: " ↗"; color: #7a8ba3; font-weight: 500; }
 .source-item small { color: #718096; font-size: .65rem; overflow-wrap: anywhere; }
 .composer { margin: 0 16px 16px; border: 1px solid var(--line-strong); border-radius: 13px; background: #ffffff; box-shadow: 0 12px 28px rgba(38,57,84,.09); }
 .composer { grid-row: 6; }

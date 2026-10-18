@@ -746,7 +746,7 @@ function drawLabels(context, nodes, near, focus, onScreen) {
     const height = size * 1.2; const gap = 3 / k;
     // Where a label can go: under the node first; a chapter (always named) may also go above, right or left.
     const spots = [[item.x - width / 2, item.y + item.r + gap]];
-    if (item.node.type === "chapter") {
+    if (item.node.type === "chapter" || isNear) { // chapters and the focus's neighbours may also go above, right or left
       spots.push([item.x - width / 2, item.y - item.r - gap - height], [item.x + item.r + gap * 2, item.y - height / 2],
         [item.x - item.r - gap * 2 - width, item.y - height / 2]);
     }
@@ -760,7 +760,8 @@ function drawLabels(context, nodes, near, focus, onScreen) {
       if (!overlaps(candidate, candidateKeys)) { box = candidate; keys = candidateKeys; item.labelSpot = at; break; }
     }
     if (!box) {
-      if (!isNear && item.node.type !== "chapter") continue; // no room: leave it out (zoom in to see it)
+      // No room: leave it out (zoom in to see it). Only the node in focus and chapters are always named.
+      if (item.id !== focus && item.node.type !== "chapter") continue;
       box = { left: spots[0][0] - 2 / k, right: spots[0][0] + width + 2 / k, top: spots[0][1], bottom: spots[0][1] + height };
       keys = cellsOf(box);
     }
@@ -1224,7 +1225,7 @@ function setSources(sources = []) {
     const item = document.createElement(source.url ? "a" : page ? "button" : "div"); item.className = "source-item";
     if (source.url) { item.href = source.url; item.target = "_blank"; item.rel = "noopener noreferrer"; item.title = "Open this page of the course"; }
     if (page) { item.type = "button"; item.title = "Show this page in the graph"; item.addEventListener("click", () => selectNode(page.id, { fit: true })); }
-    const title = document.createElement("strong"); title.textContent = `${source.title || "Course material"}${source.url ? " ↗" : ""}`;
+    const title = document.createElement("strong"); title.textContent = source.title || "Course material"; // links get their ↗ from the stylesheet
     const path = document.createElement("small"); path.textContent = [source.file_path, source.location].filter(Boolean).join(", ");
     item.append(title, path); elements.sourceList.appendChild(item);
   }
