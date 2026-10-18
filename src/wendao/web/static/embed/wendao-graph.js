@@ -474,7 +474,8 @@
       return url ? '<a href="' + esc(url) + '" target="_blank" rel="noopener">' + title + "</a>" : title;
     }
     function defaultCard(item) {
-      var n = item.node, t = item.type, spec = t.card, html = '<p class="wg-kind"><i style="background:' + colours.type[t.name] + '"></i>' + esc(t.kind) + "</p>";
+      // The colour can come from the data: escaped, so it can't break out of the attribute.
+      var n = item.node, t = item.type, spec = t.card, html = '<p class="wg-kind"><i style="background:' + esc(colours.type[t.name]) + '"></i>' + esc(t.kind) + "</p>";
       html += "<h3>" + titleHtml(n) + "</h3>";
       (spec.fields || []).forEach(function (field) {
         var parts = String(field).split(",").map(function (f) { return f.trim(); });

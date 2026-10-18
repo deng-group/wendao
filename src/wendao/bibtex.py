@@ -149,7 +149,7 @@ def build(entries: list[dict], themes: dict[str, str | None] | None = None, me: 
     `min_shared` joint papers to appear.
     """
     names = {key.lower(): value for key, value in (themes or {}).items()}
-    me = me.strip().lower()
+    me = person(me).lower() if me.strip() else ""  # "Deng, Zeyu" and "Zeyu Deng" both work
     nodes: dict[str, dict] = {}
     edges: list[dict] = []
     papers = []

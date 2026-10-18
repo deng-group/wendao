@@ -3,6 +3,7 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -65,6 +66,11 @@ class BibtexTest(unittest.TestCase):
         self.assertEqual(graph["format"], "wendao-graph/1")
         self.assertTrue(graph["types"]["theme"]["hub"])
 
+    def test_me_in_the_authors_own_format(self):
+        for me in ("Deng, Zeyu", "Zeyu Deng", "zeyu deng"):
+            people = [n["label"] for n in self.graph(me=me, min_shared=1)["nodes"] if n["type"] == "person"]
+            self.assertNotIn("Zeyu Deng", people, me)
+
     def test_command(self):
         with tempfile.TemporaryDirectory() as folder:
             bib = Path(folder) / "papers.bib"
@@ -91,6 +97,17 @@ class EmbedFilesTest(unittest.TestCase):
             self.assertTrue((Path(folder) / "assets" / "wendao-graph.js").is_file())
             self.assertTrue((Path(folder) / "assets" / "wendao-graph.css").is_file())
             self.assertIn("data-wendao-graph", output.getvalue())
+            # the snippet points where the files went, not just to the last folder name
+            cwd = os.getcwd()
+            try:
+                os.chdir(folder)
+                output = io.StringIO()
+                with contextlib.redirect_stdout(output):
+                    main(["embed", "install", "assets/wendao"])
+            finally:
+                os.chdir(cwd)
+            self.assertIn('href="/assets/wendao/wendao-graph.css"', output.getvalue())
+            self.assertIn('src="/assets/wendao/wendao-graph.js"', output.getvalue())
 
 
 if __name__ == "__main__":

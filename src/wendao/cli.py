@@ -561,11 +561,16 @@ def cmd_embed(args: argparse.Namespace) -> None:
     for name in ("wendao-graph.js", "wendao-graph.css"):
         shutil.copyfile(STATIC_DIR / "embed" / name, folder / name)
     say(f"Copied wendao-graph.js and wendao-graph.css (Wendao {__version__}) to {folder}.")
-    say("Put this where the graph should appear (the paths are where your site serves these files):")
+    # The address the site serves the folder at: the folder as given, from the site's top folder.
+    given = Path(args.folder)
+    url = "/" + given.as_posix().removeprefix("./").strip("/") if not given.is_absolute() else f"/{folder.name}"
+    say("Put this where the graph should appear:")
     say()
-    say(f'  <link rel="stylesheet" href="/{folder.name}/wendao-graph.css">')
+    say(f'  <link rel="stylesheet" href="{url}/wendao-graph.css">')
     say('  <div data-wendao-graph data-src="/graph.json" style="height: 520px"></div>')
-    say(f'  <script src="/{folder.name}/wendao-graph.js" defer></script>')
+    say(f'  <script src="{url}/wendao-graph.js" defer></script>')
+    say()
+    say(f"These paths assume you ran this in your site's top folder, so {folder} is served at {url}/. If not, change them.")
     say()
     say("The graph data is a wendao-graph/1 JSON file: make one from BibTeX with `wendao bibtex`, or see docs/EMBED.md.")
 
