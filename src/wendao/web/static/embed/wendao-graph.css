@@ -79,5 +79,13 @@ html.wg-locked, html.wg-locked body { overflow: hidden; }
 @media (max-width: 560px) {
   .wg-card { left: 8px; right: 8px; top: auto; bottom: 44px; width: auto; max-height: 46%; }
   .wg-hint { display: none; }
+  /* Room for the legend on one line: the credit moves to the top-left, where the hint is on larger screens. */
+  .wg-legend { left: 8px; bottom: 8px; max-width: calc(100% - 16px); }
+  .wg-legend button { padding: 3px 7px; }
+  .wg-credit { top: 10px; left: 12px; right: auto; bottom: auto; }
+}
+@media (max-width: 360px) {
+  .wg-legend { gap: 3px; }
+  .wg-legend button { gap: 4px; padding: 3px 5px; font-size: 11px; }
 }
 @media (prefers-reduced-motion: reduce) { .wg-wheel-hint { transition: none; } }

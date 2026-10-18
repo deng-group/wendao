@@ -15,8 +15,8 @@ wendao embed install assets/wendao
 or load it from a Wendao release on jsDelivr (replace the version):
 
 ```html
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/deng-group/wendao@v0.4.0/src/wendao/web/static/embed/wendao-graph.css">
-<script src="https://cdn.jsdelivr.net/gh/deng-group/wendao@v0.4.0/src/wendao/web/static/embed/wendao-graph.js" defer></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/deng-group/wendao@v0.4.1/src/wendao/web/static/embed/wendao-graph.css">
+<script src="https://cdn.jsdelivr.net/gh/deng-group/wendao@v0.4.1/src/wendao/web/static/embed/wendao-graph.js" defer></script>
 ```
 
 ## 2. Place the graph
