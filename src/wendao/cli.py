@@ -9,6 +9,7 @@ import sys
 import threading
 import time
 import webbrowser
+from collections import Counter
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -549,6 +550,55 @@ def cmd_serve(args: argparse.Namespace) -> None:
 # course-website widget --------------------------------------------------------------------------
 
 
+def cmd_embed(args: argparse.Namespace) -> None:
+    import shutil
+
+    from wendao import __version__
+    from wendao.web import STATIC_DIR
+
+    folder = Path(args.folder)
+    folder.mkdir(parents=True, exist_ok=True)
+    for name in ("wendao-graph.js", "wendao-graph.css"):
+        shutil.copyfile(STATIC_DIR / "embed" / name, folder / name)
+    say(f"Copied wendao-graph.js and wendao-graph.css (Wendao {__version__}) to {folder}.")
+    # The address the site serves the folder at: the folder as given, from the site's top folder.
+    given = Path(args.folder)
+    url = "/" + given.as_posix().removeprefix("./").strip("/") if not given.is_absolute() else f"/{folder.name}"
+    say("Put this where the graph should appear:")
+    say()
+    say(f'  <link rel="stylesheet" href="{url}/wendao-graph.css">')
+    say('  <div data-wendao-graph data-src="/graph.json" style="height: 520px"></div>')
+    say(f'  <script src="{url}/wendao-graph.js" defer></script>')
+    say()
+    say(f"These paths assume you ran this in your site's top folder, so {folder} is served at {url}/. If not, change them.")
+    say()
+    say("The graph data is a wendao-graph/1 JSON file: make one from BibTeX with `wendao bibtex`, or see docs/EMBED.md.")
+
+
+def cmd_bibtex(args: argparse.Namespace) -> None:
+    from wendao.bibtex import from_file
+
+    themes = {}
+    for item in args.theme or []:
+        keyword, sep, label = item.partition("=")
+        if not sep:
+            raise ValueError(f'--theme needs "keyword=Theme name", not "{item}".')
+        themes[keyword.strip()] = label.strip() or None
+    for keyword in args.skip or []:
+        themes[keyword.strip()] = None
+    graph = from_file(Path(args.file), themes=themes, me=args.me or "", min_shared=args.min_shared)
+    counts = Counter(node["type"] for node in graph["nodes"])
+    output = Path(args.output)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps(graph, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    say(f"{counts['paper']} papers, {counts['theme']} themes, {counts['person']} collaborators, "
+        f"{len(graph['edges'])} links -> {output}")
+    if not counts["theme"]:
+        say("  No themes: add a `keywords = {...}` field to your BibTeX entries.")
+    if not args.me and counts["person"]:
+        say("  Tip: add --me \"Your Name\" to leave yourself out of the collaborators.")
+
+
 def cmd_widget(args: argparse.Namespace) -> None:
     from wendao.web.site_widget import install, remove
 
@@ -766,6 +816,21 @@ def build_parser() -> argparse.ArgumentParser:
     doctor.add_argument("--add-questions", action="store_true",
                         help="first let your AI model write test questions from your notes and add them to questions.json")
     doctor.set_defaults(func=cmd_doctor)
+
+    embed = commands.add_parser("embed", help="put the graph on any website, with no server (copies the two embed files)")
+    embed.add_argument("action", choices=["install"], help="install: copy wendao-graph.js and .css into a folder of your site")
+    embed.add_argument("folder", help="a folder of your website, for example assets/wendao")
+    embed.set_defaults(func=cmd_embed)
+
+    bibtex = commands.add_parser("bibtex", help="make a publication graph (themes, papers, collaborators) from a BibTeX file")
+    bibtex.add_argument("file", help="the .bib file")
+    bibtex.add_argument("-o", "--output", default="graph.json", help="where to write the graph (default: graph.json)")
+    bibtex.add_argument("--me", help="your name as in the BibTeX authors, left out of the collaborators")
+    bibtex.add_argument("--min-shared", type=int, default=3, help="joint papers a co-author needs to appear (default: 3)")
+    bibtex.add_argument("--theme", action="append", metavar="KEYWORD=NAME",
+                        help='name a theme, e.g. --theme "mof=MOFs" (repeat for more)')
+    bibtex.add_argument("--skip", action="append", metavar="KEYWORD", help="a keyword that is not a theme (repeat for more)")
+    bibtex.set_defaults(func=cmd_bibtex)
 
     widget = commands.add_parser("widget", help="add the chat widget to a built course website (MyST, Jupyter Book, ...)")
     widget.add_argument("action", choices=["install", "remove"], help="install: add it to every page; remove: take it out")

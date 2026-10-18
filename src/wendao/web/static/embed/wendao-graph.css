@@ -1,0 +1,83 @@
+/*! Wendao graph embed (https://github.com/deng-group/wendao). Everything is scoped under .wg.
+ *  Colours follow the page; override with --wendao-graph-text, --wendao-graph-bg, --wendao-graph-link,
+ *  --wendao-graph-link-active, --wendao-graph-<type> (for example --wendao-graph-paper), and the height with
+ *  --wendao-graph-height (or a height on the element). */
+.wg {
+  --wg-line: color-mix(in srgb, var(--wg-text, #222) 14%, transparent);
+  --wg-muted: color-mix(in srgb, var(--wg-text, #222) 62%, transparent);
+  --wg-panel: color-mix(in srgb, var(--wg-bg, #fff) 94%, var(--wg-text, #222) 6%);
+  position: relative;
+  height: var(--wendao-graph-height, 520px);
+  min-height: 280px;
+  overflow: hidden;
+  border: 1px solid var(--wg-line);
+  border-radius: 12px;
+  color: var(--wg-text, inherit);
+  background: radial-gradient(circle at 42% 42%, color-mix(in srgb, var(--wendao-graph-glow, #2f5bff) 6%, transparent), transparent 42%), var(--wg-bg, transparent);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+.wg canvas { display: block; width: 100%; height: 100%; touch-action: pan-y; cursor: default; }
+.wg.wg-full canvas { touch-action: none; }
+.wg button { font: inherit; color: inherit; }
+
+.wg-legend { position: absolute; left: 10px; bottom: 10px; display: flex; flex-wrap: wrap; gap: 4px; max-width: calc(100% - 120px); }
+.wg-legend button, .wg-controls button {
+  border: 1px solid var(--wg-line); border-radius: 8px; background: var(--wg-panel); cursor: pointer;
+}
+.wg-legend button { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; font-size: 12px; font-weight: 600; }
+.wg-legend button[aria-pressed="false"] { opacity: .45; }
+.wg-legend i, .wg-kind i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; }
+
+.wg-controls { position: absolute; top: 10px; right: 10px; display: flex; flex-direction: column; gap: 4px; }
+.wg-controls button { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; font-size: 17px; line-height: 1; }
+.wg-controls svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+.wg-legend button:hover, .wg-controls button:hover { border-color: color-mix(in srgb, var(--wg-text, #222) 35%, transparent); }
+
+.wg-hint { position: absolute; top: 10px; left: 12px; margin: 0; max-width: calc(100% - 70px); color: var(--wg-muted); font-size: 12px; pointer-events: none; }
+.wg-hint-touch { display: none; }
+@media (hover: none) { .wg-hint-mouse { display: none; } .wg-hint-touch { display: inline; } }
+.wg-active .wg-hint, .wg-full .wg-hint { opacity: .5; }
+
+.wg-credit { position: absolute; right: 10px; bottom: 8px; margin: 0; color: var(--wg-muted); font-size: 11px; }
+.wg-credit a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+
+.wg-wheel-hint {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); padding: 7px 12px; border-radius: 8px;
+  color: var(--wg-bg, #fff); background: color-mix(in srgb, var(--wg-text, #222) 82%, transparent); font-size: 13px;
+  opacity: 0; transition: opacity .2s; pointer-events: none;
+}
+.wg-wheel-hint.wg-show { opacity: 1; }
+
+.wg-card {
+  position: absolute; left: 10px; top: 36px; width: min(340px, calc(100% - 64px)); max-height: calc(100% - 92px); overflow: auto;
+  padding: 12px 14px; border: 1px solid var(--wg-line); border-radius: 10px; background: var(--wg-bg, #fff);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .12); overscroll-behavior: contain;
+}
+.wg-card[hidden] { display: none; }
+.wg-card-close { position: absolute; top: 4px; right: 6px; width: 26px; height: 26px; border: 0; background: none; color: var(--wg-muted); cursor: pointer; font-size: 20px; line-height: 1; }
+.wg-card h3 { margin: 2px 22px 6px 0; font-size: 15px; line-height: 1.35; }
+.wg-card h3 a, .wg-card li a { color: inherit; text-decoration: underline; text-decoration-color: var(--wg-line); text-underline-offset: 2px; }
+.wg-card h3 a:hover, .wg-card li a:hover { text-decoration-color: currentColor; }
+.wg-card p { margin: 4px 0; }
+.wg-kind { display: flex; align-items: center; gap: 6px; color: var(--wg-muted); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.wg-field, .wg-count, .wg-more { color: var(--wg-muted); font-size: 13px; }
+.wg-field-venue { font-style: italic; }
+.wg-card ul { margin: 6px 0 0; padding-left: 18px; font-size: 13px; }
+.wg-card li { margin: 3px 0; }
+.wg-card li span { color: var(--wg-muted); }
+.wg-card li button, .wg-tags button { padding: 0; border: 0; background: none; cursor: pointer; text-align: left; text-decoration: underline; text-decoration-color: var(--wg-line); }
+.wg-tags { display: flex; flex-wrap: wrap; gap: 4px 8px; font-size: 12px; }
+.wg-tags button { color: var(--wg-muted); }
+.wg-error { padding: 16px; color: var(--wg-muted); }
+
+/* Full screen without the Fullscreen API (iPhone Safari): fill the window. */
+.wg.wg-window { position: fixed; inset: 0; z-index: 2147483000; height: auto; border: 0; border-radius: 0; }
+.wg.wg-full { background: var(--wg-bg, #fff); }
+html.wg-locked, html.wg-locked body { overflow: hidden; }
+
+@media (max-width: 560px) {
+  .wg-card { left: 8px; right: 8px; top: auto; bottom: 44px; width: auto; max-height: 46%; }
+  .wg-hint { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .wg-wheel-hint { transition: none; } }
