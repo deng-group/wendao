@@ -114,6 +114,12 @@ You decide how the AI answers: write your own instructions in `AGENTS.md`, and w
 helps with graded work without solving it. You decide who pays for AI answers: your key (with a daily limit per student and optional sign-in), each student's
 own key, or either. See [How students use AI](https://github.com/deng-group/wendao/blob/main/docs/GUIDE.md#7-how-students-use-ai).
 
+## A graph on any website
+
+Not only for courses: the graph embed shows any knowledge graph inside an ordinary web page, with no server. For
+example, a publication graph made from a BibTeX file with `wendao bibtex`. See
+[docs/EMBED.md](https://github.com/deng-group/wendao/blob/main/docs/EMBED.md).
+
 ## Commands
 
 | Command | What it does |
@@ -125,6 +131,8 @@ own key, or either. See [How students use AI](https://github.com/deng-group/wend
 | `wendao serve` | Run the course website (`--widget`: the API for the chat widget) |
 | `wendao export` | Put the knowledge graph in one HTML file |
 | `wendao widget install _build/html` | Add the chat widget to every page of a built course website |
+| `wendao embed install assets/wendao` | Put a graph on any website, with no server ([how](https://github.com/deng-group/wendao/blob/main/docs/EMBED.md)) |
+| `wendao bibtex papers.bib` | Make a publication graph (themes, papers, collaborators) from a BibTeX file, for the embed |
 | `wendao insights` | See what students ask about, and which questions your notes couldn't answer |
 | `wendao feedback` | See which answers students marked as not helpful, and why |
 | `wendao students` | See your class list and how many questions each student asked |
